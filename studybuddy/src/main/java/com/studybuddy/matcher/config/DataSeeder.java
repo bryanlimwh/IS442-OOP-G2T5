@@ -1,0 +1,25 @@
+package com.studybuddy.matcher.config;
+
+import com.studybuddy.matcher.domain.Admin;
+import com.studybuddy.matcher.repository.AdminRepository;
+import org.springframework.boot.CommandLineRunner;
+import org.springframework.stereotype.Component;
+
+@Component
+public class DataSeeder implements CommandLineRunner {
+
+    private final AdminRepository adminRepository;
+
+    public DataSeeder(AdminRepository adminRepository) {
+        this.adminRepository = adminRepository;
+    }
+
+    @Override
+    public void run(String... args) {
+        if (adminRepository.count() == 0) {
+            Admin admin = new Admin("admin@studybuddy.com", "temp-password-hash");
+            adminRepository.save(admin);
+            System.out.println("Seeded test admin: " + admin.getDisplayName());
+        }
+    }
+}
