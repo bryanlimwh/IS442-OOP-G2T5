@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Study Buddy Matcher</title>
+
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body>
+    <header>
+        <h1>Study Buddy Matcher System</h1>
+    </header>
+
+    <main>
+        <!-- Retrieves the "username" attribute from the model -->
+        <h2>Welcome, <span th:text="${username}">Student</span>!</h2>
+
+        <p>Find compatible study buddies and study groups.</p>
+
+        <nav>
+            <a th:href="@{/student/profile}">My Profile</a>
+            <a th:href="@{/matches}">Find Study Buddies</a>
+            <a th:href="@{/requests}">Match Requests</a>
+            <a th:href="@{/groups}">Study Groups</a>
+        </nav>
+    </main>
+</body>
+</html>
