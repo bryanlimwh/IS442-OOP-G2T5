@@ -1,7 +1,8 @@
 package com.studybuddy.matcher.config;
 
-import com.studybuddy.matcher.domain.Admin;
-import com.studybuddy.matcher.repository.AdminRepository;
+import com.studybuddy.domain.Admin;
+import com.studybuddy.repository.AdminRepository;
+
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
 
