@@ -1,7 +1,8 @@
-package com.studybuddy.matcher.repository;
+package com.studybuddy.repository;
 
-import com.studybuddy.matcher.domain.Admin;
 import org.springframework.data.jpa.repository.JpaRepository;
+
+import com.studybuddy.domain.Admin;
 
 public interface AdminRepository extends JpaRepository<Admin, Long> {
 }

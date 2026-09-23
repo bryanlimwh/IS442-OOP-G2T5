@@ -1,6 +1,7 @@
-package com.studybuddy.matcher.domain;
+package com.studybuddy.domain;
 
-import com.studybuddy.matcher.domain.enums.Role;
+import com.studybuddy.domain.enums.Role;
+
 import jakarta.persistence.DiscriminatorValue;
 import jakarta.persistence.Entity;
 

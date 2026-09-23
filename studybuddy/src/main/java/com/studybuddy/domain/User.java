@@ -1,6 +1,5 @@
-package com.studybuddy.matcher.domain;
+package com.studybuddy.domain;
 
-import com.studybuddy.matcher.domain.enums.Role;
 import jakarta.persistence.DiscriminatorColumn;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -12,6 +11,8 @@ import jakarta.persistence.Table;
 
 import java.time.LocalDateTime;
 import java.util.Objects;
+
+import com.studybuddy.domain.enums.Role;
 
 /**
  * Abstract base class for all system accounts (Student, Admin).

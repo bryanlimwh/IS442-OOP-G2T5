@@ -1,7 +1,8 @@
-package com.studybuddy.matcher.repository;
+package com.studybuddy.repository;
 
-import com.studybuddy.matcher.domain.User;
 import org.springframework.data.jpa.repository.JpaRepository;
+
+import com.studybuddy.domain.User;
 
 public interface UserRepository extends JpaRepository<User, Long> {
     User findByEmail(String email);
