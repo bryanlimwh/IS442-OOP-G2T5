@@ -1,4 +1,4 @@
-package com.studybuddy.entity;
+package com.studybuddy.domain;
 
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;

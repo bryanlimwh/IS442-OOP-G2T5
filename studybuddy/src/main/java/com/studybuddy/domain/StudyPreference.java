@@ -1,4 +1,4 @@
-package com.studybuddy.entity;
+package com.studybuddy.domain;
 
 import java.util.ArrayList;
 import java.util.List;

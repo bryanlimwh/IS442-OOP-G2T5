@@ -2,7 +2,7 @@ package com.studybuddy.config;
 
 import java.util.List;
 
-import com.studybuddy.entity.Course;
+import com.studybuddy.domain.Course;
 import com.studybuddy.repository.CourseRepository;
 
 import org.springframework.boot.CommandLineRunner;
