@@ -4,14 +4,16 @@ import com.studybuddy.domain.Admin;
 import com.studybuddy.repository.AdminRepository;
 
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
 @Component
-public class DataSeeder implements CommandLineRunner {
+@Order(0)
+public class AdminDataSeeder implements CommandLineRunner {
 
     private final AdminRepository adminRepository;
 
-    public DataSeeder(AdminRepository adminRepository) {
+    public AdminDataSeeder(AdminRepository adminRepository) {
         this.adminRepository = adminRepository;
     }
 
