@@ -52,6 +52,13 @@ public class StudyPreference {
     protected StudyPreference() {
     }
 
+    public StudyPreference(Course course, StudyMode studyMode, Arrangement arrangement, StudyGoal studyGoal) {
+        this.course = course;
+        this.studyMode = studyMode;
+        this.arrangement = arrangement;
+        this.studyGoal = studyGoal;
+    }
+
     // ---- Getters / Setters (no Lombok in this project) ----
 
     public Long getId() {

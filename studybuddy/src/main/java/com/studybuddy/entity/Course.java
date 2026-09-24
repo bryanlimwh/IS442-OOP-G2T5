@@ -25,6 +25,11 @@ public class Course {
     protected Course() {
     }
 
+    public Course(String courseCode, String courseName) {
+        this.courseCode = courseCode;
+        this.courseName = courseName;
+    }
+
     // ---- Getters / Setters (no Lombok in this project) ----
 
     public Long getCourseId() {

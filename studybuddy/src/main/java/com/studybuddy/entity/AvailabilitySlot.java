@@ -33,6 +33,12 @@ public class AvailabilitySlot {
     protected AvailabilitySlot() {
     }
 
+    public AvailabilitySlot(DayOfWeek dayOfWeek, LocalTime startTime, LocalTime endTime) {
+        this.dayOfWeek = dayOfWeek;
+        this.startTime = startTime;
+        this.endTime = endTime;
+    }
+
     /**
      * True if this slot and the other fall on the same day and their
      * time ranges intersect. Slots that merely touch (one ends exactly
