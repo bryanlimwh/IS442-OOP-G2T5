@@ -97,6 +97,12 @@ public class StudyPreference {
         this.studyGoal = studyGoal;
     }
 
+    // Sets both sides of the relationship so the slot's foreign key is never null.
+    public void addAvailabilitySlot(AvailabilitySlot slot) {
+        slot.setStudyPreference(this);
+        this.availabilitySlots.add(slot);
+    }
+
     public List<AvailabilitySlot> getAvailabilitySlots() {
         return availabilitySlots;
     }

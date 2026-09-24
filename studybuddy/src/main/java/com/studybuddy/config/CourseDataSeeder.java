@@ -9,7 +9,7 @@ import org.springframework.boot.CommandLineRunner;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
-// Runs first: StudyPreferenceDataSeeder needs these courses to exist.
+// Runs before StudyPreferenceDataSeeder, which needs these courses to exist.
 @Component
 @Order(1)
 public class CourseDataSeeder implements CommandLineRunner {
