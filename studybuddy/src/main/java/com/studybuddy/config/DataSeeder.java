@@ -1,4 +1,4 @@
-package com.studybuddy.matcher.config;
+package com.studybuddy.config;
 
 import com.studybuddy.domain.Admin;
 import com.studybuddy.repository.AdminRepository;
