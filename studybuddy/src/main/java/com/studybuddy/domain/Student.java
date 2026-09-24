@@ -35,11 +35,9 @@ public class Student extends User {
             inverseJoinColumns = @JoinColumn(name = "course_id"))
     private List<Course> coursesTaken = new ArrayList<>();
 
-    // One-to-many: plain student_id FK on study_preference, no join table.
-    // Unidirectional for now: switch to mappedBy = "student" once
-    // StudyPreference gets its own @ManyToOne Student field.
-    @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)
-    @JoinColumn(name = "student_id")
+    // One-to-many: inverse side of StudyPreference.student, which owns the
+    // student_id FK. No join table needed.
+    @OneToMany(mappedBy = "student", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<StudyPreference> preferences = new ArrayList<>();
 
     // PENDING: groupsLed (List<StudyGroup>), isLeaderOf(StudyGroup) and isLeader() are waiting on StudyGroup's creation.
@@ -66,6 +64,7 @@ public class Student extends User {
     // ---- Behaviour ----
 
     public void addPreference(StudyPreference pref) {
+        pref.setStudent(this);
         preferences.add(pref);
     }
 

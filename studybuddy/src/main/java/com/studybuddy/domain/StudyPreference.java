@@ -43,8 +43,9 @@ public class StudyPreference {
     @OneToMany(mappedBy = "studyPreference", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<AvailabilitySlot> availabilitySlots = new ArrayList<>();
 
-    // PENDING: @ManyToOne Student field (the student this preference belongs to)
-    // is waiting on Student's creation.
+    // Owning side of the relationship: this is where the student_id FK lives.
+    @ManyToOne
+    private Student student;
 
     /**
      * No-arg constructor required by JPA.
@@ -109,5 +110,13 @@ public class StudyPreference {
 
     public void setAvailabilitySlots(List<AvailabilitySlot> availabilitySlots) {
         this.availabilitySlots = availabilitySlots;
+    }
+
+    public Student getStudent() {
+        return student;
+    }
+
+    public void setStudent(Student student) {
+        this.student = student;
     }
 }

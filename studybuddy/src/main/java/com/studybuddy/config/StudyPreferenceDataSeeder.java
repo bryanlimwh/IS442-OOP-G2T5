@@ -6,39 +6,49 @@ import java.util.List;
 
 import com.studybuddy.domain.AvailabilitySlot;
 import com.studybuddy.domain.Course;
+import com.studybuddy.domain.Student;
 import com.studybuddy.domain.StudyPreference;
 import com.studybuddy.domain.enums.Arrangement;
 import com.studybuddy.domain.enums.StudyGoal;
 import com.studybuddy.domain.enums.StudyMode;
 import com.studybuddy.repository.CourseRepository;
+import com.studybuddy.repository.StudentRepository;
 import com.studybuddy.repository.StudyPreferenceRepository;
 
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
-// Runs after CourseDataSeeder. Also seeds each preference's AvailabilitySlots:
+// Runs after CourseDataSeeder and StudentDataSeeder, both of which this
+// seeder depends on. Also seeds each preference's AvailabilitySlots:
 // StudyPreference cascades ALL to its slots, so saving the preference saves
 // the slots too and no separate AvailabilitySlot seeder is needed.
-// These preferences are not linked to any student yet (StudyPreference has no
-// Student field until Student is created).
+// All seeded preferences are attached to the one seeded student.
 @Component
-@Order(2)
+@Order(3)
 public class StudyPreferenceDataSeeder implements CommandLineRunner {
 
     private final StudyPreferenceRepository studyPreferenceRepository;
     private final CourseRepository courseRepository;
+    private final StudentRepository studentRepository;
 
     public StudyPreferenceDataSeeder(StudyPreferenceRepository studyPreferenceRepository,
-            CourseRepository courseRepository) {
+            CourseRepository courseRepository, StudentRepository studentRepository) {
         this.studyPreferenceRepository = studyPreferenceRepository;
         this.courseRepository = courseRepository;
+        this.studentRepository = studentRepository;
     }
 
+    // Transactional so the fetched Student's lazy `preferences` collection
+    // stays attached to an open Hibernate session across the fetch, the
+    // addPreference() mutations below, and the final save.
     @Override
+    @Transactional
     public void run(String... args) {
         List<Course> courses = courseRepository.findAll();
-        if (studyPreferenceRepository.count() == 0 && courses.size() >= 5) {
+        Student student = studentRepository.findAll().stream().findFirst().orElse(null);
+        if (studyPreferenceRepository.count() == 0 && courses.size() >= 5 && student != null) {
             StudyPreference p1 = new StudyPreference(courses.get(0),
                     StudyMode.IN_PERSON, Arrangement.ONE_TO_ONE, StudyGoal.CONCEPT_REVIEW);
             addSlot(p1, DayOfWeek.MONDAY, 10, 12);
@@ -58,8 +68,10 @@ public class StudyPreferenceDataSeeder implements CommandLineRunner {
             addSlot(p4, DayOfWeek.FRIDAY, 13, 15);
 
             List<StudyPreference> preferences = List.of(p1, p2, p3, p4);
-            studyPreferenceRepository.saveAll(preferences);
-            System.out.println("Seeded " + preferences.size() + " study preferences with availability slots");
+            preferences.forEach(student::addPreference);
+            studentRepository.save(student);
+            System.out.println("Seeded " + preferences.size() + " study preferences with availability slots for "
+                    + student.getDisplayName());
         }
     }
 
