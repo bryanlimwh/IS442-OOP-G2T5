@@ -1,0 +1,148 @@
+package com.studybuddy.domain;
+
+import java.time.LocalDateTime;
+
+import com.studybuddy.domain.enums.MembershipStatus;
+
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
+
+/**
+ * Association class linking a {@link Student} to a {@link StudyGroup}. It
+ * records where that link stands (pending, accepted, rejected or removed)
+ * and when the request was made and answered.
+ * <p>
+ * The constructor and status changes are package-private, so every change
+ * goes through {@link StudyGroup}, which checks the group's rules first.
+ * A student has at most one row per group; asking again reuses that row.
+ */
+@Entity
+@Table(uniqueConstraints = @UniqueConstraint(columnNames = {"student_id", "study_group_id"}))
+public class GroupMembership {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long membershipId;
+
+    @ManyToOne
+    @JoinColumn(name = "student_id", nullable = false)
+    private Student student;
+
+    // Owning side of StudyGroup.memberships: this is where the study_group_id FK lives.
+    @ManyToOne
+    @JoinColumn(name = "study_group_id", nullable = false)
+    private StudyGroup studyGroup;
+
+    @Enumerated(EnumType.STRING)
+    private MembershipStatus status;
+
+    private LocalDateTime requestedAt;  // the time the student asked to join; reset on a re-request
+    private LocalDateTime respondedAt;  // the time the leader accepted or rejected; null while pending
+
+    /**
+     * No-arg constructor required by JPA.
+     */
+    protected GroupMembership() {
+    }
+
+    /**
+     * Creates a pending request. Only {@link StudyGroup} calls this.
+     */
+    GroupMembership(Student student, StudyGroup studyGroup) {
+        this.student = student;
+        this.studyGroup = studyGroup;
+        this.status = MembershipStatus.PENDING;
+        this.requestedAt = LocalDateTime.now();
+    }
+
+    // ---- Behaviour ----
+
+    /**
+     * PENDING -> ACCEPTED.
+     */
+    void accept() {
+        requireStatus(MembershipStatus.PENDING, "accept");
+        this.status = MembershipStatus.ACCEPTED;
+        this.respondedAt = LocalDateTime.now();
+    }
+
+    /**
+     * PENDING -> REJECTED.
+     */
+    void reject() {
+        requireStatus(MembershipStatus.PENDING, "reject");
+        this.status = MembershipStatus.REJECTED;
+        this.respondedAt = LocalDateTime.now();
+    }
+
+    /**
+     * ACCEPTED -> REMOVED. Leaves respondedAt alone so the time the student
+     * was accepted is kept.
+     */
+    void remove() {
+        requireStatus(MembershipStatus.ACCEPTED, "remove");
+        this.status = MembershipStatus.REMOVED;
+    }
+
+    /**
+     * REJECTED or REMOVED -> PENDING, for a student asking to join again.
+     * Starts the request afresh.
+     */
+    void reRequest() {
+        if (status != MembershipStatus.REJECTED && status != MembershipStatus.REMOVED) {
+            throw new IllegalStateException("Cannot re-request a membership that is " + status);
+        }
+        this.status = MembershipStatus.PENDING;
+        this.requestedAt = LocalDateTime.now();
+        this.respondedAt = null;
+    }
+
+    public boolean isPending() {
+        return status == MembershipStatus.PENDING;
+    }
+
+    public boolean isAccepted() {
+        return status == MembershipStatus.ACCEPTED;
+    }
+
+    private void requireStatus(MembershipStatus expected, String action) {
+        if (status != expected) {
+            throw new IllegalStateException("Cannot " + action + " a membership that is " + status);
+        }
+    }
+
+    // ---- Getters (no Lombok in this project) ----
+    // No setters: status and timestamps only change through the methods above.
+
+    public Long getMembershipId() {
+        return membershipId;
+    }
+
+    public Student getStudent() {
+        return student;
+    }
+
+    public StudyGroup getStudyGroup() {
+        return studyGroup;
+    }
+
+    public MembershipStatus getStatus() {
+        return status;
+    }
+
+    public LocalDateTime getRequestedAt() {
+        return requestedAt;
+    }
+
+    public LocalDateTime getRespondedAt() {
+        return respondedAt;
+    }
+}
