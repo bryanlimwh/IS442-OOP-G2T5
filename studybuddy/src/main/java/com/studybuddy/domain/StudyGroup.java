@@ -87,7 +87,8 @@ public class StudyGroup {
     }
 
     /**
-     * Creates an ACTIVE group and makes the leader its first ACCEPTED member.
+     * Creates an ACTIVE group, makes the leader its first ACCEPTED member and
+     * adds the group to the leader's groupsLed.
      *
      * @throws IllegalArgumentException if the name is blank or maxSize is below 2
      */
@@ -108,6 +109,9 @@ public class StudyGroup {
         GroupMembership leaderMembership = new GroupMembership(leader, this);
         leaderMembership.accept();
         memberships.add(leaderMembership);
+
+        // Keep the other side of the relationship in step, so leader.isLeader() is true straight away.
+        leader.addGroupLed(this);
     }
 
     // ---- Behaviour ----

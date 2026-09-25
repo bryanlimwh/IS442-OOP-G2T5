@@ -1,6 +1,7 @@
 package com.studybuddy.domain;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import com.studybuddy.domain.enums.Role;
@@ -40,8 +41,10 @@ public class Student extends User {
     @OneToMany(mappedBy = "student", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<StudyPreference> preferences = new ArrayList<>();
 
-    // PENDING: groupsLed (List<StudyGroup>), isLeaderOf(StudyGroup) and isLeader() are waiting on StudyGroup's creation.
-    // isLeader() should be computed as !groupsLed.isEmpty(), not stored.
+    // One-to-many: inverse side of StudyGroup.leader, which owns the leader_id FK.
+    // Only StudyGroup's constructor adds to it, via addGroupLed().
+    @OneToMany(mappedBy = "leader")
+    private List<StudyGroup> groupsLed = new ArrayList<>();
 
     /**
      * No-arg constructor required by JPA.
@@ -70,6 +73,25 @@ public class Student extends User {
 
     public void addCourse(Course course) {
         coursesTaken.add(course);
+    }
+
+    // Keeps this side in step with StudyGroup.leader.
+    // Package-private (no "public") so only StudyGroup's constructor can call it, which means a group is
+    // only ever added for its real leader. If it were public, a caller could add a group this student
+    // doesn't lead: isLeader() would wrongly return true, and because groupsLed is the mappedBy side,
+    // Hibernate wouldn't save it, so the group would vanish from the list on the next load.
+    void addGroupLed(StudyGroup group) {
+        groupsLed.add(group);
+    }
+
+    // Computed rather than stored, so it can never disagree with groupsLed.
+    // A student whose groups are all closed still counts as a leader.
+    public boolean isLeader() {
+        return !groupsLed.isEmpty();
+    }
+
+    public boolean isLeaderOf(StudyGroup group) {
+        return group.isLedBy(this);
     }
 
     // Implements User's abstract methods so Admin and Student can each answer differently for any code holding a plain User reference.
@@ -131,5 +153,10 @@ public class Student extends User {
 
     public List<StudyPreference> getPreferences() {
         return preferences;
+    }
+
+    // Read-only: new groups are added through the StudyGroup constructor.
+    public List<StudyGroup> getGroupsLed() {
+        return Collections.unmodifiableList(groupsLed);
     }
 }

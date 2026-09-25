@@ -54,7 +54,12 @@ public class GroupMembership {
     }
 
     /**
-     * Creates a pending request. Only {@link StudyGroup} calls this.
+     * Creates a pending request.
+     * <p>
+     * Package-private (no {@code public}) so memberships can only be created
+     * by {@link StudyGroup#requestToJoin} (which checks the group is active,
+     * not full and the student isn't already in it) or by the StudyGroup
+     * constructor for the leader.
      */
     GroupMembership(Student student, StudyGroup studyGroup) {
         this.student = student;
@@ -67,6 +72,10 @@ public class GroupMembership {
 
     /**
      * PENDING -> ACCEPTED.
+     * <p>
+     * Package-private (no {@code public}) so it can only be reached through
+     * {@link StudyGroup#acceptRequest}, which first checks the group is active,
+     * not full and owns this membership.
      */
     void accept() {
         requireStatus(MembershipStatus.PENDING, "accept");
@@ -76,6 +85,10 @@ public class GroupMembership {
 
     /**
      * PENDING -> REJECTED.
+     * <p>
+     * Package-private (no {@code public}) so it can only be reached through
+     * {@link StudyGroup#rejectRequest}, which checks the group owns this
+     * membership, or {@link StudyGroup#close}.
      */
     void reject() {
         requireStatus(MembershipStatus.PENDING, "reject");
@@ -86,6 +99,9 @@ public class GroupMembership {
     /**
      * ACCEPTED -> REMOVED. Leaves respondedAt alone so the time the student
      * was accepted is kept.
+     * <p>
+     * Package-private (no {@code public}) so it can only be reached through
+     * {@link StudyGroup#removeMember}, which stops the leader from being removed.
      */
     void remove() {
         requireStatus(MembershipStatus.ACCEPTED, "remove");
@@ -95,6 +111,10 @@ public class GroupMembership {
     /**
      * REJECTED or REMOVED -> PENDING, for a student asking to join again.
      * Starts the request afresh.
+     * <p>
+     * Package-private (no {@code public}) so it can only be reached through
+     * {@link StudyGroup#requestToJoin}, which first checks the group is
+     * active and not full.
      */
     void reRequest() {
         if (status != MembershipStatus.REJECTED && status != MembershipStatus.REMOVED) {
