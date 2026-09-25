@@ -75,10 +75,8 @@ public class StudyPreferenceDataSeeder implements CommandLineRunner {
         }
     }
 
-    // Sets both sides of the relationship so the FK on the slot is populated.
     private void addSlot(StudyPreference preference, DayOfWeek day, int startHour, int endHour) {
-        AvailabilitySlot slot = new AvailabilitySlot(day, LocalTime.of(startHour, 0), LocalTime.of(endHour, 0));
-        slot.setStudyPreference(preference);
-        preference.getAvailabilitySlots().add(slot);
+        preference.addAvailabilitySlot(
+                new AvailabilitySlot(day, LocalTime.of(startHour, 0), LocalTime.of(endHour, 0)));
     }
 }

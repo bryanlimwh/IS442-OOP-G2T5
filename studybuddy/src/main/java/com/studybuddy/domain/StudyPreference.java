@@ -14,6 +14,7 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 
@@ -45,6 +46,7 @@ public class StudyPreference {
 
     // Owning side of the relationship: this is where the student_id FK lives.
     @ManyToOne
+    @JoinColumn(name = "student_id")
     private Student student;
 
     /**
