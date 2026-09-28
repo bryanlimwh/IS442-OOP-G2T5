@@ -25,6 +25,11 @@
             <a th:href="@{/requests}">Match Requests</a>
             <a th:href="@{/groups}">Study Groups</a>
         </nav>
+
+        <!-- Logout must be a POST form (not a link) so it carries Spring Security's CSRF token -->
+        <form class="logout-form" th:action="@{/logout}" method="post">
+            <button type="submit">Log out</button>
+        </form>
     </main>
 </body>
 </html>

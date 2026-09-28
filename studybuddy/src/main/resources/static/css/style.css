@@ -32,3 +32,56 @@ nav a {
     text-decoration: none;
     border-radius: 5px;
 }
+
+/* ---- Login page ---- */
+
+.login-card {
+    max-width: 400px;
+}
+
+.login-form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.login-form input {
+    padding: 0.6rem;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    font-size: 1rem;
+}
+
+.login-form button,
+.logout-form button {
+    padding: 0.8rem 1.2rem;
+    background-color: #243b6b;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    font-size: 1rem;
+    cursor: pointer;
+}
+
+.login-form button {
+    margin-top: 1rem;
+}
+
+.logout-form {
+    margin-top: 2rem;
+}
+
+.message {
+    padding: 0.8rem;
+    border-radius: 5px;
+}
+
+.message.error {
+    background-color: #fdecea;
+    color: #a61b1b;
+}
+
+.message.info {
+    background-color: #e8f0fe;
+    color: #243b6b;
+}

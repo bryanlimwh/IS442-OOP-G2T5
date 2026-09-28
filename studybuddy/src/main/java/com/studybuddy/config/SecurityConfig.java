@@ -3,13 +3,14 @@ package com.studybuddy.config;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
-import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.annotation.web.configurers.HeadersConfigurer;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+
+import com.studybuddy.domain.enums.Role;
 
 @Configuration
 public class SecurityConfig {
@@ -30,17 +31,25 @@ public class SecurityConfig {
     }
 
     /**
-     * Replicates Spring Boot's default security (everything authenticated, form
-     * login + HTTP basic). Needed because defining any SecurityFilterChain bean
-     * makes Boot back off its own default. Replace once real login rules exist.
+     * Rules for the rest of the app: the login page, static files and error
+     * page are public, /admin/** is for admins only, and every other page
+     * needs a logged-in user. Accounts are looked up by AuthService.
      */
     @Bean
     @Order(2)
     public SecurityFilterChain defaultFilterChain(HttpSecurity http) throws Exception {
         http
-                .authorizeHttpRequests(auth -> auth.anyRequest().authenticated())
-                .formLogin(Customizer.withDefaults())
-                .httpBasic(Customizer.withDefaults());
+                .authorizeHttpRequests(auth -> auth
+                        .requestMatchers("/login", "/error", "/css/**", "/js/**", "/images/**").permitAll()
+                        .requestMatchers("/admin/**").hasRole(Role.ADMIN.name())
+                        .anyRequest().authenticated())
+                .formLogin(form -> form
+                        .loginPage("/login")
+                        .usernameParameter("email")
+                        // Always land on /home, rather than the page that triggered the login redirect.
+                        .defaultSuccessUrl("/home", true))
+                .logout(logout -> logout
+                        .logoutSuccessUrl("/login?logout"));
         return http.build();
     }
 
