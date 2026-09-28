@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<!--
+    Shared top bar for every logged-in page.
+    Usage: <header th:replace="~{fragments/header :: header}"></header>
+-->
+<header th:fragment="header" class="site-header">
+    <a class="wordmark" th:href="@{/home}">Study Buddy Matcher</a>
+
+    <!-- Logout must be a POST form (not a link) so it carries Spring Security's CSRF token -->
+    <form class="logout-form" th:action="@{/logout}" method="post">
+        <button type="submit" class="button button-quiet">Log out</button>
+    </form>
+</header>
+</html>
