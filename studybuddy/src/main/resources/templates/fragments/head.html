@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<!--
+    Shared <head> for every page, so fonts and the stylesheet are set up in one place.
+    Usage: <head th:replace="~{fragments/head :: head('Page title')}"></head>
+-->
+<head th:fragment="head(title)">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title th:text="${title} + ' | Study Buddy Matcher'">Study Buddy Matcher</title>
+
+    <!-- Google Fonts; style.css falls back to system fonts if these can't load (e.g. offline) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet"
+          href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Bricolage+Grotesque:opsz,wght@12..96,500..800&display=swap">
+
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+</html>

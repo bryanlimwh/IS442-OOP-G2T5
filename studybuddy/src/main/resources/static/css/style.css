@@ -1,34 +1,492 @@
+/*
+ * Study Buddy Matcher - shared stylesheet.
+ *
+ * Visual idea: a student's weekly timetable marked with highlighters. Yellow
+ * is "you", blue is another student, and where they overlap the two blend
+ * into green. The highlighter also marks focus and hover states, so the
+ * motif stays consistent across pages without extra decoration.
+ *
+ * Change colours and fonts through the tokens in :root, not in the rules.
+ */
+
+:root {
+    --ink: #1c2541;
+    --ink-soft: #4a5572;
+    --paper: #f4f6fa;
+    --surface: #ffffff;
+    --rule: #d8dde8;
+    --navy: #243b6b;
+    --navy-dark: #1a2c52;
+    --highlight-you: #ffd94a;
+    --highlight-them: #8ec5ff;
+    --highlight-both: #8ea84a; /* what the two highlights look like when multiplied together */
+    --danger: #a1261e;
+    --danger-bg: #fcebea;
+    --info-bg: #e6eefb;
+
+    --font-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+    --font-body: "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", sans-serif;
+
+    /* Type scale, ratio 1.25 */
+    --text-sm: 0.875rem;
+    --text-base: 1rem;
+    --text-md: 1.25rem;
+    --text-lg: 1.563rem;
+    --text-xl: 1.953rem;
+    --text-2xl: 2.441rem;
+    --text-3xl: 3.052rem;
+
+    --radius: 6px;
+    --timetable-row: 2.25rem;
+}
+
+/* ---- Base ---- */
+
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+}
+
 body {
-    font-family: Arial, sans-serif;
     margin: 0;
-    background-color: #f4f6f8;
-    color: #222;
+    background-color: var(--paper);
+    color: var(--ink);
+    font-family: var(--font-body);
+    font-size: var(--text-base);
+    line-height: 1.55;
 }
 
-header {
-    background-color: #243b6b;
-    color: white;
-    padding: 1rem 2rem;
+h1,
+h2,
+h3 {
+    margin: 0 0 0.5em;
+    font-family: var(--font-display);
+    font-weight: 700;
+    line-height: 1.15;
+    letter-spacing: -0.01em;
+    overflow-wrap: break-word; /* long unbroken text (e.g. an email) wraps instead of overflowing */
 }
 
-main {
-    max-width: 900px;
-    margin: 2rem auto;
-    padding: 2rem;
-    background-color: white;
-    border-radius: 8px;
+h1 {
+    font-size: var(--text-2xl);
 }
 
-nav {
-    display: flex;
-    gap: 1rem;
-    flex-wrap: wrap;
+h2 {
+    font-size: var(--text-xl);
 }
 
-nav a {
-    padding: 0.8rem 1.2rem;
-    background-color: #243b6b;
-    color: white;
+h3 {
+    font-size: var(--text-md);
+}
+
+p {
+    margin: 0 0 1em;
+    max-width: 65ch;
+}
+
+a {
+    color: var(--navy);
+}
+
+/* Keyboard focus looks like a highlighter mark, matching the rest of the design */
+:focus-visible {
+    outline: 3px solid var(--highlight-you);
+    outline-offset: 2px;
+}
+
+.lead {
+    font-size: var(--text-md);
+    color: var(--ink-soft);
+}
+
+.muted {
+    color: var(--ink-soft);
+    font-size: var(--text-sm);
+}
+
+.wordmark {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: var(--text-md);
+    font-weight: 800;
+    color: var(--ink);
     text-decoration: none;
-    border-radius: 5px;
+    letter-spacing: -0.02em;
+}
+
+/* ---- Top bar (fragments/header.html) ---- */
+
+.site-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.75rem clamp(1rem, 4vw, 2.5rem);
+    background-color: var(--surface);
+    border-bottom: 1px solid var(--rule);
+}
+
+.logout-form {
+    margin: 0;
+}
+
+/* ---- Page content ---- */
+
+.page {
+    max-width: 48rem;
+    margin: 0 auto;
+    padding: clamp(2rem, 6vw, 4rem) clamp(1rem, 4vw, 2.5rem);
+}
+
+/* ---- Buttons ---- */
+
+.button {
+    display: inline-block;
+    padding: 0.7rem 1.25rem;
+    border: 1px solid transparent;
+    border-radius: var(--radius);
+    font-family: var(--font-body);
+    font-size: var(--text-base);
+    font-weight: 700;
+    line-height: 1.2;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.button-primary {
+    background-color: var(--navy);
+    color: var(--surface);
+}
+
+.button-primary:hover {
+    background-color: var(--navy-dark);
+}
+
+.button-quiet {
+    background-color: transparent;
+    border-color: var(--rule);
+    color: var(--ink);
+}
+
+.button-quiet:hover {
+    border-color: var(--ink-soft);
+}
+
+/* ---- Forms ---- */
+
+.form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.form label {
+    font-weight: 700;
+}
+
+.form input {
+    width: 100%;
+    margin-bottom: 0.8rem;
+    padding: 0.7rem 0.8rem;
+    border: 1px solid var(--rule);
+    border-radius: var(--radius);
+    background-color: var(--surface);
+    color: var(--ink);
+    font-family: var(--font-body);
+    font-size: var(--text-base);
+}
+
+.form input:hover {
+    border-color: var(--ink-soft);
+}
+
+.form .button {
+    margin-top: 0.4rem;
+}
+
+/* ---- Messages ---- */
+
+.message {
+    margin-bottom: 1.25rem;
+    padding: 0.8rem 1rem;
+    border-left: 4px solid;
+    border-radius: 0 var(--radius) var(--radius) 0;
+}
+
+.message.error {
+    background-color: var(--danger-bg);
+    border-color: var(--danger);
+    color: var(--danger);
+}
+
+.message.info {
+    background-color: var(--info-bg);
+    border-color: var(--navy);
+    color: var(--navy);
+}
+
+/* ---- Login page (auth/login.html) ---- */
+
+.auth-page {
+    display: grid;
+    grid-template-columns: 1.25fr 1fr;
+    min-height: 100vh;
+}
+
+.auth-intro {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: clamp(2rem, 6vw, 5rem);
+}
+
+.auth-intro .wordmark {
+    margin-bottom: 2rem;
+}
+
+.display {
+    max-width: 14ch;
+    font-size: var(--text-3xl);
+    font-weight: 800;
+    line-height: 1.05;
+    letter-spacing: -0.03em;
+}
+
+.auth-form-panel {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: clamp(2rem, 6vw, 5rem);
+    background-color: var(--surface);
+    border-left: 1px solid var(--rule);
+}
+
+.auth-form-panel > * {
+    width: 100%;
+    max-width: 22rem;
+}
+
+.auth-form-panel .button-primary {
+    width: 100%;
+}
+
+/* ---- Timetable illustration ---- */
+
+.timetable-figure {
+    max-width: 30rem;
+    margin: 1.5rem 0 0;
+}
+
+.timetable {
+    display: grid;
+    grid-template-columns: 2.75rem repeat(5, 1fr);
+    grid-template-rows: auto repeat(7, var(--timetable-row));
+    /* Keeps the highlighter blending inside the timetable */
+    isolation: isolate;
+}
+
+.timetable .day {
+    grid-row: 1;
+    padding-bottom: 0.35rem;
+    font-size: var(--text-sm);
+    font-weight: 700;
+    text-align: center;
+    color: var(--ink-soft);
+}
+
+.timetable .hour {
+    grid-column: 1;
+    font-size: var(--text-sm);
+    line-height: 1;
+    color: var(--ink-soft);
+    transform: translateY(-0.45em);
+}
+
+.timetable-grid {
+    grid-column: 2 / -1;
+    grid-row: 2 / -1;
+    background-color: var(--surface);
+    background-image:
+        linear-gradient(var(--rule) 1px, transparent 1px),
+        linear-gradient(90deg, var(--rule) 1px, transparent 1px);
+    background-size: 20% var(--timetable-row);
+    border-right: 1px solid var(--rule);
+    border-bottom: 1px solid var(--rule);
+}
+
+.slot {
+    margin: 3px 5px;
+    border-radius: 2px 5px 3px 6px; /* slightly uneven, like a real highlighter stroke */
+    mix-blend-mode: multiply;
+    transform-origin: top;
+    animation: highlight-in 0.5s ease-out both;
+}
+
+/* Offset left and right so where two strokes overlap, a sliver of each colour
+   still shows either side of the green blend */
+.slot-you {
+    margin-right: 14px;
+    background-color: var(--highlight-you);
+    animation-delay: 0.2s;
+}
+
+.slot-them {
+    margin-left: 14px;
+    background-color: var(--highlight-them);
+    animation-delay: 0.7s;
+}
+
+.overlap-label {
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 0.25rem;
+    font-size: var(--text-sm);
+    font-weight: 700;
+    line-height: 1.1;
+    text-align: center;
+    color: var(--ink);
+    animation: fade-in 0.4s ease-out 1.2s both;
+}
+
+.timetable-figure figcaption {
+    margin-top: 1rem;
+    color: var(--ink-soft);
+    font-size: var(--text-sm);
+}
+
+.legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem 1.25rem;
+    margin: 0 0 0.5rem;
+    padding: 0;
+    list-style: none;
+    color: var(--ink);
+}
+
+.legend li {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.swatch {
+    width: 1.1rem;
+    height: 0.75rem;
+    border-radius: 2px 4px 2px 5px;
+}
+
+.swatch-you {
+    background-color: var(--highlight-you);
+}
+
+.swatch-them {
+    background-color: var(--highlight-them);
+}
+
+.swatch-both {
+    background-color: var(--highlight-both);
+}
+
+@keyframes highlight-in {
+    from {
+        transform: scaleY(0);
+    }
+    to {
+        transform: scaleY(1);
+    }
+}
+
+@keyframes fade-in {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+/* ---- Home page feature list (home.html) ---- */
+
+.feature-list {
+    margin: 2.5rem 0 0;
+    padding: 0;
+    list-style: none;
+    border-top: 1px solid var(--rule);
+}
+
+.feature-list li {
+    border-bottom: 1px solid var(--rule);
+}
+
+.feature-list a {
+    display: grid;
+    grid-template-columns: 14rem 1fr;
+    gap: 0.25rem 1.5rem;
+    align-items: baseline;
+    padding: 1.25rem 0.25rem;
+    color: var(--ink);
+    text-decoration: none;
+}
+
+.feature-name {
+    justify-self: start;
+    font-family: var(--font-display);
+    font-size: var(--text-md);
+    font-weight: 700;
+    /* Highlighter stroke that sweeps in behind the name on hover/focus */
+    background-image: linear-gradient(var(--highlight-you), var(--highlight-you));
+    background-repeat: no-repeat;
+    background-position: 0 85%;
+    background-size: 0% 45%;
+    transition: background-size 0.25s ease-out;
+}
+
+.feature-list a:hover .feature-name,
+.feature-list a:focus-visible .feature-name {
+    background-size: 100% 45%;
+}
+
+.feature-description {
+    color: var(--ink-soft);
+}
+
+/* ---- Small screens ---- */
+
+@media (max-width: 800px) {
+    .auth-page {
+        grid-template-columns: 1fr;
+    }
+
+    /* Form first on phones, so people can log in without scrolling past the illustration */
+    .auth-form-panel {
+        order: -1;
+        border-left: none;
+        border-bottom: 1px solid var(--rule);
+    }
+
+    .display {
+        font-size: var(--text-2xl);
+    }
+
+    .feature-list a {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* ---- Reduced motion ---- */
+
+@media (prefers-reduced-motion: reduce) {
+    .slot,
+    .overlap-label {
+        animation: none;
+    }
+
+    .feature-name {
+        transition: none;
+    }
 }

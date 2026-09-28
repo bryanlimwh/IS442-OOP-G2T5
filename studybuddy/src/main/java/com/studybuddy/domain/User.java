@@ -53,10 +53,6 @@ public abstract class User {
 
     // ---- Behaviour ----
 
-    // NOTE: checkPassword(rawPassword, PasswordEncoder) intentionally omitted for now.
-    // Spring Security (and PasswordEncoder) is not yet a project dependency.
-    // Add it back once the team wires up login/auth — see TODO in README or task board.
-
     public void changePasswordHash(String newHash) {
         this.passwordHash = newHash;
     }
@@ -86,7 +82,9 @@ public abstract class User {
         this.email = email;
     }
 
-    protected String getPasswordHash() {
+    // Public so AuthService (service.auth) can hand the hash to Spring Security,
+    // which does the actual password check.
+    public String getPasswordHash() {
         return passwordHash;
     }
 

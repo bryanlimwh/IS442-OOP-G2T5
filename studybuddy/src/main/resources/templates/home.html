@@ -1,29 +1,42 @@
 <!DOCTYPE html>
 <html lang="en" xmlns:th="http://www.thymeleaf.org">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-    <title>Study Buddy Matcher</title>
-
-    <link rel="stylesheet" th:href="@{/css/style.css}">
-</head>
+<head th:replace="~{fragments/head :: head('Home')}"></head>
 <body>
-    <header>
-        <h1>Study Buddy Matcher System</h1>
-    </header>
+    <header th:replace="~{fragments/header :: header}"></header>
 
-    <main>
+    <main class="page">
+        <h1>Welcome back</h1>
+        <p class="lead">Find study buddies whose courses, goals and timetable fit yours.</p>
         <!-- Retrieves the "username" attribute from the model -->
-        <h2>Welcome, <span th:text="${username}">Student</span>!</h2>
+        <p class="muted">Logged in as <span th:text="${username}">student@example.com</span></p>
 
-        <p>Find compatible study buddies and study groups.</p>
-
-        <nav>
-            <a th:href="@{/student/profile}">My Profile</a>
-            <a th:href="@{/matches}">Find Study Buddies</a>
-            <a th:href="@{/requests}">Match Requests</a>
-            <a th:href="@{/groups}">Study Groups</a>
+        <nav aria-label="Main">
+            <ul class="feature-list">
+                <li>
+                    <a th:href="@{/student/profile}">
+                        <span class="feature-name">My profile</span>
+                        <span class="feature-description">Update your details, courses and study preferences.</span>
+                    </a>
+                </li>
+                <li>
+                    <a th:href="@{/matches}">
+                        <span class="feature-name">Find study buddies</span>
+                        <span class="feature-description">See students ranked by how well you match.</span>
+                    </a>
+                </li>
+                <li>
+                    <a th:href="@{/requests}">
+                        <span class="feature-name">Match requests</span>
+                        <span class="feature-description">Answer requests and see your study buddies.</span>
+                    </a>
+                </li>
+                <li>
+                    <a th:href="@{/groups}">
+                        <span class="feature-name">Study groups</span>
+                        <span class="feature-description">Join a group for your course, or start your own.</span>
+                    </a>
+                </li>
+            </ul>
         </nav>
     </main>
 </body>

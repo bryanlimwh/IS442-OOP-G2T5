@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/head :: head('Log in')}"></head>
+<body>
+    <div class="auth-page">
+
+        <section class="auth-intro">
+            <p class="wordmark">Study Buddy Matcher</p>
+            <h1 class="display">Find someone who's free when you are.</h1>
+            <p class="lead">Matches you with students taking the same course, based on your study goals and weekly timetable.</p>
+
+            <!-- Illustration of the matching idea, using the brief's Appendix A example. Decorative, so hidden
+                 from screen readers; the caption below says the same thing in words. -->
+            <figure class="timetable-figure">
+                <div class="timetable" aria-hidden="true">
+                    <span class="day" style="grid-column: 2">Mon</span>
+                    <span class="day" style="grid-column: 3">Tue</span>
+                    <span class="day" style="grid-column: 4">Wed</span>
+                    <span class="day" style="grid-column: 5">Thu</span>
+                    <span class="day" style="grid-column: 6">Fri</span>
+
+                    <span class="hour" style="grid-row: 2">2 pm</span>
+                    <span class="hour" style="grid-row: 4">4 pm</span>
+                    <span class="hour" style="grid-row: 6">6 pm</span>
+                    <span class="hour" style="grid-row: 8">8 pm</span>
+
+                    <div class="timetable-grid"></div>
+
+                    <!-- Rows start at 2 pm (row 2), one row per hour -->
+                    <div class="slot slot-you" style="grid-column: 4; grid-row: 7 / 9"></div>
+                    <div class="slot slot-you" style="grid-column: 6; grid-row: 2 / 4"></div>
+                    <div class="slot slot-them" style="grid-column: 4; grid-row: 7 / 9"></div>
+                    <div class="slot slot-them" style="grid-column: 5; grid-row: 6 / 8"></div>
+                    <span class="overlap-label" style="grid-column: 4; grid-row: 7 / 9">Both free</span>
+                </div>
+
+                <figcaption>
+                    <ul class="legend">
+                        <li><span class="swatch swatch-you"></span>Your free time</li>
+                        <li><span class="swatch swatch-them"></span>Another student's</li>
+                        <li><span class="swatch swatch-both"></span>Both free</li>
+                    </ul>
+                    You're both free on Wednesday, 7 to 9 pm. Overlaps like this raise your match score.
+                </figcaption>
+            </figure>
+        </section>
+
+        <main class="auth-form-panel">
+            <h2>Log in</h2>
+
+            <!-- Spring Security redirects to /login?error after a failed attempt, and /login?logout after logging out -->
+            <p class="message error" role="alert" th:if="${param.error}">
+                That email and password don't match an active account. Check them and try again.
+            </p>
+            <p class="message info" role="status" th:if="${param.logout}">You've logged out.</p>
+
+            <!-- th:action adds the hidden CSRF token that Spring Security requires on every POST -->
+            <form class="form" th:action="@{/login}" method="post">
+                <label for="email">Email</label>
+                <input type="email" id="email" name="email" autocomplete="username" required autofocus>
+
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" autocomplete="current-password" required>
+
+                <button type="submit" class="button button-primary">Log in</button>
+            </form>
+        </main>
+
+    </div>
+</body>
+</html>
