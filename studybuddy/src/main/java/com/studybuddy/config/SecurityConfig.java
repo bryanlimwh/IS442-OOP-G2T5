@@ -39,17 +39,34 @@ public class SecurityConfig {
     @Order(2)
     public SecurityFilterChain defaultFilterChain(HttpSecurity http) throws Exception {
         http
-                .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/login", "/error", "/css/**", "/js/**", "/images/**").permitAll()
-                        .requestMatchers("/admin/**").hasRole(Role.ADMIN.name())
-                        .anyRequest().authenticated())
-                .formLogin(form -> form
-                        .loginPage("/login")
-                        .usernameParameter("email")
-                        // Always land on /home, rather than the page that triggered the login redirect.
-                        .defaultSuccessUrl("/home", true))
-                .logout(logout -> logout
-                        .logoutSuccessUrl("/login?logout"));
+        .authorizeHttpRequests(auth -> auth
+            // Declares which URLs do NOT require authentication
+            .requestMatchers("/login", "/error", "/css/**", "/js/**", "/images/**, /api/match-request/**").permitAll()
+            // Declares that URLs with "/admin" as their root
+            // can only be accessed by user accounts with the role "ADMIN" 
+            .requestMatchers("/admin/**").hasRole(Role.ADMIN.name())
+            // Declares that any and all other URLs require authentication
+            .anyRequest().authenticated()
+        )
+        
+        .formLogin(form -> form
+            // Declares the login URL to be "/login"
+            // Triggers the Thymeleaf Controller to return the appropriate login HTML
+            .loginPage("/login")
+            // Specifies that the HTML username login input is named "email"
+            .usernameParameter("email")
+            // Declares the destination after successful authentication.
+            // Setting 'True' means indicates to always redirect to "/home"
+            // rather than the page that triggered the login redirect.
+            .defaultSuccessUrl("/home", true)
+            // Allows unauthenticated access to login-related URLs.
+            .permitAll()
+        )
+        
+        .logout(logout -> logout
+            .logoutSuccessUrl("/login?logout")
+        );
+
         return http.build();
     }
 
