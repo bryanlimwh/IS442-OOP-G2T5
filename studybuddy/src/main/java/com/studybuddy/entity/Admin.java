@@ -1,6 +1,6 @@
-package com.studybuddy.domain;
+package com.studybuddy.entity;
 
-import com.studybuddy.domain.enums.Role;
+import com.studybuddy.entity.enums.Role;
 
 import jakarta.persistence.DiscriminatorValue;
 import jakarta.persistence.Entity;

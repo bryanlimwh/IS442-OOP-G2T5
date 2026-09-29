@@ -1,10 +1,10 @@
-package com.studybuddy.domain;
+package com.studybuddy.entity;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import com.studybuddy.domain.enums.Role;
+import com.studybuddy.entity.enums.Role;
 
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.DiscriminatorValue;

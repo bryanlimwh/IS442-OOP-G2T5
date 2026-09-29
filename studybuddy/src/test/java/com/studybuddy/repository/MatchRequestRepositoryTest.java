@@ -17,8 +17,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 // @DataJpaTest starts only the database/JPA part of Spring (faster than the full app)
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 
-import com.studybuddy.domain.Student;
-import com.studybuddy.domain.enums.MatchRequestStatus;
+import com.studybuddy.entity.Student;
+import com.studybuddy.entity.enums.MatchRequestStatus;
 import com.studybuddy.entity.MatchRequest;
 
 /*

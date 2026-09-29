@@ -1,7 +1,6 @@
 package com.studybuddy.entity;
 
-import com.studybuddy.domain.*;
-import com.studybuddy.domain.enums.MatchRequestStatus;
+import com.studybuddy.entity.enums.MatchRequestStatus;
 
 // JPA Annotations
 import jakarta.persistence.*;

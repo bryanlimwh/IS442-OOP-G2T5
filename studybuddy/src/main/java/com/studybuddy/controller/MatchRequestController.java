@@ -5,7 +5,7 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.studybuddy.domain.Student;
+import com.studybuddy.entity.Student;
 import com.studybuddy.entity.MatchRequest;
 import com.studybuddy.service.studybuddymatching.MatchRequestService;
 

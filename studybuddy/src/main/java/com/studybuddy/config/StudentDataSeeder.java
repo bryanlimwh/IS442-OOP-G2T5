@@ -1,6 +1,6 @@
 package com.studybuddy.config;
 
-import com.studybuddy.domain.Student;
+import com.studybuddy.entity.Student;
 import com.studybuddy.repository.StudentRepository;
 
 import org.springframework.beans.factory.annotation.Value;

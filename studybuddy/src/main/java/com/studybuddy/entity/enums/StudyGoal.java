@@ -1,4 +1,4 @@
-package com.studybuddy.domain.enums;
+package com.studybuddy.entity.enums;
 
 public enum StudyGoal {
     CONCEPT_REVIEW,

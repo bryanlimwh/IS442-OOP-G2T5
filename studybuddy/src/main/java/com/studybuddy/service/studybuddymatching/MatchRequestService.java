@@ -4,7 +4,7 @@ import java.util.List;
 
 import org.springframework.stereotype.Service;
 
-import com.studybuddy.domain.Student;
+import com.studybuddy.entity.Student;
 import com.studybuddy.entity.MatchRequest;
 import com.studybuddy.repository.MatchRequestRepository;
 
