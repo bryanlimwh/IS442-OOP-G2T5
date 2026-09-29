@@ -13,13 +13,16 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.JoinTable;
 import jakarta.persistence.ManyToMany;
 import jakarta.persistence.OneToMany;
+import jakarta.persistence.Table;
 
 /**
- * A student account. Stored in the shared app_user table (single-table inheritance), tagged with user_type = 'STUDENT'.
+ * A student account. Stored in the 'student' table
  * Methods here only touch the student's own fields; anything needing a repository or another aggregate belongs in a service.
  */
 
 @Entity
+@Table(name = "student") 
+// The student's corresponding row in the 'User' table is tagged with user_type = 'STUDENT'
 @DiscriminatorValue("STUDENT")
 public class Student extends User {
 

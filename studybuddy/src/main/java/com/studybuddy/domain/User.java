@@ -21,8 +21,10 @@ import com.studybuddy.domain.enums.Role;
  * not implemented here.
  */
 @Entity
-@Table(name = "app_user")
-@Inheritance(strategy = InheritanceType.SINGLE_TABLE)
+@Table(name = "user_account")
+@Inheritance(strategy = InheritanceType.JOINED)
+// Adds an extra column 'user_type' to the table
+// Helps to easily identify which user is a student or admin without the need for a JOIN table
 @DiscriminatorColumn(name = "user_type")
 public abstract class User {
 
