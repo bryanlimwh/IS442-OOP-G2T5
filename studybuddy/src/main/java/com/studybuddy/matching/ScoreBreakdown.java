@@ -27,4 +27,17 @@ public record ScoreBreakdown(
                 + groupSize * config.getGroupSizeWeight();
         return 100 * weightedSum / config.getTotalWeight();
     }
+
+    // For display, e.g. 90 -> "1h 30m", 120 -> "2h", 0 -> "None"
+    public String sharedTimeLabel() {
+        if (sharedMinutes == 0) {
+            return "None";
+        }
+        long hours = sharedMinutes / 60;
+        long minutes = sharedMinutes % 60;
+        if (hours == 0) {
+            return minutes + "m";
+        }
+        return minutes == 0 ? hours + "h" : hours + "h " + minutes + "m";
+    }
 }

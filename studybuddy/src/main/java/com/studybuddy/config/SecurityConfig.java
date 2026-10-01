@@ -32,8 +32,10 @@ public class SecurityConfig {
 
     /**
      * Rules for the rest of the app: the login page, static files and error
-     * page are public, /admin/** is for admins only, and every other page
-     * needs a logged-in user. Accounts are looked up by AuthService.
+     * page are public, /admin/** is for admins only, /matches/** is for
+     * students only (an admin has no study preferences to match on), and
+     * every other page needs a logged-in user. Accounts are looked up by
+     * AuthService.
      */
     @Bean
     @Order(2)
@@ -42,6 +44,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/login", "/error", "/css/**", "/js/**", "/images/**").permitAll()
                         .requestMatchers("/admin/**").hasRole(Role.ADMIN.name())
+                        .requestMatchers("/matches/**").hasRole(Role.STUDENT.name())
                         .anyRequest().authenticated())
                 .formLogin(form -> form
                         .loginPage("/login")

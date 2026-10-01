@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/head :: head('Find study buddies')}"></head>
+<body>
+    <header th:replace="~{fragments/header :: header}"></header>
+
+    <main class="page">
+        <p><a th:href="@{/home}">&larr; Home</a></p>
+        <h1>Find study buddies</h1>
+        <p class="lead">Students ranked by how well their study preferences match yours.</p>
+
+        <p class="message info" role="status" th:if="${#lists.isEmpty(myPreferences)}">
+            You haven't set any study preferences yet, so there's nothing to match on.
+            <a th:href="@{/student/profile}">Add your study preferences</a> to see matches.
+        </p>
+
+        <th:block th:unless="${#lists.isEmpty(myPreferences)}">
+
+            <!-- GET, so the chosen filters stay in the URL and a refresh repeats the same search -->
+            <form class="filters" th:action="@{/matches}" th:object="${search}" method="get">
+                <div class="filter-field">
+                    <label for="courseId">Course</label>
+                    <select th:field="*{courseId}">
+                        <option value="">All my courses</option>
+                        <option th:each="pref : ${myPreferences}" th:value="${pref.courseId}"
+                                th:text="${pref.courseCode}">IS442</option>
+                    </select>
+                </div>
+                <div class="filter-field">
+                    <label for="studyGoal">Study goal</label>
+                    <select th:field="*{studyGoal}">
+                        <option value="">Any goal</option>
+                        <option th:each="goal : ${studyGoals}" th:value="${goal}" th:text="${goal.label}">Exam preparation</option>
+                    </select>
+                </div>
+                <div class="filter-field">
+                    <label for="studyMode">Study mode</label>
+                    <select th:field="*{studyMode}">
+                        <option value="">Any</option>
+                        <option th:each="mode : ${studyModes}" th:value="${mode}" th:text="${mode.label}">In person</option>
+                    </select>
+                </div>
+                <div class="filter-field">
+                    <label for="groupSize">Group size</label>
+                    <select th:field="*{groupSize}">
+                        <option value="">Any</option>
+                        <option th:each="size : ${groupSizes}" th:value="${size}" th:text="${size.label}">One-to-one</option>
+                    </select>
+                </div>
+                <label class="filter-check">
+                    <input type="checkbox" th:field="*{sharedTimeOnly}">
+                    Only students free when I am
+                </label>
+                <div class="filter-actions">
+                    <button type="submit" class="button button-primary">Search</button>
+                    <a class="button button-quiet" th:href="@{/matches}">Clear</a>
+                </div>
+            </form>
+
+            <p class="results-summary" role="status">
+                <strong th:text="${#lists.size(results)}">12</strong>
+                <span th:text="${#lists.size(results) == 1} ? 'student' : 'students'">students</span>,
+                ranked by <strong th:text="${strategy.label}">Balanced</strong> matching.
+                Contact numbers are shared once a study-buddy request is accepted.
+            </p>
+
+            <p class="message info" th:if="${#lists.isEmpty(results)}">
+                No students match these filters. Try removing one.
+            </p>
+
+            <ol class="match-list">
+                <li class="match-card" th:each="result, row : ${results}">
+                    <div class="match-header">
+                        <span class="match-rank" th:text="${row.count}">1</span>
+                        <div class="match-who">
+                            <h2 class="match-name" th:text="${result.student.name}">Ben Koh</h2>
+                            <p class="muted"
+                               th:text="|${result.student.programme}, Year ${result.student.yearOfStudy} · ${result.student.school}|">
+                                Information Systems, Year 3 · School of Computing and Information Systems
+                            </p>
+                        </div>
+                        <p class="match-score">
+                            <span class="match-score-value" th:text="${#numbers.formatDecimal(result.score, 1, 0)}">92</span>
+                            <span class="match-score-unit">/ 100</span>
+                        </p>
+                    </div>
+
+                    <div class="match-body">
+                        <dl class="their-preference">
+                            <dt>Course</dt>
+                            <dd th:text="|${result.preference.courseCode} ${result.preference.courseName}|">IS442 Object Oriented Programming</dd>
+                            <dt>Goal</dt>
+                            <dd th:text="${result.preference.studyGoal.label}">Exam preparation</dd>
+                            <dt>Study mode</dt>
+                            <dd th:text="${result.preference.studyMode.label}">In person or online</dd>
+                            <dt>Group size</dt>
+                            <dd th:text="${result.preference.arrangement.label}">One-to-one</dd>
+                            <dt>Free</dt>
+                            <dd th:text="${#strings.listJoin(result.preference.availability, ', ')}">Wed 19:00-21:00, Thu 18:00-20:00</dd>
+                        </dl>
+
+                        <ul class="score-bars" aria-label="How each criterion matched">
+                            <li th:replace="~{fragments/score-bar :: scoreBar('Same course', ${result.breakdown.course}, null)}"></li>
+                            <li th:replace="~{fragments/score-bar :: scoreBar('Shared free time', ${result.breakdown.availability}, ${result.breakdown.sharedTimeLabel()})}"></li>
+                            <li th:replace="~{fragments/score-bar :: scoreBar('Study mode', ${result.breakdown.studyMode}, null)}"></li>
+                            <li th:replace="~{fragments/score-bar :: scoreBar('Study goal', ${result.breakdown.studyGoal}, null)}"></li>
+                            <li th:replace="~{fragments/score-bar :: scoreBar('Group size', ${result.breakdown.groupSize}, null)}"></li>
+                        </ul>
+                    </div>
+                </li>
+            </ol>
+        </th:block>
+    </main>
+</body>
+</html>

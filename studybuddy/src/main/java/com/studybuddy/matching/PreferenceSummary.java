@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Locale;
 
 import com.studybuddy.domain.AvailabilitySlot;
+import com.studybuddy.domain.Course;
 import com.studybuddy.domain.StudyPreference;
 import com.studybuddy.domain.enums.Arrangement;
 import com.studybuddy.domain.enums.StudyGoal;
@@ -17,6 +18,7 @@ import com.studybuddy.domain.enums.StudyMode;
  * (whose student, and contact number, are one getter away).
  */
 public record PreferenceSummary(
+        Long courseId,
         String courseCode,
         String courseName,
         StudyMode studyMode,
@@ -30,7 +32,8 @@ public record PreferenceSummary(
                         .thenComparing(AvailabilitySlot::getStartTime))
                 .map(PreferenceSummary::describe)
                 .toList();
-        return new PreferenceSummary(preference.getCourse().getCourseCode(), preference.getCourse().getCourseName(),
+        Course course = preference.getCourse();
+        return new PreferenceSummary(course.getCourseId(), course.getCourseCode(), course.getCourseName(),
                 preference.getStudyMode(), preference.getArrangement(), preference.getStudyGoal(), availability);
     }
 

@@ -52,7 +52,7 @@ class MatchingStrategyTest {
 
     private MatchResult result(String name, double score, double courseScore, long sharedMinutes) {
         StudentPublicProfile student = new StudentPublicProfile(null, name, "School", "Programme", 1, List.of());
-        PreferenceSummary preference = new PreferenceSummary("IS442", "Object Oriented Programming",
+        PreferenceSummary preference = new PreferenceSummary(1L, "IS442", "Object Oriented Programming",
                 StudyMode.ONLINE, Arrangement.EITHER, StudyGoal.CONCEPT_REVIEW, List.of());
         ScoreBreakdown breakdown = new ScoreBreakdown(courseScore, 0.5, 1.0, 1.0, 1.0, sharedMinutes);
         return new MatchResult(student, preference, breakdown, score);
