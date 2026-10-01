@@ -9,14 +9,14 @@ import java.time.LocalTime;
 
 import org.junit.jupiter.api.Test;
 
-import com.studybuddy.domain.AvailabilitySlot;
-import com.studybuddy.domain.Course;
-import com.studybuddy.domain.MatchingConfig;
-import com.studybuddy.domain.StudyPreference;
-import com.studybuddy.domain.enums.Arrangement;
-import com.studybuddy.domain.enums.MatchingStrategyType;
-import com.studybuddy.domain.enums.StudyGoal;
-import com.studybuddy.domain.enums.StudyMode;
+import com.studybuddy.entity.AvailabilitySlot;
+import com.studybuddy.entity.Course;
+import com.studybuddy.entity.MatchingConfig;
+import com.studybuddy.entity.StudyPreference;
+import com.studybuddy.entity.enums.Arrangement;
+import com.studybuddy.entity.enums.MatchingStrategyType;
+import com.studybuddy.entity.enums.StudyGoal;
+import com.studybuddy.entity.enums.StudyMode;
 
 class CompatibilityCalculatorTest {
 

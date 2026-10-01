@@ -3,7 +3,7 @@ package com.studybuddy.service.matching;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.studybuddy.domain.MatchingConfig;
+import com.studybuddy.entity.MatchingConfig;
 import com.studybuddy.matching.MatchingConfigForm;
 import com.studybuddy.repository.MatchingConfigRepository;
 

@@ -13,8 +13,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.studybuddy.domain.enums.MatchingStrategyType;
-import com.studybuddy.domain.enums.StudyGoal;
+import com.studybuddy.entity.enums.MatchingStrategyType;
+import com.studybuddy.entity.enums.StudyGoal;
 import com.studybuddy.matching.MatchResult;
 import com.studybuddy.matching.MatchSearch;
 import com.studybuddy.matching.MatchingConfigForm;

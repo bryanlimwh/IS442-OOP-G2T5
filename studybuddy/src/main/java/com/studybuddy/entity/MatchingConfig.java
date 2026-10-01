@@ -1,6 +1,6 @@
-package com.studybuddy.domain;
+package com.studybuddy.entity;
 
-import com.studybuddy.domain.enums.MatchingStrategyType;
+import com.studybuddy.entity.enums.MatchingStrategyType;
 import com.studybuddy.exception.InvalidMatchingConfigException;
 
 import jakarta.persistence.Entity;

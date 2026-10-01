@@ -1,9 +1,9 @@
 package com.studybuddy.matching;
 
-import com.studybuddy.domain.StudyPreference;
-import com.studybuddy.domain.enums.Arrangement;
-import com.studybuddy.domain.enums.StudyGoal;
-import com.studybuddy.domain.enums.StudyMode;
+import com.studybuddy.entity.StudyPreference;
+import com.studybuddy.entity.enums.Arrangement;
+import com.studybuddy.entity.enums.StudyGoal;
+import com.studybuddy.entity.enums.StudyMode;
 
 /**
  * What a student is searching for, from the matches page. Every field is

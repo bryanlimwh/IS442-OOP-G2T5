@@ -2,8 +2,8 @@ package com.studybuddy.config;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
-import com.studybuddy.domain.MatchingConfig;
-import com.studybuddy.domain.enums.MatchingStrategyType;
+import com.studybuddy.entity.MatchingConfig;
+import com.studybuddy.entity.enums.MatchingStrategyType;
 
 /**
  * The starting matching settings, read from the studybuddy.matching.defaults.*

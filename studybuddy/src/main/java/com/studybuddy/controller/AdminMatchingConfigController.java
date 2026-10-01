@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
-import com.studybuddy.domain.enums.MatchingStrategyType;
+import com.studybuddy.entity.enums.MatchingStrategyType;
 import com.studybuddy.exception.InvalidMatchingConfigException;
 import com.studybuddy.matching.MatchingConfigForm;
 import com.studybuddy.service.matching.MatchingConfigService;

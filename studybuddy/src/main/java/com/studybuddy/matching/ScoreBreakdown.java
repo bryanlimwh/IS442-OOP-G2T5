@@ -1,6 +1,6 @@
 package com.studybuddy.matching;
 
-import com.studybuddy.domain.MatchingConfig;
+import com.studybuddy.entity.MatchingConfig;
 
 /**
  * How well two study preferences match on each criterion, each scored from 0

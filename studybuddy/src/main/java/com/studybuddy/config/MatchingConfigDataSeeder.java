@@ -1,6 +1,6 @@
 package com.studybuddy.config;
 
-import com.studybuddy.domain.MatchingConfig;
+import com.studybuddy.entity.MatchingConfig;
 import com.studybuddy.repository.MatchingConfigRepository;
 
 import org.springframework.boot.CommandLineRunner;

@@ -4,7 +4,7 @@ import java.util.Comparator;
 
 import org.springframework.stereotype.Component;
 
-import com.studybuddy.domain.enums.MatchingStrategyType;
+import com.studybuddy.entity.enums.MatchingStrategyType;
 
 /**
  * Ranks purely by the weighted score, so every criterion counts by its weight

@@ -1,4 +1,4 @@
-package com.studybuddy.domain.enums;
+package com.studybuddy.entity.enums;
 
 /**
  * Where a student's link to a study group stands. Rows are kept rather than

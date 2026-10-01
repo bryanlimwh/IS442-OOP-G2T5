@@ -7,7 +7,7 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 
-import com.studybuddy.domain.enums.Role;
+import com.studybuddy.entity.enums.Role;
 
 import jakarta.servlet.http.HttpServletRequest;
 

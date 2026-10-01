@@ -5,12 +5,12 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 
-import com.studybuddy.domain.AvailabilitySlot;
-import com.studybuddy.domain.Course;
-import com.studybuddy.domain.StudyPreference;
-import com.studybuddy.domain.enums.Arrangement;
-import com.studybuddy.domain.enums.StudyGoal;
-import com.studybuddy.domain.enums.StudyMode;
+import com.studybuddy.entity.AvailabilitySlot;
+import com.studybuddy.entity.Course;
+import com.studybuddy.entity.StudyPreference;
+import com.studybuddy.entity.enums.Arrangement;
+import com.studybuddy.entity.enums.StudyGoal;
+import com.studybuddy.entity.enums.StudyMode;
 
 /**
  * A read-only copy of the study preference a match was found through, for

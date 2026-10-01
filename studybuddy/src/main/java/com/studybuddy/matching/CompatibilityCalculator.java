@@ -3,10 +3,10 @@ package com.studybuddy.matching;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
-import com.studybuddy.domain.AvailabilitySlot;
-import com.studybuddy.domain.StudyPreference;
-import com.studybuddy.domain.enums.Arrangement;
-import com.studybuddy.domain.enums.StudyMode;
+import com.studybuddy.entity.AvailabilitySlot;
+import com.studybuddy.entity.StudyPreference;
+import com.studybuddy.entity.enums.Arrangement;
+import com.studybuddy.entity.enums.StudyMode;
 
 /**
  * Scores how well two study preferences match on each criterion. It only

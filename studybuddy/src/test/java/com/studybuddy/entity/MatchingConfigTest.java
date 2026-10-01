@@ -1,11 +1,11 @@
-package com.studybuddy.domain;
+package com.studybuddy.entity;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.junit.jupiter.api.Test;
 
-import com.studybuddy.domain.enums.MatchingStrategyType;
+import com.studybuddy.entity.enums.MatchingStrategyType;
 import com.studybuddy.exception.InvalidMatchingConfigException;
 
 class MatchingConfigTest {

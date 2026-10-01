@@ -6,9 +6,9 @@ import java.util.List;
 
 import org.junit.jupiter.api.Test;
 
-import com.studybuddy.domain.enums.Arrangement;
-import com.studybuddy.domain.enums.StudyGoal;
-import com.studybuddy.domain.enums.StudyMode;
+import com.studybuddy.entity.enums.Arrangement;
+import com.studybuddy.entity.enums.StudyGoal;
+import com.studybuddy.entity.enums.StudyMode;
 
 class MatchingStrategyTest {
 

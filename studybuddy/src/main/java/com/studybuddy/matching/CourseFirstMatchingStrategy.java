@@ -4,7 +4,7 @@ import java.util.Comparator;
 
 import org.springframework.stereotype.Component;
 
-import com.studybuddy.domain.enums.MatchingStrategyType;
+import com.studybuddy.entity.enums.MatchingStrategyType;
 
 /**
  * Ranks students who want a buddy for the same course first, then by weighted

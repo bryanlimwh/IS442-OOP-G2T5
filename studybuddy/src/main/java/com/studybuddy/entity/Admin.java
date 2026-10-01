@@ -1,11 +1,14 @@
-package com.studybuddy.domain;
+package com.studybuddy.entity;
 
-import com.studybuddy.domain.enums.Role;
+import com.studybuddy.entity.enums.Role;
 
 import jakarta.persistence.DiscriminatorValue;
 import jakarta.persistence.Entity;
+import jakarta.persistence.Table;
 
 @Entity
+@Table(name = "admin") 
+// The admin's corresponding row in the 'User' table is tagged with user_type = 'ADMIN'
 @DiscriminatorValue("ADMIN")
 public class Admin extends User {
 

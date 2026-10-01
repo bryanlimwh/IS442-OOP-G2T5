@@ -10,7 +10,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 
-import com.studybuddy.domain.enums.Role;
+import com.studybuddy.entity.enums.Role;
 
 @Configuration
 public class SecurityConfig {
@@ -33,26 +33,44 @@ public class SecurityConfig {
     /**
      * Rules for the rest of the app: the login page, static files and error
      * page are public, /admin/** is for admins only, /matches/** is for
-     * students only (an admin has no study preferences to match on), and
-     * every other page needs a logged-in user. Accounts are looked up by
-     * AuthService.
+     * students only, and every other page needs a logged-in user. Accounts
+     * are looked up by AuthService.
      */
     @Bean
     @Order(2)
     public SecurityFilterChain defaultFilterChain(HttpSecurity http) throws Exception {
         http
-                .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/login", "/error", "/css/**", "/js/**", "/images/**").permitAll()
-                        .requestMatchers("/admin/**").hasRole(Role.ADMIN.name())
-                        .requestMatchers("/matches/**").hasRole(Role.STUDENT.name())
-                        .anyRequest().authenticated())
-                .formLogin(form -> form
-                        .loginPage("/login")
-                        .usernameParameter("email")
-                        // Always land on /home, rather than the page that triggered the login redirect.
-                        .defaultSuccessUrl("/home", true))
-                .logout(logout -> logout
-                        .logoutSuccessUrl("/login?logout"));
+        .authorizeHttpRequests(auth -> auth
+            // Declares which URLs do NOT require authentication
+            .requestMatchers("/login", "/error", "/css/**", "/js/**", "/images/**").permitAll()
+            // Declares that URLs with "/admin" as their root
+            // can only be accessed by user accounts with the role "ADMIN" 
+            .requestMatchers("/admin/**").hasRole(Role.ADMIN.name())
+            // Declares that the study buddy matches page can only be accessed by students
+            // (an admin has no study preferences to be matched on)
+            .requestMatchers("/matches/**").hasRole(Role.STUDENT.name())
+            // Declares that any and all other URLs require authentication
+            .anyRequest().authenticated()
+        )
+        
+        .formLogin(form -> form
+            // Declares the login URL to be "/login"
+            // Triggers the Thymeleaf Controller to return the appropriate login HTML
+            .loginPage("/login")
+            // Specifies that the HTML username login input is named "email"
+            .usernameParameter("email")
+            // Declares the destination after successful authentication.
+            // Setting 'True' means indicates to always redirect to "/home"
+            // rather than the page that triggered the login redirect.
+            .defaultSuccessUrl("/home", true)
+            // Allows unauthenticated access to login-related URLs.
+            .permitAll()
+        )
+        
+        .logout(logout -> logout
+            .logoutSuccessUrl("/login?logout")
+        );
+
         return http.build();
     }
 

@@ -9,10 +9,10 @@ import java.util.Map;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.studybuddy.domain.MatchingConfig;
-import com.studybuddy.domain.Student;
-import com.studybuddy.domain.StudyPreference;
-import com.studybuddy.domain.enums.MatchingStrategyType;
+import com.studybuddy.entity.MatchingConfig;
+import com.studybuddy.entity.Student;
+import com.studybuddy.entity.StudyPreference;
+import com.studybuddy.entity.enums.MatchingStrategyType;
 import com.studybuddy.exception.StudentNotFoundException;
 import com.studybuddy.matching.CompatibilityCalculator;
 import com.studybuddy.matching.MatchResult;

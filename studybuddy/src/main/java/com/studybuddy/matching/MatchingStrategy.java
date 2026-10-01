@@ -2,7 +2,7 @@ package com.studybuddy.matching;
 
 import java.util.Comparator;
 
-import com.studybuddy.domain.enums.MatchingStrategyType;
+import com.studybuddy.entity.enums.MatchingStrategyType;
 
 /**
  * A way of ranking match results (the Strategy pattern). Every strategy sees

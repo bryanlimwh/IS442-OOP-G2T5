@@ -1,4 +1,4 @@
-package com.studybuddy.domain.enums;
+package com.studybuddy.entity.enums;
 
 public enum StudyMode {
     IN_PERSON("In person"),

@@ -9,9 +9,9 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.RequestMapping;
 
-import com.studybuddy.domain.enums.Arrangement;
-import com.studybuddy.domain.enums.StudyGoal;
-import com.studybuddy.domain.enums.StudyMode;
+import com.studybuddy.entity.enums.Arrangement;
+import com.studybuddy.entity.enums.StudyGoal;
+import com.studybuddy.entity.enums.StudyMode;
 import com.studybuddy.matching.MatchSearch;
 import com.studybuddy.service.matching.MatchingConfigService;
 import com.studybuddy.service.matching.MatchingService;

@@ -1,4 +1,4 @@
-package com.studybuddy.domain.enums;
+package com.studybuddy.entity.enums;
 
 /**
  * Lifecycle of a study group. A CLOSED group is frozen: it can no longer be

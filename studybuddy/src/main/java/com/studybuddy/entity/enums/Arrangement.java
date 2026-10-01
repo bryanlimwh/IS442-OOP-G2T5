@@ -1,4 +1,4 @@
-package com.studybuddy.domain.enums;
+package com.studybuddy.entity.enums;
 
 public enum Arrangement {
     ONE_TO_ONE("One-to-one"),

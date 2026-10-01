@@ -1,4 +1,4 @@
-package com.studybuddy.domain.enums;
+package com.studybuddy.entity.enums;
 
 /**
  * The ways the matching engine can rank compatible students, chosen by an

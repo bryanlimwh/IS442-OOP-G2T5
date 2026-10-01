@@ -4,7 +4,7 @@ import java.util.Comparator;
 
 import org.springframework.stereotype.Component;
 
-import com.studybuddy.domain.enums.MatchingStrategyType;
+import com.studybuddy.entity.enums.MatchingStrategyType;
 
 /**
  * Ranks students with the most shared free time first, then by weighted score.

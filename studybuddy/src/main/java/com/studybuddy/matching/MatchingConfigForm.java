@@ -1,7 +1,7 @@
 package com.studybuddy.matching;
 
-import com.studybuddy.domain.MatchingConfig;
-import com.studybuddy.domain.enums.MatchingStrategyType;
+import com.studybuddy.entity.MatchingConfig;
+import com.studybuddy.entity.enums.MatchingStrategyType;
 
 /**
  * The values on the admin's matching settings form. Kept separate from the

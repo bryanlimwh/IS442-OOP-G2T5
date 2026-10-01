@@ -2,8 +2,8 @@ package com.studybuddy.matching;
 
 import java.util.List;
 
-import com.studybuddy.domain.Course;
-import com.studybuddy.domain.Student;
+import com.studybuddy.entity.Course;
+import com.studybuddy.entity.Student;
 
 /**
  * What any student may see about another student before a match is accepted.

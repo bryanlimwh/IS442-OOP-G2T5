@@ -8,8 +8,8 @@ import java.util.Random;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import com.studybuddy.domain.Course;
-import com.studybuddy.domain.Student;
+import com.studybuddy.entity.Course;
+import com.studybuddy.entity.Student;
 import com.studybuddy.repository.CourseRepository;
 import com.studybuddy.repository.StudentRepository;
 

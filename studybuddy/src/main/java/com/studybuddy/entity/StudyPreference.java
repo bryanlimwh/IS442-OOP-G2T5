@@ -1,11 +1,11 @@
-package com.studybuddy.domain;
+package com.studybuddy.entity;
 
 import java.util.ArrayList;
 import java.util.List;
 
-import com.studybuddy.domain.enums.Arrangement;
-import com.studybuddy.domain.enums.StudyGoal;
-import com.studybuddy.domain.enums.StudyMode;
+import com.studybuddy.entity.enums.Arrangement;
+import com.studybuddy.entity.enums.StudyGoal;
+import com.studybuddy.entity.enums.StudyMode;
 
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Entity;

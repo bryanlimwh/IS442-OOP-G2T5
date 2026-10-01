@@ -4,7 +4,7 @@ import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 
-import com.studybuddy.domain.MatchingConfig;
+import com.studybuddy.entity.MatchingConfig;
 
 public interface MatchingConfigRepository extends JpaRepository<MatchingConfig, Long> {
 

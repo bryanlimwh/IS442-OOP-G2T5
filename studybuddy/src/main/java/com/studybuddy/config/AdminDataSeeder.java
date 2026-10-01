@@ -1,6 +1,6 @@
 package com.studybuddy.config;
 
-import com.studybuddy.domain.Admin;
+import com.studybuddy.entity.Admin;
 import com.studybuddy.repository.AdminRepository;
 
 import org.springframework.beans.factory.annotation.Value;

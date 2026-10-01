@@ -1,8 +1,8 @@
-package com.studybuddy.domain;
+package com.studybuddy.entity;
 
 import java.time.LocalDateTime;
 
-import com.studybuddy.domain.enums.MembershipStatus;
+import com.studybuddy.entity.enums.MembershipStatus;
 
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
