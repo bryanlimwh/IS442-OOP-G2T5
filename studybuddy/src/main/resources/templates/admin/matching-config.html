@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/head :: head('Matching settings')}"></head>
+<body>
+    <header th:replace="~{fragments/header :: header}"></header>
+
+    <main class="page">
+        <p><a th:href="@{/home}">&larr; Home</a></p>
+        <h1>Matching settings</h1>
+        <p class="lead">Choose how students are ranked, and how much each criterion counts towards their match score.</p>
+
+        <p class="message info" role="status" th:if="${saved}">Settings saved. New searches use them straight away.</p>
+        <p class="message error" role="alert" th:if="${error}" th:text="${error}">Error</p>
+
+        <!-- th:object binds each field to the matching MatchingConfigForm component; th:action adds the CSRF token -->
+        <form class="form" th:action="@{/admin/matching}" th:object="${form}" method="post">
+
+            <fieldset class="option-group">
+                <legend>Strategy</legend>
+                <label class="option" th:each="type : ${strategies}">
+                    <input type="radio" th:field="*{strategy}" th:value="${type}">
+                    <span>
+                        <span class="option-name" th:text="${type.label}">Balanced</span>
+                        <span class="option-description" th:text="${type.description}">Description</span>
+                    </span>
+                </label>
+            </fieldset>
+
+            <fieldset class="option-group">
+                <legend>Criterion weights</legend>
+                <p class="muted">
+                    Weights are relative: each criterion's share of the score is its weight divided by the
+                    total. Set a weight to 0 to ignore that criterion.
+                </p>
+
+                <table class="weights-table">
+                    <thead>
+                        <tr>
+                            <th scope="col">Criterion</th>
+                            <th scope="col">Weight</th>
+                            <th scope="col">Current share</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><label for="courseWeight">Same course</label></td>
+                            <td><input type="number" min="0" step="1" required th:field="*{courseWeight}"></td>
+                            <td th:text="${current.sharePercent(current.courseWeight)} + '%'">20%</td>
+                        </tr>
+                        <tr>
+                            <td><label for="availabilityWeight">Shared free time</label></td>
+                            <td><input type="number" min="0" step="1" required th:field="*{availabilityWeight}"></td>
+                            <td th:text="${current.sharePercent(current.availabilityWeight)} + '%'">20%</td>
+                        </tr>
+                        <tr>
+                            <td><label for="studyModeWeight">Study mode (in person / online)</label></td>
+                            <td><input type="number" min="0" step="1" required th:field="*{studyModeWeight}"></td>
+                            <td th:text="${current.sharePercent(current.studyModeWeight)} + '%'">20%</td>
+                        </tr>
+                        <tr>
+                            <td><label for="studyGoalWeight">Study goal</label></td>
+                            <td><input type="number" min="0" step="1" required th:field="*{studyGoalWeight}"></td>
+                            <td th:text="${current.sharePercent(current.studyGoalWeight)} + '%'">20%</td>
+                        </tr>
+                        <tr>
+                            <td><label for="groupSizeWeight">Group size (one-to-one / small group)</label></td>
+                            <td><input type="number" min="0" step="1" required th:field="*{groupSizeWeight}"></td>
+                            <td th:text="${current.sharePercent(current.groupSizeWeight)} + '%'">20%</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </fieldset>
+
+            <fieldset class="option-group">
+                <legend>Study session length</legend>
+                <label for="targetSessionMinutes">Minutes of shared free time for full marks</label>
+                <input class="input-short" type="number" min="1" step="1" required th:field="*{targetSessionMinutes}" aria-describedby="session-help">
+                <p class="muted" id="session-help">
+                    Roughly one study session. Two students who share at least this much free time get full
+                    marks for availability; less than this scores proportionally.
+                </p>
+            </fieldset>
+
+            <button type="submit" class="button button-primary">Save settings</button>
+        </form>
+    </main>
+</body>
+</html>

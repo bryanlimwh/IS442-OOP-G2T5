@@ -32,8 +32,9 @@ public class SecurityConfig {
 
     /**
      * Rules for the rest of the app: the login page, static files and error
-     * page are public, /admin/** is for admins only, and every other page
-     * needs a logged-in user. Accounts are looked up by AuthService.
+     * page are public, /admin/** is for admins only, /matches/** is for
+     * students only, and every other page needs a logged-in user. Accounts
+     * are looked up by AuthService.
      */
     @Bean
     @Order(2)
@@ -41,10 +42,13 @@ public class SecurityConfig {
         http
         .authorizeHttpRequests(auth -> auth
             // Declares which URLs do NOT require authentication
-            .requestMatchers("/login", "/error", "/css/**", "/js/**", "/images/**, /api/match-request/**").permitAll()
+            .requestMatchers("/login", "/error", "/css/**", "/js/**", "/images/**").permitAll()
             // Declares that URLs with "/admin" as their root
             // can only be accessed by user accounts with the role "ADMIN" 
             .requestMatchers("/admin/**").hasRole(Role.ADMIN.name())
+            // Declares that the study buddy matches page can only be accessed by students
+            // (an admin has no study preferences to be matched on)
+            .requestMatchers("/matches/**").hasRole(Role.STUDENT.name())
             // Declares that any and all other URLs require authentication
             .anyRequest().authenticated()
         )

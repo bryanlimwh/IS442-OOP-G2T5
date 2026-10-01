@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<!--
+    One row of a match's score breakdown: the criterion, a bar filled to its score, and the score as text.
+    Usage: <li th:replace="~{fragments/score-bar :: scoreBar('Study goal', ${breakdown.studyGoal}, null)}"></li>
+    score is 0 to 1. detail (optional) is shown after the percentage, e.g. the shared time.
+-->
+<li th:fragment="scoreBar(label, score, detail)" class="score-bar">
+    <span class="score-bar-label" th:text="${label}">Study goal</span>
+    <!-- The bar repeats the percentage beside it, so screen readers skip it -->
+    <span class="score-bar-track" aria-hidden="true">
+        <span class="score-bar-fill" th:style="|width: ${score * 100}%|"></span>
+    </span>
+    <span class="score-bar-value">
+        <span th:text="${#numbers.formatDecimal(score * 100, 1, 0)} + '%'">100%</span>
+        <span class="muted" th:if="${detail}" th:text="${detail}">2h shared</span>
+    </span>
+</li>
+</html>
