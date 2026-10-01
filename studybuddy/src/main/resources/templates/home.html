@@ -10,7 +10,24 @@
         <!-- Retrieves the "username" attribute from the model -->
         <p class="muted">Logged in as <span th:text="${username}">student@example.com</span></p>
 
-        <nav aria-label="Main">
+        <nav aria-label="Main" th:if="${isAdmin}">
+            <ul class="feature-list">
+                <li>
+                    <a th:href="@{/admin/users}">
+                        <span class="feature-name">User accounts</span>
+                        <span class="feature-description">Create, update and deactivate accounts.</span>
+                    </a>
+                </li>
+                <li>
+                    <a th:href="@{/admin/matching}">
+                        <span class="feature-name">Matching settings</span>
+                        <span class="feature-description">Choose the matching strategy and how much each criterion counts.</span>
+                    </a>
+                </li>
+            </ul>
+        </nav>
+
+        <nav aria-label="Main" th:unless="${isAdmin}">
             <ul class="feature-list">
                 <li>
                     <a th:href="@{/student/profile}">

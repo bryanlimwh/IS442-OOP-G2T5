@@ -455,6 +455,82 @@ a {
     color: var(--ink-soft);
 }
 
+/* ---- Grouped form options (admin/matching-config.html) ---- */
+
+.option-group {
+    margin: 0 0 1.5rem;
+    padding: 1.25rem;
+    border: 1px solid var(--rule);
+    border-radius: var(--radius);
+    background-color: var(--surface);
+}
+
+.option-group legend {
+    padding: 0 0.4rem;
+    font-family: var(--font-display);
+    font-size: var(--text-md);
+    font-weight: 700;
+}
+
+/* .form label is bold for single fields; an option's name is bolded on its own instead */
+.form .option {
+    display: flex;
+    gap: 0.75rem;
+    align-items: flex-start;
+    padding: 0.6rem 0;
+    font-weight: 400;
+    cursor: pointer;
+}
+
+/* .form input is sized for text boxes; radios keep their natural size */
+.form .option input[type="radio"] {
+    width: auto;
+    margin: 0.3rem 0 0;
+    accent-color: var(--navy);
+}
+
+.option-name {
+    display: block;
+    font-weight: 700;
+}
+
+.option-description {
+    display: block;
+    color: var(--ink-soft);
+    font-size: var(--text-sm);
+}
+
+.weights-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.weights-table th {
+    padding: 0 0.5rem 0.5rem 0;
+    font-size: var(--text-sm);
+    color: var(--ink-soft);
+    text-align: left;
+}
+
+.weights-table td {
+    padding: 0.4rem 0.5rem 0.4rem 0;
+    border-top: 1px solid var(--rule);
+}
+
+.weights-table label {
+    font-weight: 400;
+}
+
+.form .weights-table input {
+    width: 6rem;
+    margin: 0;
+}
+
+.form input.input-short {
+    display: block;
+    width: 8rem;
+}
+
 /* ---- Small screens ---- */
 
 @media (max-width: 800px) {
