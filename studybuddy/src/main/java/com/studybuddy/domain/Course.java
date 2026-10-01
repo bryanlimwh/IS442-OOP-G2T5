@@ -1,5 +1,7 @@
 package com.studybuddy.domain;
 
+import java.util.Objects;
+
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -50,5 +52,22 @@ public class Course {
 
     public void setCourseName(String courseName) {
         this.courseName = courseName;
+    }
+
+    // ---- equals()/hashCode(): compare by courseId ONLY (same approach as User) ----
+    // Lets matching ask "same course?" without relying on Hibernate handing back
+    // the same object. Two unsaved courses (null ids) are never equal.
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof Course)) return false;
+        Course other = (Course) o;
+        return courseId != null && courseId.equals(other.getCourseId());
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hashCode(courseId);
     }
 }

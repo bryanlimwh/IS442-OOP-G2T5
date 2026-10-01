@@ -1,6 +1,7 @@
 package com.studybuddy.domain;
 
 import java.time.DayOfWeek;
+import java.time.Duration;
 import java.time.LocalTime;
 
 import jakarta.persistence.Entity;
@@ -51,6 +52,19 @@ public class AvailabilitySlot {
         return dayOfWeek == other.dayOfWeek
                 && startTime.isBefore(other.endTime)
                 && other.startTime.isBefore(endTime);
+    }
+
+    /**
+     * How many minutes this slot and the other have in common: 0 if they
+     * don't overlap, otherwise from the later start to the earlier end.
+     */
+    public long overlapMinutes(AvailabilitySlot other) {
+        if (!overlaps(other)) {
+            return 0;
+        }
+        LocalTime laterStart = startTime.isAfter(other.startTime) ? startTime : other.startTime;
+        LocalTime earlierEnd = endTime.isBefore(other.endTime) ? endTime : other.endTime;
+        return Duration.between(laterStart, earlierEnd).toMinutes();
     }
 
     // ---- Getters / Setters (no Lombok in this project) ----
