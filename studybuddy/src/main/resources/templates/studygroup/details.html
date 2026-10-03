@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/head :: head(${group.name})}"></head>
+<body>
+    <header th:replace="~{fragments/header :: header}"></header>
+
+    <main class="page" th:with="role=${viewerRole.name()}">
+        <p><a th:href="@{/groups}">&larr; All study groups</a></p>
+        <h1 th:text="${group.name}">IS112 SQL Practice</h1>
+        <p class="lead" th:text="|${group.courseCode} ${group.courseName}|">IS112 Data Management</p>
+
+        <p class="message info" role="status" th:if="${success}" th:text="${success}">Request sent.</p>
+        <p class="message error" role="alert" th:if="${error}" th:text="${error}">Error</p>
+
+        <!-- What this student can do here depends on how they're linked to the group (ViewerRole) -->
+        <section class="group-status" aria-label="Your place in this group">
+            <p class="message info" th:unless="${group.active}">
+                This group is closed, so it isn't taking new members.
+            </p>
+
+            <p th:if="${role == 'LEADER'}"><strong>You lead this group.</strong></p>
+            <p th:if="${role == 'MEMBER'}"><strong>You're a member of this group.</strong></p>
+            <p th:if="${role == 'PENDING'}"><strong>Request sent.</strong> Waiting for the group's leader to respond.</p>
+
+            <th:block th:if="${group.active and (role == 'NONE' or role == 'REJECTED' or role == 'REMOVED')}">
+                <p th:if="${role == 'REJECTED'}">Your earlier request to join this group was declined.</p>
+                <p th:if="${role == 'REMOVED'}">You were removed from this group before.</p>
+
+                <!-- Full: the button stays visible so it's clear how to join, but can't be clicked -->
+                <th:block th:if="${group.full()}">
+                    <button type="button" class="button button-primary" disabled>Request to join</button>
+                    <p class="muted group-full-note">This group is full.</p>
+                </th:block>
+
+                <!-- Never asked: send the request straight away -->
+                <form th:if="${!group.full() and role == 'NONE'}"
+                      th:action="@{/groups/{id}/join(id=${group.groupId})}" method="post">
+                    <button type="submit" class="button button-primary">Request to join</button>
+                </form>
+
+                <!-- Rejected or removed before: confirm first. The popover attribute opens the box without JavaScript. -->
+                <th:block th:if="${!group.full() and role != 'NONE'}">
+                    <button type="button" class="button button-primary" popovertarget="confirm-rejoin">Request to join again</button>
+                    <div id="confirm-rejoin" class="confirm-popover" popover>
+                        <p th:if="${role == 'REJECTED'}">
+                            You already asked to join this group and were declined. Do you want to request again?
+                        </p>
+                        <p th:if="${role == 'REMOVED'}">
+                            You were removed from this group before. Do you want to request to join again?
+                        </p>
+                        <div class="confirm-actions">
+                            <button type="button" class="button button-quiet"
+                                    popovertarget="confirm-rejoin" popovertargetaction="hide">Cancel</button>
+                            <form th:action="@{/groups/{id}/join(id=${group.groupId})}" method="post">
+                                <button type="submit" class="button button-primary">Request again</button>
+                            </form>
+                        </div>
+                    </div>
+                </th:block>
+            </th:block>
+        </section>
+
+        <section class="group-card">
+            <dl class="group-details">
+                <dt>Course</dt>
+                <dd th:text="|${group.courseCode} ${group.courseName}|">IS112 Data Management</dd>
+                <dt>Study goal</dt>
+                <dd th:text="${group.studyGoal.label}">Problem solving</dd>
+                <dt>Study mode</dt>
+                <dd th:text="${group.studyMode.label}">Online</dd>
+                <dt>Leader</dt>
+                <dd th:text="${group.leaderName}">Daniel Ng</dd>
+                <dt>Members</dt>
+                <dd>
+                    <span th:replace="~{fragments/member-count :: memberCount(${group})}"></span>
+                    <span class="muted" th:text="${#strings.listJoin(group.memberNames, ', ')}">Daniel Ng, Hannah Goh</span>
+                </dd>
+                <dt>Time slots</dt>
+                <dd>
+                    <ul class="session-list">
+                        <li th:each="meeting : ${group.sessions}" th:text="${meeting}">Thu 19:00-21:00</li>
+                    </ul>
+                </dd>
+                <th:block th:if="${!#strings.isEmpty(group.description)}">
+                    <dt>About</dt>
+                    <dd th:text="${group.description}">Practising SQL queries and database design questions.</dd>
+                </th:block>
+            </dl>
+        </section>
+    </main>
+</body>
+</html>

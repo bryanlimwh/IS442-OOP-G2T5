@@ -32,8 +32,9 @@ public class SecurityConfig {
 
     /**
      * Rules for the rest of the app: the login page, static files and error
-     * page are public, /admin/** is for admins only, /matches/** is for
-     * students only, and every other page needs a logged-in user. Accounts
+     * page are public, /admin/** is for admins only, /matches/** and
+     * /groups/** are for students only, and every other page needs a
+     * logged-in user. Accounts
      * are looked up by AuthService.
      */
     @Bean
@@ -49,6 +50,9 @@ public class SecurityConfig {
             // Declares that the study buddy matches page can only be accessed by students
             // (an admin has no study preferences to be matched on)
             .requestMatchers("/matches/**").hasRole(Role.STUDENT.name())
+            // Declares that the study group pages can only be accessed by students
+            // (an admin can't lead or join a group)
+            .requestMatchers("/groups/**").hasRole(Role.STUDENT.name())
             // Declares that any and all other URLs require authentication
             .anyRequest().authenticated()
         )

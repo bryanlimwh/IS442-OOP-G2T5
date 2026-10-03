@@ -1,6 +1,8 @@
 package com.studybuddy.service.studygroup;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import com.studybuddy.entity.GroupMembership;
 import com.studybuddy.entity.Student;
@@ -131,6 +133,46 @@ public class GroupMembershipService {
                 .map(GroupMembership::getStudyGroup)
                 .filter(group -> !group.isLedBy(student))
                 .toList();
+    }
+
+    /**
+     * How the student is linked to the group, so its page can show the right
+     * thing: leader tools, "you're a member", "request sent", or a join button
+     * (with a confirmation first if they were rejected or removed before).
+     *
+     * @throws StudyGroupNotFoundException if no group has this id
+     * @throws StudentNotFoundException if no student has this email
+     */
+    @Transactional(readOnly = true)
+    public ViewerRole getViewerRole(Long groupId, String studentEmail) {
+        return roleOf(studyGroupService.getGroup(groupId), findStudentByEmail(studentEmail));
+    }
+
+    /**
+     * The student's role in each of the given groups, keyed by group id, for
+     * the Browse page's labels and its "only groups I can join" filter. The
+     * student is looked up once for the whole list.
+     *
+     * @throws StudentNotFoundException if no student has this email
+     */
+    @Transactional(readOnly = true)
+    public Map<Long, ViewerRole> getViewerRoles(List<StudyGroup> groups, String studentEmail) {
+        Student student = findStudentByEmail(studentEmail);
+        Map<Long, ViewerRole> roles = new HashMap<>();
+        for (StudyGroup group : groups) {
+            roles.put(group.getGroupId(), roleOf(group, student));
+        }
+        return roles;
+    }
+
+    private ViewerRole roleOf(StudyGroup group, Student student) {
+        // Checked first: the leader is also an ACCEPTED member, but needs their own answer.
+        if (group.isLedBy(student)) {
+            return ViewerRole.LEADER;
+        }
+        return group.getMembershipStatusOf(student)
+                .map(ViewerRole::fromStatus)
+                .orElse(ViewerRole.NONE);
     }
 
     private GroupMembership findMembership(Long membershipId) {

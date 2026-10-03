@@ -8,6 +8,7 @@ import java.util.Objects;
 import java.util.Optional;
 
 import com.studybuddy.entity.enums.GroupStatus;
+import com.studybuddy.entity.enums.MembershipStatus;
 import com.studybuddy.entity.enums.StudyGoal;
 import com.studybuddy.entity.enums.StudyMode;
 
@@ -287,6 +288,15 @@ public class StudyGroup {
 
     public boolean hasMember(Student student) {
         return findMembershipOf(student).map(GroupMembership::isAccepted).orElse(false);
+    }
+
+    /**
+     * Where the student's request or membership stands, or empty if they have
+     * never asked to join. Read-only: a status can still only change through
+     * this class's behaviour methods.
+     */
+    public Optional<MembershipStatus> getMembershipStatusOf(Student student) {
+        return findMembershipOf(student).map(GroupMembership::getStatus);
     }
 
     private Optional<GroupMembership> findMembershipOf(Student student) {

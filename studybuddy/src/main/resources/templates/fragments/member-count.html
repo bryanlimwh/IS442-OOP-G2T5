@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<!--
+    A study group's member count, e.g. "2/4 members". A green dot means there's room;
+    a full group's count sits on a red pill instead, so it stands out without the word "full".
+    Usage: <span th:replace="~{fragments/member-count :: memberCount(${group})}"></span>
+    group is a StudyGroupSummary.
+-->
+<span th:fragment="memberCount(group)" class="member-count"
+      th:classappend="${group.full()} ? 'member-count-full' : 'member-count-space'"
+      th:title="${group.full()} ? 'This group is full' : 'This group has room for more members'">
+    <span th:text="|${group.memberCount}/${group.maxSize} members|">2/4 members</span>
+    <!-- Colour and shape alone don't reach screen readers, so they get the words -->
+    <span class="visually-hidden" th:text="${group.full()} ? ', full' : ', places left'">, places left</span>
+</span>
+</html>

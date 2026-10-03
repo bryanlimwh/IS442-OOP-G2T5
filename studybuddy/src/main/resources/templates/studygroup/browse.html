@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/head :: head('Study groups')}"></head>
+<body>
+    <header th:replace="~{fragments/header :: header}"></header>
+
+    <main class="page">
+        <p><a th:href="@{/home}">&larr; Home</a></p>
+        <h1>Study groups</h1>
+        <p class="lead">Study together with students taking your courses.</p>
+
+        <p class="message error" role="alert" th:if="${error}" th:text="${error}">Error</p>
+
+        <!-- GET, so the chosen course stays in the URL and a refresh shows the same list -->
+        <form class="filters" th:action="@{/groups}" method="get">
+            <div class="filter-field">
+                <label for="courseId">Course</label>
+                <select id="courseId" name="courseId">
+                    <option value="">All courses</option>
+                    <option th:each="course : ${courses}" th:value="${course.courseId}"
+                            th:selected="${course.courseId == selectedCourseId}"
+                            th:text="|${course.courseCode} ${course.courseName}|">IS442 Object Oriented Programming</option>
+                </select>
+            </div>
+            <!-- Hides groups the student leads, has joined or is waiting on, and full groups -->
+            <label class="filter-check">
+                <input type="checkbox" name="joinableOnly" value="true" th:checked="${joinableOnly}">
+                Only show groups I can join
+            </label>
+            <div class="filter-actions">
+                <button type="submit" class="button button-primary">Search</button>
+                <a class="button button-quiet" th:href="@{/groups}">Clear</a>
+            </div>
+        </form>
+
+        <!-- e.g. "4 groups with space · 1 full"; the "· N full" part only when some are full -->
+        <p class="results-summary" role="status">
+            <strong th:text="${spaceCount}">4</strong>
+            <span th:text="${spaceCount == 1} ? 'group with space' : 'groups with space'">groups with space</span>
+            <th:block th:if="${fullCount > 0}">
+                · <strong th:text="${fullCount}">1</strong> full
+            </th:block>
+        </p>
+
+        <!-- Mentions "this course" only when a course is chosen -->
+        <p class="message info" th:if="${#lists.isEmpty(groups)}"
+           th:with="forCourse=${selectedCourseId != null} ? ' for this course' : ''"
+           th:text="${joinableOnly} ? |There are no groups you can join${forCourse} right now.| : |There are no open groups${forCourse} yet.|">
+            There are no open groups for this course yet.
+        </p>
+
+        <ul class="group-list">
+            <li class="group-card" th:each="group : ${groups}" th:with="role=${viewerRoles[group.groupId]}">
+                <div class="group-card-header">
+                    <div>
+                        <h2 class="group-name" th:text="${group.name}">IS112 SQL Practice</h2>
+                        <p class="muted" th:text="|${group.courseCode} ${group.courseName}|">IS112 Data Management</p>
+                    </div>
+                    <span th:replace="~{fragments/member-count :: memberCount(${group})}"></span>
+                </div>
+                <div class="group-card-footer">
+                    <p class="group-facts"
+                       th:text="|${group.studyGoal.label} · ${group.studyMode.label} · ${group.sessionsPerWeek()}|">
+                        Problem solving · Online · 1 session a week
+                    </p>
+                    <div class="group-card-actions">
+                        <!-- The group's state, then how the student is linked to it, e.g. "Full" "Joined" -->
+                        <span class="status-label status-label-full" th:if="${group.full()}">Full</span>
+                        <span class="status-label" th:unless="${role.name() == 'NONE'}"
+                              th:classappend="|status-label-${#strings.toLowerCase(role.name())}|"
+                              th:text="${role.label}">Joined</span>
+                        <a class="button button-quiet" th:href="@{/groups/{id}(id=${group.groupId})}"
+                           th:attr="aria-label=|View ${group.name}|">View</a>
+                    </div>
+                </div>
+            </li>
+        </ul>
+    </main>
+</body>
+</html>
