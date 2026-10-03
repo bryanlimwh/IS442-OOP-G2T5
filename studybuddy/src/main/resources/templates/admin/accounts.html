@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/head :: head('User accounts')}"></head>
+<body>
+    <header th:replace="~{fragments/header :: header}"></header>
+
+    <main class="page">
+        <p><a th:href="@{/home}">&larr; Home</a></p>
+        <h1>User accounts</h1>
+        <p class="lead">See every student and admin account, and deactivate or delete accounts.</p>
+
+        <p class="message info" role="status" th:if="${success}" th:text="${success}">Account deactivated.</p>
+        <p class="message error" role="alert" th:if="${error}" th:text="${error}">Error</p>
+
+        <p class="message info" th:if="${#lists.isEmpty(accounts)}">There are no accounts yet.</p>
+
+        <div class="data-table-wrap" th:unless="${#lists.isEmpty(accounts)}">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th scope="col">Account</th>
+                        <th scope="col">Role</th>
+                        <th scope="col">Status</th>
+                        <th scope="col">Created</th>
+                        <th scope="col">Usage</th>
+                        <th scope="col">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr th:each="account : ${accounts}">
+                        <td>
+                            <strong th:text="${account.displayName}">Hannah Goh</strong>
+                            <span class="muted" th:if="${account.email == currentEmail}">(you)</span>
+                            <br>
+                            <span class="muted" th:text="${account.email}">hannah@smu.edu.sg</span>
+                        </td>
+                        <td th:text="${#strings.capitalize(#strings.toLowerCase(account.role.name()))}">Student</td>
+                        <td>
+                            <span class="status-label"
+                                  th:classappend="${account.active} ? 'status-label-active' : 'status-label-inactive'"
+                                  th:text="${account.active} ? 'Active' : 'Inactive'">Active</span>
+                        </td>
+                        <td th:text="${#temporals.format(account.createdAt, 'd MMM yyyy')}">3 Oct 2026</td>
+                        <!-- Usage figures are only kept for students; admins have none -->
+                        <td th:if="${account.usage != null}">
+                            <span th:text="|Courses ${account.usage.coursesTaken} · Preferences ${account.usage.studyPreferences} · Groups led ${account.usage.groupsLed}|">
+                                Courses 3 · Preferences 2 · Groups led 1
+                            </span>
+                            <br>
+                            <span class="muted" th:text="|Requests sent ${account.usage.matchRequestsSent} · received ${account.usage.matchRequestsReceived}|">
+                                Requests sent 4 · received 2
+                            </span>
+                        </td>
+                        <td th:unless="${account.usage != null}"><span class="muted">&mdash;</span></td>
+                        <td>
+                            <div class="data-table-actions">
+                                <form th:if="${account.active}"
+                                      th:action="@{/admin/accounts/{id}/deactivate(id=${account.userId})}" method="post">
+                                    <button type="submit" class="button button-quiet"
+                                            th:attr="aria-label=|Deactivate ${account.email}|">Deactivate</button>
+                                </form>
+                                <form th:unless="${account.active}"
+                                      th:action="@{/admin/accounts/{id}/reactivate(id=${account.userId})}" method="post">
+                                    <button type="submit" class="button button-quiet"
+                                            th:attr="aria-label=|Reactivate ${account.email}|">Reactivate</button>
+                                </form>
+
+                                <!-- Deleting can't be undone, so confirm first. The popover attribute opens the box without JavaScript. -->
+                                <button type="button" class="button button-danger"
+                                        th:attr="popovertarget=|confirm-delete-${account.userId}|, aria-label=|Delete ${account.email}|">Delete</button>
+                                <div class="confirm-popover" popover th:id="|confirm-delete-${account.userId}|">
+                                    <p>Delete <strong th:text="${account.email}">hannah@smu.edu.sg</strong>? This can't be undone.</p>
+                                    <p class="muted" th:if="${account.usage != null}">
+                                        A student with match requests, study groups or study buddies can't be deleted.
+                                        Deactivate the account instead.
+                                    </p>
+                                    <div class="confirm-actions">
+                                        <button type="button" class="button button-quiet"
+                                                th:attr="popovertarget=|confirm-delete-${account.userId}|"
+                                                popovertargetaction="hide">Cancel</button>
+                                        <form th:action="@{/admin/accounts/{id}/delete(id=${account.userId})}" method="post">
+                                            <button type="submit" class="button button-danger">Delete account</button>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </main>
+</body>
+</html>

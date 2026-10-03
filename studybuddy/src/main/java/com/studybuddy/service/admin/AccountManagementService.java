@@ -2,6 +2,7 @@ package com.studybuddy.service.admin;
 
 import java.util.List;
 
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,8 +21,15 @@ import com.studybuddy.repository.UserRepository;
  * <p>
  * Status and listing methods return AccountStatus, never the entity, so password
  * hashes and contact numbers are not sent back (see AccountStatus).
+ * <p>
+ * Class-level {@code @PreAuthorize}: every method here exposes account data
+ * (email, status, usage) across all users, not just the delete/deactivate
+ * actions, so the whole class — not just the mutating methods — is admin-only.
+ * This backs up the {@code /admin/**} URL rule in SecurityConfig; it still
+ * applies even if a future caller reaches this service from a non-admin URL.
  */
 @Service
+@PreAuthorize("hasRole('ADMIN')")
 public class AccountManagementService {
 
     // Queries the 'user_account' table; with JOINED inheritance Hibernate also

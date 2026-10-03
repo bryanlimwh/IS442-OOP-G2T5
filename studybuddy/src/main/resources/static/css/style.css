@@ -21,6 +21,7 @@
     --highlight-them: #8ec5ff;
     --highlight-both: #8ea84a; /* what the two highlights look like when multiplied together */
     --danger: #a1261e;
+    --danger-dark: #7d1d17;
     --danger-bg: #fcebea;
     --space: #2e6b34; /* a study group with room left; darker than --highlight-both so it reads as text */
     --info-bg: #e6eefb;
@@ -172,6 +173,16 @@ a {
 
 .button-quiet:hover {
     border-color: var(--ink-soft);
+}
+
+/* Destructive actions such as Delete: red, like the error message */
+.button-danger {
+    background-color: var(--danger);
+    color: var(--surface);
+}
+
+.button-danger:hover {
+    background-color: var(--danger-dark);
 }
 
 /* ---- Forms ---- */
@@ -828,10 +839,17 @@ a {
 }
 
 .status-label-rejected,
-.status-label-removed {
+.status-label-removed,
+.status-label-inactive {
     background-color: var(--paper);
     color: var(--ink-soft);
     box-shadow: inset 0 0 0 1px var(--rule);
+}
+
+/* An account that can log in: green, like a study group with room left */
+.status-label-active {
+    background-color: color-mix(in srgb, var(--space) 15%, var(--surface));
+    color: var(--space);
 }
 
 /* Member count: a green dot when there's room, a red pill when the group is full */
@@ -914,6 +932,57 @@ a {
 }
 
 .confirm-actions form {
+    margin: 0;
+}
+
+/* ---- Data tables (admin/accounts.html, courses.html) ---- */
+
+/* Scrolls sideways on narrow screens instead of widening the page */
+.data-table-wrap {
+    margin: 0 0 1.5rem;
+    overflow-x: auto;
+    border: 1px solid var(--rule);
+    border-radius: var(--radius);
+    background-color: var(--surface);
+}
+
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--text-sm);
+}
+
+.data-table th {
+    padding: 0.6rem 0.75rem;
+    border-bottom: 1px solid var(--rule);
+    color: var(--ink-soft);
+    text-align: left;
+    white-space: nowrap;
+}
+
+.data-table td {
+    padding: 0.6rem 0.75rem;
+    vertical-align: top;
+}
+
+.data-table tbody tr + tr td {
+    border-top: 1px solid var(--rule);
+}
+
+/* Row buttons are smaller than page buttons, so a row of actions fits in one cell */
+.data-table .button {
+    padding: 0.4rem 0.75rem;
+    font-size: var(--text-sm);
+}
+
+.data-table-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.data-table-actions form {
     margin: 0;
 }
 

@@ -13,9 +13,15 @@
         <nav aria-label="Main" th:if="${isAdmin}">
             <ul class="feature-list">
                 <li>
-                    <a th:href="@{/admin/users}">
+                    <a th:href="@{/admin/accounts}">
                         <span class="feature-name">User accounts</span>
-                        <span class="feature-description">Create, update and deactivate accounts.</span>
+                        <span class="feature-description">See every account, and deactivate or delete accounts.</span>
+                    </a>
+                </li>
+                <li>
+                    <a th:href="@{/courses}">
+                        <span class="feature-name">Courses</span>
+                        <span class="feature-description">Add, rename and remove the courses students can choose.</span>
                     </a>
                 </li>
                 <li>
@@ -51,6 +57,12 @@
                     <a th:href="@{/groups}">
                         <span class="feature-name">Study groups</span>
                         <span class="feature-description">Join a group for your course, or start your own.</span>
+                    </a>
+                </li>
+                <li>
+                    <a th:href="@{/courses}">
+                        <span class="feature-name">Courses</span>
+                        <span class="feature-description">See the courses you can choose.</span>
                     </a>
                 </li>
             </ul>
