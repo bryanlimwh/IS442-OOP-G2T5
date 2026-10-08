@@ -1,5 +1,6 @@
 package com.studybuddy.service.studygroup;
 
+import java.util.Comparator;
 import java.util.List;
 
 import com.studybuddy.dto.StudyGroupForm;
@@ -37,6 +38,13 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Service
 public class StudyGroupService {
+
+    // Closed groups sink below open ones. A tie on creation time falls back to
+    // the id (the later one first), so the order is the same on every run.
+    private static final Comparator<StudyGroup> OPEN_THEN_NEWEST = Comparator
+            .comparing((StudyGroup group) -> !group.isActive())
+            .thenComparing(StudyGroup::getCreatedAt, Comparator.reverseOrder())
+            .thenComparing(StudyGroup::getGroupId, Comparator.reverseOrder());
 
     private final StudyGroupRepository studyGroupRepository;
     private final StudentRepository studentRepository;
@@ -152,13 +160,16 @@ public class StudyGroupService {
     }
 
     /**
-     * Every group the student leads, open or closed.
+     * Every group the student leads, for the My groups page: open groups
+     * first, then closed ones, each newest first.
      *
      * @throws StudentNotFoundException if no student has this email
      */
     @Transactional(readOnly = true)
     public List<StudyGroup> findGroupsLedBy(String studentEmail) {
-        return studyGroupRepository.findByLeader(findStudentByEmail(studentEmail));
+        return studyGroupRepository.findByLeader(findStudentByEmail(studentEmail)).stream()
+                .sorted(OPEN_THEN_NEWEST)
+                .toList();
     }
 
     // Finds the logged-in student's account from the email they logged in with.

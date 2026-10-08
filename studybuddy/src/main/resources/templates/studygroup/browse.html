@@ -8,6 +8,7 @@
         <p><a th:href="@{/home}">&larr; Home</a></p>
         <h1>Study groups</h1>
         <p class="lead">Study together with students taking your courses.</p>
+        <p><a class="button button-primary" th:href="@{/groups/mine}">My groups</a></p>
 
         <p class="message error" role="alert" th:if="${error}" th:text="${error}">Error</p>
 

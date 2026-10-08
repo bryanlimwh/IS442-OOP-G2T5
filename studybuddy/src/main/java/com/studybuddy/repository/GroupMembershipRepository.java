@@ -1,5 +1,6 @@
 package com.studybuddy.repository;
 
+import java.util.Collection;
 import java.util.List;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -15,4 +16,7 @@ public interface GroupMembershipRepository extends JpaRepository<GroupMembership
 
     // SELECT * FROM group_membership WHERE student_id = ? AND status = ?
     List<GroupMembership> findByStudentAndStatus(Student student, MembershipStatus status);
+
+    // SELECT * FROM group_membership WHERE student_id = ? AND status IN (?, ...)
+    List<GroupMembership> findByStudentAndStatusIn(Student student, Collection<MembershipStatus> statuses);
 }

@@ -804,8 +804,31 @@ a {
     flex-shrink: 0;
 }
 
+/* On a group opened from My groups: "← My groups" on the left, "← All study groups" on the right */
+.back-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1.5rem;
+    justify-content: space-between;
+    max-width: none; /* p is capped at 65ch; let the links reach the page's right edge */
+}
+
+/* A line under a card's footer, e.g. "The group is full right now..." on a pending request */
+.group-card-note {
+    margin: 0.75rem 0 0;
+}
+
+/* My groups page: one section per kind of link, with a heading smaller than the page title */
+.my-groups-section {
+    margin-top: 2.5rem;
+}
+
+.my-groups-section h2 {
+    font-size: var(--text-lg);
+}
+
 /*
- * Labels on a Browse card: whether the group is full, and how the student is linked to it. Each
+ * Labels on a group card: whether the group is full or closed, and how the student is linked to it. Each
  * is a highlighter mark (the same uneven corners as the score bars). Colours reuse the theme's
  * meanings: yellow is "you", green is "you and them overlap", blue is a status like the info
  * message, grey is past and inactive, and red is full, like the full member-count pill.
@@ -840,6 +863,7 @@ a {
 
 .status-label-rejected,
 .status-label-removed,
+.status-label-closed,
 .status-label-inactive {
     background-color: var(--paper);
     color: var(--ink-soft);

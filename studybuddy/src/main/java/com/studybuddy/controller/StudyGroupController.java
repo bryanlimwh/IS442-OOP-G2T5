@@ -4,6 +4,7 @@ import java.security.Principal;
 import java.util.List;
 import java.util.Map;
 
+import com.studybuddy.dto.GroupRequestSummary;
 import com.studybuddy.dto.StudyGroupSummary;
 import com.studybuddy.entity.StudyGroup;
 import com.studybuddy.exception.CourseNotFoundException;
@@ -22,7 +23,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 /**
- * The study group pages: browsing the open groups and viewing one group.
+ * The study group pages: browsing the open groups, the student's own groups
+ * and requests ("My groups"), and viewing one group.
  * Joining and managing members is handled by {@link GroupMembershipController},
  * mirroring the split between {@link StudyGroupService} and {@link GroupMembershipService}.
  * <p>
@@ -32,6 +34,9 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 @Controller
 @RequestMapping("/groups")
 public class StudyGroupController {
+
+    // The "from" value on links out of My groups. Package-private so GroupMembershipController keeps it on redirects.
+    static final String FROM_MY_GROUPS = "mine";
 
     private final StudyGroupService studyGroupService;
     private final GroupMembershipService groupMembershipService;
@@ -78,9 +83,31 @@ public class StudyGroupController {
         return "studygroup/browse";
     }
 
+    // The student's own groups and requests, in four sections. Spring matches the literal
+    // "/mine" before the "/{groupId}" pattern, so it's never read as a group id.
+    @GetMapping("/mine")
+    public String showMyGroups(Principal principal, Model model) {
+        String studentEmail = principal.getName();
+        model.addAttribute("groupsLed", studyGroupService.findGroupsLedBy(studentEmail).stream()
+                .map(StudyGroupSummary::from)
+                .toList());
+        model.addAttribute("groupsJoined", groupMembershipService.findGroupsJoinedBy(studentEmail).stream()
+                .map(StudyGroupSummary::from)
+                .toList());
+        model.addAttribute("pendingRequests", groupMembershipService.findPendingRequestsBy(studentEmail).stream()
+                .map(GroupRequestSummary::from)
+                .toList());
+        model.addAttribute("pastRequests", groupMembershipService.findPastRequestsBy(studentEmail).stream()
+                .map(GroupRequestSummary::from)
+                .toList());
+        return "studygroup/my-groups";
+    }
+
+    // from=mine means the student came from My groups, so the page offers a link back there as well.
     @GetMapping("/{groupId}")
-    public String showGroup(@PathVariable Long groupId, Principal principal, Model model,
-            RedirectAttributes redirectAttributes) {
+    public String showGroup(@PathVariable Long groupId, @RequestParam(required = false) String from,
+            Principal principal, Model model, RedirectAttributes redirectAttributes) {
+        model.addAttribute("fromMyGroups", FROM_MY_GROUPS.equals(from));
         try {
             model.addAttribute("group", StudyGroupSummary.from(studyGroupService.getGroup(groupId)));
             model.addAttribute("viewerRole", groupMembershipService.getViewerRole(groupId, principal.getName()));

@@ -5,7 +5,11 @@
     <header th:replace="~{fragments/header :: header}"></header>
 
     <main class="page" th:with="role=${viewerRole.name()}">
-        <p><a th:href="@{/groups}">&larr; All study groups</a></p>
+        <!-- Opened from My groups (?from=mine): offer the way back there too -->
+        <p class="back-links">
+            <a th:if="${fromMyGroups}" th:href="@{/groups/mine}">&larr; My groups</a>
+            <a th:href="@{/groups}">&larr; All study groups</a>
+        </p>
         <h1 th:text="${group.name}">IS112 SQL Practice</h1>
         <p class="lead" th:text="|${group.courseCode} ${group.courseName}|">IS112 Data Management</p>
 
@@ -35,6 +39,7 @@
                 <!-- Never asked: send the request straight away -->
                 <form th:if="${!group.full() and role == 'NONE'}"
                       th:action="@{/groups/{id}/join(id=${group.groupId})}" method="post">
+                    <input type="hidden" name="from" value="mine" th:if="${fromMyGroups}">
                     <button type="submit" class="button button-primary">Request to join</button>
                 </form>
 
@@ -52,6 +57,7 @@
                             <button type="button" class="button button-quiet"
                                     popovertarget="confirm-rejoin" popovertargetaction="hide">Cancel</button>
                             <form th:action="@{/groups/{id}/join(id=${group.groupId})}" method="post">
+                                <input type="hidden" name="from" value="mine" th:if="${fromMyGroups}">
                                 <button type="submit" class="button button-primary">Request again</button>
                             </form>
                         </div>

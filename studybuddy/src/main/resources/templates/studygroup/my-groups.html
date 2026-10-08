@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/head :: head('My groups')}"></head>
+<body>
+    <header th:replace="~{fragments/header :: header}"></header>
+
+    <main class="page">
+        <p><a th:href="@{/groups}">&larr; All study groups</a></p>
+        <h1>My groups</h1>
+        <p class="lead">Groups you lead, groups you've joined, and requests you've sent.</p>
+
+        <!--
+            Each section's heading says how the student is linked, so the Browse labels ("You lead", "Joined")
+            aren't repeated. Every View link adds from=mine, so the group's page also offers a way back here.
+        -->
+        <section class="my-groups-section" aria-labelledby="groups-led-heading">
+            <h2 id="groups-led-heading">Groups I lead</h2>
+            <p class="message info" th:if="${#lists.isEmpty(groupsLed)}">You don't lead any groups yet.</p>
+            <ul class="group-list" th:unless="${#lists.isEmpty(groupsLed)}">
+                <li class="group-card" th:each="group : ${groupsLed}">
+                    <div class="group-card-header">
+                        <div>
+                            <h3 class="group-name" th:text="${group.name}">IS442 OOP Exam Prep</h3>
+                            <p class="muted" th:text="|${group.courseCode} ${group.courseName}|">IS442 Object Oriented Programming</p>
+                        </div>
+                        <span th:replace="~{fragments/member-count :: memberCount(${group})}"></span>
+                    </div>
+                    <div class="group-card-footer">
+                        <!-- The waiting count becomes a link to Manage members in step 4d -->
+                        <p class="group-facts" th:if="${group.pendingRequestCount > 0}">
+                            <span aria-hidden="true">🔔</span>
+                            <span th:text="${group.requestsWaiting()}">2 requests waiting</span>
+                        </p>
+                        <p class="group-facts" th:unless="${group.pendingRequestCount > 0}">No requests waiting</p>
+                        <div class="group-card-actions">
+                            <span class="status-label status-label-full" th:if="${group.active and group.full()}">Full</span>
+                            <span class="status-label status-label-closed" th:unless="${group.active}">Closed</span>
+                            <a class="button button-quiet" th:href="@{/groups/{id}(id=${group.groupId}, from='mine')}"
+                               th:attr="aria-label=|View ${group.name}|">View</a>
+                        </div>
+                    </div>
+                </li>
+            </ul>
+        </section>
+
+        <section class="my-groups-section" aria-labelledby="groups-joined-heading">
+            <h2 id="groups-joined-heading">Joined groups</h2>
+            <p class="message info" th:if="${#lists.isEmpty(groupsJoined)}">
+                You haven't joined any groups yet. <a th:href="@{/groups}">Browse groups</a>
+            </p>
+            <ul class="group-list" th:unless="${#lists.isEmpty(groupsJoined)}">
+                <li class="group-card" th:each="group : ${groupsJoined}">
+                    <div class="group-card-header">
+                        <div>
+                            <h3 class="group-name" th:text="${group.name}">CS201 DSA Problem Solvers</h3>
+                            <p class="muted" th:text="|${group.courseCode} ${group.courseName}|">CS201 Data Structures and Algorithms</p>
+                        </div>
+                        <span th:replace="~{fragments/member-count :: memberCount(${group})}"></span>
+                    </div>
+                    <div class="group-card-footer">
+                        <p class="group-facts" th:text="|Led by ${group.leaderName}|">Led by Ben Koh</p>
+                        <div class="group-card-actions">
+                            <span class="status-label status-label-full" th:if="${group.active and group.full()}">Full</span>
+                            <span class="status-label status-label-closed" th:unless="${group.active}">Closed</span>
+                            <a class="button button-quiet" th:href="@{/groups/{id}(id=${group.groupId}, from='mine')}"
+                               th:attr="aria-label=|View ${group.name}|">View</a>
+                        </div>
+                    </div>
+                </li>
+            </ul>
+        </section>
+
+        <section class="my-groups-section" aria-labelledby="pending-requests-heading">
+            <h2 id="pending-requests-heading">Pending group join requests</h2>
+            <p class="message info" th:if="${#lists.isEmpty(pendingRequests)}">You have no requests waiting for a reply.</p>
+            <ul class="group-list" th:unless="${#lists.isEmpty(pendingRequests)}">
+                <li class="group-card" th:each="request : ${pendingRequests}">
+                    <div class="group-card-header">
+                        <div>
+                            <h3 class="group-name" th:text="${request.groupName}">IS111 Python Basics</h3>
+                            <p class="muted" th:text="|${request.courseCode} ${request.courseName}|">IS111 Introduction to Programming</p>
+                        </div>
+                        <span th:replace="~{fragments/member-count :: memberCount(${request})}"></span>
+                    </div>
+                    <div class="group-card-footer">
+                        <p class="group-facts" th:text="|Sent on ${request.requestedOn()}|">Sent on 9 Oct 2026, 19:05</p>
+                        <div class="group-card-actions">
+                            <span class="status-label status-label-full" th:if="${request.full()}">Full</span>
+                            <a class="button button-quiet" th:href="@{/groups/{id}(id=${request.groupId}, from='mine')}"
+                               th:attr="aria-label=|View ${request.groupName}|">View</a>
+                        </div>
+                    </div>
+                    <!-- A full group keeps requests pending (a waiting list), so say the student can still get in -->
+                    <p class="muted group-card-note" th:if="${request.full()}">
+                        The group is full right now. The leader can still accept you if a place opens up.
+                    </p>
+                </li>
+            </ul>
+        </section>
+
+        <!-- Only open groups: the service leaves out closed ones, since there's nothing left to do about them -->
+        <section class="my-groups-section" aria-labelledby="past-requests-heading">
+            <h2 id="past-requests-heading">Declined or removed</h2>
+            <p class="message info" th:if="${#lists.isEmpty(pastRequests)}">You have no declined requests or removals.</p>
+            <ul class="group-list" th:unless="${#lists.isEmpty(pastRequests)}">
+                <li class="group-card" th:each="request : ${pastRequests}">
+                    <div class="group-card-header">
+                        <div>
+                            <h3 class="group-name" th:text="${request.groupName}">IS216 Web App Project Team</h3>
+                            <p class="muted" th:text="|${request.courseCode} ${request.courseName}|">IS216 Web Application Development II</p>
+                        </div>
+                        <span th:replace="~{fragments/member-count :: memberCount(${request})}"></span>
+                    </div>
+                    <div class="group-card-footer">
+                        <!-- No date for a removal: the system only records when the student was accepted -->
+                        <p class="group-facts"
+                           th:text="${request.removed()} ? 'Removed from the group' : |Declined on ${request.respondedOn()}|">
+                            Declined on 9 Oct 2026, 19:05
+                        </p>
+                        <div class="group-card-actions">
+                            <span class="status-label status-label-full" th:if="${request.full()}">Full</span>
+                            <a class="button button-quiet" th:href="@{/groups/{id}(id=${request.groupId}, from='mine')}"
+                               th:attr="aria-label=|View ${request.groupName}|">View</a>
+                        </div>
+                    </div>
+                </li>
+            </ul>
+        </section>
+    </main>
+</body>
+</html>

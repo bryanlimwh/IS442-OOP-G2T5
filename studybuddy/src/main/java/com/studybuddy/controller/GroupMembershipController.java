@@ -9,6 +9,7 @@ import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 /**
@@ -28,9 +29,11 @@ public class GroupMembershipController {
         this.groupMembershipService = groupMembershipService;
     }
 
+    // from=mine (sent when the page was opened from My groups) is passed back on the redirect,
+    // so the group's page keeps its "← My groups" link.
     @PostMapping("/{groupId}/join")
-    public String requestToJoin(@PathVariable Long groupId, Principal principal,
-            RedirectAttributes redirectAttributes) {
+    public String requestToJoin(@PathVariable Long groupId, @RequestParam(required = false) String from,
+            Principal principal, RedirectAttributes redirectAttributes) {
         try {
             groupMembershipService.requestToJoin(groupId, principal.getName());
             redirectAttributes.addFlashAttribute("success", "Request sent. The group's leader will review it.");
@@ -40,6 +43,10 @@ public class GroupMembershipController {
         } catch (IllegalStateException | IllegalArgumentException e) {
             // The entity's own messages are already readable, e.g. "Group is full" or "Group is closed".
             redirectAttributes.addFlashAttribute("error", e.getMessage());
+        }
+        // addAttribute (not addFlashAttribute) puts it in the redirect's URL: /groups/4?from=mine
+        if (StudyGroupController.FROM_MY_GROUPS.equals(from)) {
+            redirectAttributes.addAttribute("from", from);
         }
         return "redirect:/groups/" + groupId;
     }

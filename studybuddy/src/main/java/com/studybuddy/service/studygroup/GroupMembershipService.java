@@ -1,5 +1,6 @@
 package com.studybuddy.service.studygroup;
 
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -37,6 +38,17 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Service
 public class GroupMembershipService {
+
+    // Orders for the My groups page. A tie on time falls back to the id (the
+    // later one first), so the order is the same on every run.
+    private static final Comparator<GroupMembership> OPEN_GROUP_FIRST =
+            Comparator.comparing(membership -> !membership.getStudyGroup().isActive());
+    private static final Comparator<GroupMembership> NEWEST_REQUEST_FIRST = Comparator
+            .comparing(GroupMembership::getRequestedAt, Comparator.reverseOrder())
+            .thenComparing(GroupMembership::getMembershipId, Comparator.reverseOrder());
+    private static final Comparator<GroupMembership> NEWEST_ANSWER_FIRST = Comparator
+            .comparing(GroupMembership::getRespondedAt, Comparator.nullsLast(Comparator.reverseOrder()))
+            .thenComparing(GroupMembership::getMembershipId, Comparator.reverseOrder());
 
     private final GroupMembershipRepository groupMembershipRepository;
     private final StudentRepository studentRepository;
@@ -123,6 +135,8 @@ public class GroupMembershipService {
      * student leads are left out (the leader is also an accepted member);
      * those come from {@link StudyGroupService#findGroupsLedBy}, so a
      * "My groups" page doesn't list them twice.
+     * <p>
+     * Open groups come first, then closed ones, each most recently joined first.
      *
      * @throws StudentNotFoundException if no student has this email
      */
@@ -130,8 +144,47 @@ public class GroupMembershipService {
     public List<StudyGroup> findGroupsJoinedBy(String studentEmail) {
         Student student = findStudentByEmail(studentEmail);
         return groupMembershipRepository.findByStudentAndStatus(student, MembershipStatus.ACCEPTED).stream()
+                .filter(membership -> !membership.getStudyGroup().isLedBy(student))
+                .sorted(OPEN_GROUP_FIRST.thenComparing(NEWEST_ANSWER_FIRST))
                 .map(GroupMembership::getStudyGroup)
-                .filter(group -> !group.isLedBy(student))
+                .toList();
+    }
+
+    /**
+     * The student's requests still waiting for a leader to answer, newest
+     * first, for the My groups page. They are all for open groups, because
+     * closing a group rejects its pending requests.
+     *
+     * @throws StudentNotFoundException if no student has this email
+     */
+    @Transactional(readOnly = true)
+    public List<GroupMembership> findPendingRequestsBy(String studentEmail) {
+        Student student = findStudentByEmail(studentEmail);
+        return groupMembershipRepository.findByStudentAndStatus(student, MembershipStatus.PENDING).stream()
+                .sorted(NEWEST_REQUEST_FIRST)
+                .toList();
+    }
+
+    /**
+     * The student's declined requests and removals, most recent answer first,
+     * for the My groups page. Only open groups are included: the student can
+     * still ask to join those again, while a closed group's history has
+     * nothing left to act on. This also hides the requests that
+     * {@link StudyGroup#close()} rejected, which a student would otherwise
+     * read as the leader turning them down.
+     * <p>
+     * A removal is sorted by its accept time, because no removal time is stored.
+     *
+     * @throws StudentNotFoundException if no student has this email
+     */
+    @Transactional(readOnly = true)
+    public List<GroupMembership> findPastRequestsBy(String studentEmail) {
+        Student student = findStudentByEmail(studentEmail);
+        return groupMembershipRepository
+                .findByStudentAndStatusIn(student, List.of(MembershipStatus.REJECTED, MembershipStatus.REMOVED))
+                .stream()
+                .filter(membership -> membership.getStudyGroup().isActive())
+                .sorted(NEWEST_ANSWER_FIRST)
                 .toList();
     }
 

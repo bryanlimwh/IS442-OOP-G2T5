@@ -4,7 +4,7 @@
     A study group's member count, e.g. "2/4 members". A green dot means there's room;
     a full group's count sits on a red pill instead, so it stands out without the word "full".
     Usage: <span th:replace="~{fragments/member-count :: memberCount(${group})}"></span>
-    group is a StudyGroupSummary.
+    group is a StudyGroupSummary or a GroupRequestSummary (both have memberCount, maxSize and full()).
 -->
 <span th:fragment="memberCount(group)" class="member-count"
       th:classappend="${group.full()} ? 'member-count-full' : 'member-count-space'"

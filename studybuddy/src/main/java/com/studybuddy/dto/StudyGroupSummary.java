@@ -32,7 +32,8 @@ public record StudyGroupSummary(
         int memberCount,
         int maxSize,
         boolean active,
-        List<String> sessions) {
+        List<String> sessions,
+        int pendingRequestCount) {
 
     public static StudyGroupSummary from(StudyGroup group) {
         List<String> sessions = group.getAvailability().stream()
@@ -46,7 +47,8 @@ public record StudyGroupSummary(
         return new StudyGroupSummary(group.getGroupId(), group.getName(), group.getDescription(),
                 group.getCourse().getCourseCode(), group.getCourse().getCourseName(),
                 group.getStudyGoal(), group.getStudyMode(), group.getLeader().getName(),
-                memberNames, group.getMemberCount(), group.getMaxSize(), group.isActive(), sessions);
+                memberNames, group.getMemberCount(), group.getMaxSize(), group.isActive(), sessions,
+                group.getPendingRequests().size());
     }
 
     public boolean full() {
@@ -56,6 +58,11 @@ public record StudyGroupSummary(
     // "1 session a week", "2 sessions a week"
     public String sessionsPerWeek() {
         return sessions.size() + (sessions.size() == 1 ? " session a week" : " sessions a week");
+    }
+
+    // "1 request waiting", "2 requests waiting", for the leader on the My groups page
+    public String requestsWaiting() {
+        return pendingRequestCount + (pendingRequestCount == 1 ? " request waiting" : " requests waiting");
     }
 
     // e.g. "Wed 19:00-21:00", the same format as the matches page
