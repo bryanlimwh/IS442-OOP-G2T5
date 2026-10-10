@@ -8,7 +8,10 @@
         <p><a th:href="@{/home}">&larr; Home</a></p>
         <h1>Study groups</h1>
         <p class="lead">Study together with students taking your courses.</p>
-        <p><a class="button button-primary" th:href="@{/groups/mine}">My groups</a></p>
+        <p class="button-row">
+            <a class="button button-primary" th:href="@{/groups/mine}">My groups</a>
+            <a class="button button-secondary" th:href="@{/groups/new}">+ Create a group</a>
+        </p>
 
         <p class="message error" role="alert" th:if="${error}" th:text="${error}">Error</p>
 
@@ -21,6 +24,14 @@
                     <option th:each="course : ${courses}" th:value="${course.courseId}"
                             th:selected="${course.courseId == selectedCourseId}"
                             th:text="|${course.courseCode} ${course.courseName}|">IS442 Object Oriented Programming</option>
+                </select>
+            </div>
+            <!-- Sent with the course by the same Search button. Full groups stay last whatever the order. -->
+            <div class="filter-field">
+                <label for="sort">Sort by</label>
+                <select id="sort" name="sort">
+                    <option th:each="option : ${sorts}" th:value="${option}"
+                            th:selected="${option == selectedSort}" th:text="${option.label}">Newest first</option>
                 </select>
             </div>
             <!-- Hides groups the student leads, has joined or is waiting on, and full groups -->

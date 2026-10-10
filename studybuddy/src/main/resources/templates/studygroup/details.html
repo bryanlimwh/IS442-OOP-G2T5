@@ -23,8 +23,38 @@
             </p>
 
             <p th:if="${role == 'LEADER'}"><strong>You lead this group.</strong></p>
+
+            <!-- The leader's tools. A closed group can't be changed, so they only show while it's open. -->
+            <div class="button-row" th:if="${role == 'LEADER' and group.active}">
+                <a class="button button-primary"
+                   th:href="${fromMyGroups} ? @{/groups/{id}/edit(id=${group.groupId}, from='mine')} : @{/groups/{id}/edit(id=${group.groupId})}">Edit group</a>
+
+                <!-- Closing ends every pending request and can't be undone, so confirm first (no JavaScript needed) -->
+                <button type="button" class="button button-danger" popovertarget="confirm-close">Close group</button>
+                <div id="confirm-close" class="confirm-popover" popover>
+                    <p th:if="${group.pendingRequestCount == 0}">
+                        Close this group? It will stop taking new members, and you can't reopen it.
+                    </p>
+                    <p th:if="${group.pendingRequestCount == 1}">
+                        Close this group? Its 1 pending request will end without an answer, and you can't reopen it.
+                    </p>
+                    <p th:if="${group.pendingRequestCount > 1}"
+                       th:text="|Close this group? Its ${group.pendingRequestCount} pending requests will end without an answer, and you can't reopen it.|">
+                        Close this group? Its 2 pending requests will end without an answer, and you can't reopen it.
+                    </p>
+                    <div class="confirm-actions">
+                        <button type="button" class="button button-quiet"
+                                popovertarget="confirm-close" popovertargetaction="hide">Cancel</button>
+                        <form th:action="@{/groups/{id}/close(id=${group.groupId})}" method="post">
+                            <input type="hidden" name="from" value="mine" th:if="${fromMyGroups}">
+                            <button type="submit" class="button button-danger">Close group</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
             <p th:if="${role == 'MEMBER'}"><strong>You're a member of this group.</strong></p>
             <p th:if="${role == 'PENDING'}"><strong>Request sent.</strong> Waiting for the group's leader to respond.</p>
+            <p th:if="${role == 'GROUP_CLOSED'}">The group was closed before the leader answered your request.</p>
 
             <th:block th:if="${group.active and (role == 'NONE' or role == 'REJECTED' or role == 'REMOVED')}">
                 <p th:if="${role == 'REJECTED'}">Your earlier request to join this group was declined.</p>

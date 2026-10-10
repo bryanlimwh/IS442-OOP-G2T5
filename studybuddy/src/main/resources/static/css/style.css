@@ -804,6 +804,11 @@ a {
     flex-shrink: 0;
 }
 
+/* e.g. the Remove button on a closed group's card on My groups */
+.group-card-actions form {
+    margin: 0;
+}
+
 /* On a group opened from My groups: "← My groups" on the left, "← All study groups" on the right */
 .back-links {
     display: flex;
@@ -959,6 +964,111 @@ a {
     margin: 0;
 }
 
+/* A row of page buttons, e.g. My groups + Create a group on Browse, or Edit + Close on a group's page */
+.button-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    align-items: center;
+    max-width: none; /* when it's a p, don't stop at 65ch */
+}
+
+.button-row form {
+    margin: 0;
+}
+
+/* A second action next to a primary button, e.g. "+ Create a group" on Browse: the info message's blue */
+.button-secondary {
+    background-color: var(--info-bg);
+    border-color: var(--navy);
+    color: var(--navy);
+}
+
+.button-secondary:hover {
+    background-color: color-mix(in srgb, var(--navy) 12%, var(--info-bg));
+}
+
+/* Create / edit group form (studygroup/form.html). Selects and the description box look like the text boxes. */
+.form select,
+.form textarea {
+    width: 100%;
+    margin-bottom: 0.8rem;
+    padding: 0.7rem 0.8rem;
+    border: 1px solid var(--rule);
+    border-radius: var(--radius);
+    background-color: var(--surface);
+    color: var(--ink);
+    font-family: var(--font-body);
+    font-size: var(--text-base);
+}
+
+.form select:hover,
+.form textarea:hover {
+    border-color: var(--ink-soft);
+}
+
+.form textarea {
+    resize: vertical;
+}
+
+/* "(optional)" after a bold label */
+.form label .muted {
+    font-weight: 400;
+}
+
+/* A hint or error sits just under its field, closer to it than to the next label */
+.field-hint,
+.field-error {
+    margin: -0.4rem 0 0.8rem;
+}
+
+/* A field's problem, in the error message's red */
+.field-error {
+    color: var(--danger);
+    font-size: var(--text-sm);
+    font-weight: 700;
+}
+
+.field-error-list {
+    margin: 0 0 1rem;
+    padding-left: 1.25rem;
+}
+
+/* On the edit form: the course, which can't be changed, shown as text in place of a dropdown */
+.form-fixed-value {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 0.8rem;
+}
+
+/* One time slot: Day, From and To side by side, then Remove */
+.slot-row {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
+    gap: 0.75rem;
+    align-items: end;
+    margin: 0 0 1rem;
+    padding: 0 0 1rem;
+    border: none;
+    border-bottom: 1px solid var(--rule);
+}
+
+/* Smaller than the "Weekly time slots" legend around it */
+.slot-row legend {
+    margin-bottom: 0.4rem;
+    padding: 0;
+    font-family: var(--font-body);
+    font-size: var(--text-base);
+}
+
+.form .slot-row select {
+    margin-bottom: 0;
+}
+
+.form .slot-row .button {
+    margin-top: 0;
+}
+
 /* ---- Data tables (admin/accounts.html, courses.html) ---- */
 
 /* Scrolls sideways on narrow screens instead of widening the page */
@@ -1039,6 +1149,19 @@ a {
     .group-card-header,
     .group-details {
         grid-template-columns: 1fr;
+    }
+
+    /* Day across the top, then From and To side by side, then Remove */
+    .slot-row {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .slot-row .slot-day {
+        grid-column: 1 / -1;
+    }
+
+    .slot-row .button {
+        justify-self: start;
     }
 }
 

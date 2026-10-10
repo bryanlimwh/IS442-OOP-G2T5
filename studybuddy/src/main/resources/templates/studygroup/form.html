@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/head :: head(${editing == null} ? 'Create a study group' : |Edit ${editing.name}|)}"></head>
+<body>
+    <header th:replace="~{fragments/header :: header}"></header>
+
+    <!--
+        One page for creating and editing a group. editing is null when creating; when editing it holds
+        the group (a StudyGroupSummary), whose course is shown but can't be changed.
+    -->
+    <main class="page" th:with="creating=${editing == null}">
+        <!-- No back link at the top: Cancel at the bottom goes back to wherever the leader came from -->
+        <th:block th:with="backUrl=${creating}
+                ? (${fromMyGroups} ? @{/groups/mine} : @{/groups})
+                : (${fromMyGroups} ? @{/groups/{id}(id=${editing.groupId}, from='mine')} : @{/groups/{id}(id=${editing.groupId})}),
+                formUrl=${creating} ? @{/groups} : @{/groups/{id}/edit(id=${editing.groupId})}">
+            <h1 th:text="${creating} ? 'Create a study group' : 'Edit group'">Create a study group</h1>
+            <p class="lead" th:if="${creating}">Set up a group for one of your courses. You'll be its leader and first member.</p>
+            <p class="lead" th:unless="${creating}" th:text="|${editing.name} · ${editing.courseCode} ${editing.courseName}|">
+                IS442 OOP Exam Prep · IS442 Object Oriented Programming
+            </p>
+
+            <p class="message error" role="alert" th:if="${error}" th:text="${error}">Error</p>
+
+            <!--
+                th:object binds each field to StudyGroupForm; th:action adds the CSRF token. novalidate turns off the
+                browser's one-at-a-time bubbles, so the server checks everything and every problem shows in red under
+                its field together. required and min stay for screen readers and the size box's arrows.
+            -->
+            <form class="form" method="post" th:object="${form}" th:action="${formUrl}" novalidate>
+                <!--
+                    Pressing Enter in a text box clicks the form's first submit button. This hidden copy of the save
+                    button comes first, so Enter saves instead of clicking "Remove" or "Add slot".
+                -->
+                <button type="submit" class="visually-hidden" tabindex="-1" aria-hidden="true">Save</button>
+                <input type="hidden" name="from" value="mine" th:if="${fromMyGroups}">
+
+                <p class="message error" role="alert" th:if="${#fields.hasErrors('*')}">
+                    Some details need fixing. See the messages below.
+                </p>
+
+                <fieldset class="option-group">
+                    <legend>About the group</legend>
+
+                    <label for="name">Group name</label>
+                    <input type="text" th:field="*{name}" required maxlength="255">
+                    <p class="field-error" th:if="${#fields.hasErrors('name')}" th:errors="*{name}">Please enter a group name</p>
+
+                    <th:block th:if="${creating}">
+                        <label for="courseId">Course</label>
+                        <select th:field="*{courseId}" required aria-describedby="course-help">
+                            <option value="">Choose a course</option>
+                            <option th:each="course : ${courses}" th:value="${course.courseId}"
+                                    th:text="|${course.courseCode} ${course.courseName}|">IS442 Object Oriented Programming</option>
+                        </select>
+                        <p class="field-error" th:if="${#fields.hasErrors('courseId')}" th:errors="*{courseId}">Please choose a course</p>
+                        <p class="muted field-hint" id="course-help">You can't change the course once the group is created.</p>
+                    </th:block>
+                    <!-- The course is fixed: shown as text, and sent back unchanged so the form stays complete -->
+                    <th:block th:unless="${creating}">
+                        <input type="hidden" th:field="*{courseId}">
+                        <p class="form-fixed-value">
+                            <strong>Course</strong>
+                            <span th:text="|${editing.courseCode} ${editing.courseName}|">IS442 Object Oriented Programming</span>
+                        </p>
+                        <p class="muted field-hint">A group's course can't be changed.</p>
+                    </th:block>
+
+                    <label for="description">Description <span class="muted">(optional)</span></label>
+                    <textarea th:field="*{description}" rows="4" maxlength="1000"
+                              placeholder="What the group will work on, anything members should know etc."></textarea>
+                    <p class="field-error" th:if="${#fields.hasErrors('description')}" th:errors="*{description}">Too long</p>
+                </fieldset>
+
+                <fieldset class="option-group">
+                    <legend>How the group studies</legend>
+
+                    <label for="studyGoal">Study goal</label>
+                    <select th:field="*{studyGoal}" required>
+                        <option value="">Choose a study goal</option>
+                        <option th:each="goal : ${studyGoals}" th:value="${goal}" th:text="${goal.label}">Exam preparation</option>
+                    </select>
+                    <p class="field-error" th:if="${#fields.hasErrors('studyGoal')}" th:errors="*{studyGoal}">Please choose a study goal</p>
+
+                    <label for="studyMode">Study mode</label>
+                    <select th:field="*{studyMode}" required>
+                        <option value="">Choose a study mode</option>
+                        <option th:each="mode : ${studyModes}" th:value="${mode}" th:text="${mode.label}">Online</option>
+                    </select>
+                    <p class="field-error" th:if="${#fields.hasErrors('studyMode')}" th:errors="*{studyMode}">Please choose a study mode</p>
+
+                    <label for="maxSize">Maximum group size</label>
+                    <input class="input-short" type="number" step="1" required th:field="*{maxSize}" th:min="${minSize}"
+                           aria-describedby="max-size-help">
+                    <p class="field-error" th:if="${#fields.hasErrors('maxSize')}" th:errors="*{maxSize}">Too small</p>
+                    <!-- When editing, the size can't go below the members already in the group -->
+                    <p class="muted field-hint" id="max-size-help"
+                       th:text="${creating} ? |Including you. At least ${minSize}.| : |Including you. At least ${minSize} (the number of members now).|">
+                        Including you. At least 2.
+                    </p>
+                </fieldset>
+
+                <!-- Add slot and Remove come back to #time-slots, so the page opens here instead of at the top -->
+                <fieldset class="option-group" id="time-slots">
+                    <legend>Weekly time slots</legend>
+                    <p class="muted">When the group meets each week. Times are 24-hour.</p>
+
+                    <!-- The validator files every slot message under "slots", so they're listed together here -->
+                    <ul class="field-error field-error-list" th:if="${#fields.hasErrors('slots')}">
+                        <li th:each="message : ${#fields.errors('slots')}" th:text="${message}">Slot 2: please choose a start time</li>
+                    </ul>
+
+                    <fieldset class="slot-row" th:each="slot, row : *{slots}">
+                        <legend th:text="|Slot ${row.count}|">Slot 1</legend>
+                        <div class="filter-field slot-day">
+                            <label th:for="|slots${row.index}.dayOfWeek|">Day</label>
+                            <select th:field="*{slots[__${row.index}__].dayOfWeek}">
+                                <option value="">Choose a day</option>
+                                <option th:each="day : ${days}" th:value="${day}"
+                                        th:text="${#strings.capitalize(#strings.toLowerCase(day.name()))}">Monday</option>
+                            </select>
+                        </div>
+                        <div class="filter-field">
+                            <label th:for="|slots${row.index}.startTime|">From</label>
+                            <select th:field="*{slots[__${row.index}__].startTime}">
+                                <option value="">--:--</option>
+                                <option th:each="time : ${timeOptions}" th:value="${time}" th:text="${time}">08:00</option>
+                            </select>
+                        </div>
+                        <div class="filter-field">
+                            <label th:for="|slots${row.index}.endTime|">To</label>
+                            <select th:field="*{slots[__${row.index}__].endTime}">
+                                <option value="">--:--</option>
+                                <option th:each="time : ${timeOptions}" th:value="${time}" th:text="${time}">08:00</option>
+                            </select>
+                        </div>
+                        <!-- Not on the last remaining row: a group needs at least one slot -->
+                        <button type="submit" class="button button-quiet" name="removeSlot"
+                                th:if="${#lists.size(form.slots) > 1}" th:value="${row.index}"
+                                th:formaction="${formUrl} + '#time-slots'"
+                                th:attr="aria-label=|Remove slot ${row.count}|">Remove</button>
+                    </fieldset>
+
+                    <button type="submit" class="button button-quiet" name="addSlot" value="true"
+                            th:if="${#lists.size(form.slots) < maxSlots}"
+                            th:formaction="${formUrl} + '#time-slots'">+ Add slot</button>
+                    <p class="muted" th:text="${#lists.size(form.slots) < maxSlots} ? |A group can have up to ${maxSlots} slots.| : |Max time slots reached (${maxSlots})|">
+                        A group can have up to 3 slots.
+                    </p>
+                </fieldset>
+
+                <div class="button-row">
+                    <button type="submit" class="button button-primary" th:text="${creating} ? 'Create group' : 'Save changes'">Create group</button>
+                    <a class="button button-quiet" th:href="${backUrl}">Cancel</a>
+                </div>
+            </form>
+        </th:block>
+    </main>
+</body>
+</html>

@@ -13,11 +13,11 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 /**
- * The study group actions about who is in a group: asking to join (and, later,
- * the leader accepting, rejecting and removing members). Each action calls
- * {@link GroupMembershipService}, then redirects back to the group's page with
- * a one-time success or error message (Post/Redirect/Get), so refreshing the
- * page doesn't repeat the action.
+ * The study group actions about who is in a group: asking to join, removing a
+ * closed group from My groups (and, later, the leader accepting, rejecting and
+ * removing members). Each action calls {@link GroupMembershipService}, then
+ * redirects back with a one-time success or error message (Post/Redirect/Get),
+ * so refreshing the page doesn't repeat the action.
  */
 @Controller
 @RequestMapping("/groups")
@@ -49,5 +49,21 @@ public class GroupMembershipController {
             redirectAttributes.addAttribute("from", from);
         }
         return "redirect:/groups/" + groupId;
+    }
+
+    // The "Remove" button on a closed group's card on My groups, so closed groups don't pile up there.
+    @PostMapping("/{groupId}/remove-from-my-groups")
+    public String removeFromMyGroups(@PathVariable Long groupId, Principal principal,
+            RedirectAttributes redirectAttributes) {
+        try {
+            groupMembershipService.removeFromMyGroups(groupId, principal.getName());
+            redirectAttributes.addFlashAttribute("success", "Removed from My groups.");
+        } catch (StudyGroupNotFoundException e) {
+            redirectAttributes.addFlashAttribute("error", "That group no longer exists.");
+        } catch (IllegalStateException | IllegalArgumentException e) {
+            // e.g. "Only a closed group can be removed from My groups"
+            redirectAttributes.addFlashAttribute("error", e.getMessage());
+        }
+        return "redirect:/groups/mine";
     }
 }

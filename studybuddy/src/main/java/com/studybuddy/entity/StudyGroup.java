@@ -39,7 +39,8 @@ import jakarta.persistence.OneToMany;
 @Entity
 public class StudyGroup {
 
-    private static final int MIN_GROUP_SIZE = 2; // a group needs the leader plus at least one other member
+    // A group needs the leader plus at least one other member. Public so the form's @Min uses the same number.
+    public static final int MIN_GROUP_SIZE = 2;
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -237,7 +238,8 @@ public class StudyGroup {
     }
 
     /**
-     * Closes the group and rejects every pending request.
+     * Closes the group. Every request still pending ends as GROUP_CLOSED
+     * rather than REJECTED, because the leader never answered it.
      *
      * @throws IllegalStateException if the group is already closed
      */
@@ -246,9 +248,33 @@ public class StudyGroup {
         this.status = GroupStatus.CLOSED;
         for (GroupMembership membership : memberships) {
             if (membership.isPending()) {
-                membership.reject();
+                membership.endBecauseGroupClosed();
             }
         }
+    }
+
+    /**
+     * Takes this closed group off one student's My groups page, whether they
+     * led it, joined it or were still waiting. Only the student's own view
+     * changes; the group and everyone's history stay.
+     *
+     * @throws IllegalStateException if the group is still open (there is still something to do there)
+     * @throws IllegalArgumentException if the student has no link to this group
+     */
+    public void removeFromMyGroups(Student student) {
+        if (isActive()) {
+            throw new IllegalStateException("Only a closed group can be removed from My groups");
+        }
+        GroupMembership membership = findMembershipOf(student)
+                .orElseThrow(() -> new IllegalArgumentException("You aren't linked to this group"));
+        membership.hideFromMyGroups();
+    }
+
+    /**
+     * True once the student has removed this (closed) group from their My groups page.
+     */
+    public boolean isHiddenFromMyGroupsOf(Student student) {
+        return findMembershipOf(student).map(GroupMembership::isHiddenFromMyGroups).orElse(false);
     }
 
     public boolean isActive() {

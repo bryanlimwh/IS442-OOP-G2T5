@@ -16,6 +16,8 @@ public enum ViewerRole {
     PENDING("Request sent"),
     REJECTED("Declined"),
     REMOVED("Removed"),
+    // The group closed before the leader answered. No Browse label: Browse only lists open groups.
+    GROUP_CLOSED(""),
     NONE("");
 
     private final String label;
@@ -47,6 +49,7 @@ public enum ViewerRole {
             case PENDING -> PENDING;
             case REJECTED -> REJECTED;
             case REMOVED -> REMOVED;
+            case GROUP_CLOSED -> GROUP_CLOSED;
         };
     }
 }

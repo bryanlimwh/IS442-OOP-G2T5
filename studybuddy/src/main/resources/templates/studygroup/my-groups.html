@@ -8,14 +8,21 @@
         <p><a th:href="@{/groups}">&larr; All study groups</a></p>
         <h1>My groups</h1>
         <p class="lead">Groups you lead, groups you've joined, and requests you've sent.</p>
+        <p><a class="button button-secondary" th:href="@{/groups/new(from='mine')}">+ Create a group</a></p>
+
+        <p class="message info" role="status" th:if="${success}" th:text="${success}">Removed from My groups.</p>
+        <p class="message error" role="alert" th:if="${error}" th:text="${error}">Error</p>
 
         <!--
             Each section's heading says how the student is linked, so the Browse labels ("You lead", "Joined")
             aren't repeated. Every View link adds from=mine, so the group's page also offers a way back here.
+            A closed group's card also has a Remove button, so closed groups don't pile up here.
         -->
         <section class="my-groups-section" aria-labelledby="groups-led-heading">
             <h2 id="groups-led-heading">Groups I lead</h2>
-            <p class="message info" th:if="${#lists.isEmpty(groupsLed)}">You don't lead any groups yet.</p>
+            <p class="message info" th:if="${#lists.isEmpty(groupsLed)}">
+                You don't lead any groups yet. <a th:href="@{/groups/new(from='mine')}">Create a group</a>
+            </p>
             <ul class="group-list" th:unless="${#lists.isEmpty(groupsLed)}">
                 <li class="group-card" th:each="group : ${groupsLed}">
                     <div class="group-card-header">
@@ -37,6 +44,9 @@
                             <span class="status-label status-label-closed" th:unless="${group.active}">Closed</span>
                             <a class="button button-quiet" th:href="@{/groups/{id}(id=${group.groupId}, from='mine')}"
                                th:attr="aria-label=|View ${group.name}|">View</a>
+                            <th:block th:unless="${group.active}">
+                                <form th:replace="~{fragments/remove-from-my-groups :: removeButton(${group.groupId}, ${group.name})}"></form>
+                            </th:block>
                         </div>
                     </div>
                 </li>
@@ -64,6 +74,9 @@
                             <span class="status-label status-label-closed" th:unless="${group.active}">Closed</span>
                             <a class="button button-quiet" th:href="@{/groups/{id}(id=${group.groupId}, from='mine')}"
                                th:attr="aria-label=|View ${group.name}|">View</a>
+                            <th:block th:unless="${group.active}">
+                                <form th:replace="~{fragments/remove-from-my-groups :: removeButton(${group.groupId}, ${group.name})}"></form>
+                            </th:block>
                         </div>
                     </div>
                 </li>
@@ -73,8 +86,9 @@
         <section class="my-groups-section" aria-labelledby="pending-requests-heading">
             <h2 id="pending-requests-heading">Pending group join requests</h2>
             <p class="message info" th:if="${#lists.isEmpty(pendingRequests)}">You have no requests waiting for a reply.</p>
+            <!-- Also lists requests whose group closed before the leader answered (Closed label + Remove), after the open ones -->
             <ul class="group-list" th:unless="${#lists.isEmpty(pendingRequests)}">
-                <li class="group-card" th:each="request : ${pendingRequests}">
+                <li class="group-card" th:each="request : ${pendingRequests}" th:with="closed=${request.endedByGroupClosing()}">
                     <div class="group-card-header">
                         <div>
                             <h3 class="group-name" th:text="${request.groupName}">IS111 Python Basics</h3>
@@ -85,20 +99,28 @@
                     <div class="group-card-footer">
                         <p class="group-facts" th:text="|Sent on ${request.requestedOn()}|">Sent on 9 Oct 2026, 19:05</p>
                         <div class="group-card-actions">
-                            <span class="status-label status-label-full" th:if="${request.full()}">Full</span>
+                            <span class="status-label status-label-full" th:if="${!closed and request.full()}">Full</span>
+                            <span class="status-label status-label-closed" th:if="${closed}">Closed</span>
                             <a class="button button-quiet" th:href="@{/groups/{id}(id=${request.groupId}, from='mine')}"
                                th:attr="aria-label=|View ${request.groupName}|">View</a>
+                            <th:block th:if="${closed}">
+                                <form th:replace="~{fragments/remove-from-my-groups :: removeButton(${request.groupId}, ${request.groupName})}"></form>
+                            </th:block>
                         </div>
                     </div>
                     <!-- A full group keeps requests pending (a waiting list), so say the student can still get in -->
-                    <p class="muted group-card-note" th:if="${request.full()}">
+                    <p class="muted group-card-note" th:if="${!closed and request.full()}">
                         The group is full right now. The leader can still accept you if a place opens up.
+                    </p>
+                    <p class="muted group-card-note" th:if="${closed}">
+                        The group was closed before the leader answered your request.
                     </p>
                 </li>
             </ul>
         </section>
 
-        <!-- Only open groups: the service leaves out closed ones, since there's nothing left to do about them -->
+        <!-- Only open groups: the service leaves out closed ones, since there's nothing left to do about them,
+             so this section doesn't keep growing -->
         <section class="my-groups-section" aria-labelledby="past-requests-heading">
             <h2 id="past-requests-heading">Declined or removed</h2>
             <p class="message info" th:if="${#lists.isEmpty(pastRequests)}">You have no declined requests or removals.</p>

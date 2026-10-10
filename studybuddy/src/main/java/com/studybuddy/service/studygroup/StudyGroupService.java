@@ -4,7 +4,6 @@ import java.util.Comparator;
 import java.util.List;
 
 import com.studybuddy.dto.StudyGroupForm;
-import com.studybuddy.entity.AvailabilitySlot;
 import com.studybuddy.entity.Course;
 import com.studybuddy.entity.Student;
 import com.studybuddy.entity.StudyGroup;
@@ -21,8 +20,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Creates study groups and manages their details: editing, availability and
- * closing. Joining and membership are handled by {@code GroupMembershipService},
+ * Creates study groups and manages their details: editing (including the
+ * weekly time slots) and closing. Joining and membership are handled by {@code GroupMembershipService},
  * because they change for different reasons and are started by different users
  * (any student, rather than the leader). This is the Single Responsibility Principle.
  * <p>
@@ -58,7 +57,9 @@ public class StudyGroupService {
     }
 
     /**
-     * Creates an active group with the caller as its leader and first member.
+     * Creates an active group with the caller as its leader and first member,
+     * with the form's weekly time slots. The form must already have passed
+     * {@link StudyGroupFormValidator}.
      *
      * @throws StudentNotFoundException if no student has the leader's email
      * @throws CourseNotFoundException if the form's course doesn't exist
@@ -70,13 +71,16 @@ public class StudyGroupService {
                 .orElseThrow(() -> new CourseNotFoundException(form.getCourseId()));
         StudyGroup group = new StudyGroup(form.getName(), form.getDescription(), course,
                 form.getStudyGoal(), form.getStudyMode(), form.getMaxSize(), leader);
+        form.toAvailabilitySlots().forEach(group::addAvailabilitySlot);
         // The only explicit save: the group is new, so Hibernate isn't tracking it yet.
         return studyGroupRepository.save(group);
     }
 
     /**
-     * Updates the group's name, description, goal, mode and maximum size. The
-     * form's course is ignored, because a group's course can't be changed.
+     * Updates the group's name, description, goal, mode, maximum size and
+     * weekly time slots, all in one transaction, so a rejected change (e.g. a
+     * size below the member count) leaves the slots untouched too. The form's
+     * course is ignored, because a group's course can't be changed.
      *
      * @throws NotGroupLeaderException if the caller doesn't lead the group
      */
@@ -85,28 +89,22 @@ public class StudyGroupService {
         StudyGroup group = getGroupLedBy(groupId, leaderEmail);
         group.updateDetails(form.getName(), form.getDescription(), form.getStudyGoal(),
                 form.getStudyMode(), form.getMaxSize());
+        group.replaceAvailability(form.toAvailabilitySlots());
     }
 
     /**
-     * Replaces the group's weekly availability with the given slots.
+     * Closes the group. Every pending join request ends as GROUP_CLOSED, so
+     * the students can see the group closed rather than being turned down.
      *
+     * @return how many pending requests ended, for the leader's confirmation message
      * @throws NotGroupLeaderException if the caller doesn't lead the group
      */
     @Transactional
-    public void replaceAvailability(Long groupId, String leaderEmail, List<AvailabilitySlot> slots) {
+    public int closeGroup(Long groupId, String leaderEmail) {
         StudyGroup group = getGroupLedBy(groupId, leaderEmail);
-        group.replaceAvailability(slots);
-    }
-
-    /**
-     * Closes the group, which also rejects every pending join request.
-     *
-     * @throws NotGroupLeaderException if the caller doesn't lead the group
-     */
-    @Transactional
-    public void closeGroup(Long groupId, String leaderEmail) {
-        StudyGroup group = getGroupLedBy(groupId, leaderEmail);
+        int endedRequests = group.getPendingRequests().size();
         group.close();
+        return endedRequests;
     }
 
     /**
@@ -140,35 +138,47 @@ public class StudyGroupService {
     }
 
     /**
-     * Every group that is still open, for students to browse.
+     * Every group that is still open, for students to browse, in the chosen
+     * order with full groups last.
      */
     @Transactional(readOnly = true)
-    public List<StudyGroup> findActiveGroups() {
-        return studyGroupRepository.findByStatus(GroupStatus.ACTIVE);
+    public List<StudyGroup> findActiveGroups(GroupSort sort) {
+        return sortForBrowse(studyGroupRepository.findByStatus(GroupStatus.ACTIVE), sort);
     }
 
     /**
-     * Open groups for one course, for the browse page's course filter.
+     * Open groups for one course, for the browse page's course filter, in the
+     * chosen order with full groups last.
      *
      * @throws CourseNotFoundException if no course has this id
      */
     @Transactional(readOnly = true)
-    public List<StudyGroup> findActiveGroupsByCourse(Long courseId) {
+    public List<StudyGroup> findActiveGroupsByCourse(Long courseId, GroupSort sort) {
         Course course = courseRepository.findById(courseId)
                 .orElseThrow(() -> new CourseNotFoundException(courseId));
-        return studyGroupRepository.findByCourseAndStatus(course, GroupStatus.ACTIVE);
+        return sortForBrowse(studyGroupRepository.findByCourseAndStatus(course, GroupStatus.ACTIVE), sort);
     }
 
     /**
      * Every group the student leads, for the My groups page: open groups
-     * first, then closed ones, each newest first.
+     * first, then closed ones, each newest first. Closed groups the leader
+     * has removed from My groups are left out.
      *
      * @throws StudentNotFoundException if no student has this email
      */
     @Transactional(readOnly = true)
     public List<StudyGroup> findGroupsLedBy(String studentEmail) {
-        return studyGroupRepository.findByLeader(findStudentByEmail(studentEmail)).stream()
+        Student leader = findStudentByEmail(studentEmail);
+        return studyGroupRepository.findByLeader(leader).stream()
+                .filter(group -> !group.isHiddenFromMyGroupsOf(leader))
                 .sorted(OPEN_THEN_NEWEST)
+                .toList();
+    }
+
+    // Full groups go last whatever the order: nobody can join them until a place opens up.
+    private static List<StudyGroup> sortForBrowse(List<StudyGroup> groups, GroupSort sort) {
+        return groups.stream()
+                .sorted(Comparator.comparing(StudyGroup::isFull).thenComparing(sort.comparator()))
                 .toList();
     }
 

@@ -20,8 +20,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Handles who is in a study group: students asking to join, and the leader
- * accepting, rejecting and removing them. The group's own details are handled
+ * Handles who is in a study group: students asking to join, the leader
+ * accepting, rejecting and removing them, and students removing closed
+ * groups from their My groups page. The group's own details are handled
  * by {@link StudyGroupService}; the two are split by the Single Responsibility
  * Principle, because membership is started by any student while the details
  * are only changed by the leader.
@@ -118,6 +119,21 @@ public class GroupMembershipService {
     }
 
     /**
+     * Takes a closed group off the student's own My groups page, whether they
+     * led it, joined it or were still waiting on it. The student acts only on
+     * their own link to the group, found from their login, so no leader check
+     * is needed.
+     *
+     * @throws StudyGroupNotFoundException if no group has this id
+     * @throws StudentNotFoundException if no student has this email
+     */
+    @Transactional
+    public void removeFromMyGroups(Long groupId, String studentEmail) {
+        StudyGroup group = studyGroupService.getGroup(groupId);
+        group.removeFromMyGroups(findStudentByEmail(studentEmail));
+    }
+
+    /**
      * Requests waiting for the leader to accept or reject, for the leader's
      * "manage members" page. Each one carries the membership id that its
      * Accept and Reject buttons send back.
@@ -131,10 +147,11 @@ public class GroupMembershipService {
     }
 
     /**
-     * Groups the student has joined as a member, open or closed. Groups the
-     * student leads are left out (the leader is also an accepted member);
-     * those come from {@link StudyGroupService#findGroupsLedBy}, so a
-     * "My groups" page doesn't list them twice.
+     * Groups the student has joined as a member, open or closed, except closed
+     * groups they have removed from My groups. Groups the student leads are
+     * left out (the leader is also an accepted member); those come from
+     * {@link StudyGroupService#findGroupsLedBy}, so a "My groups" page doesn't
+     * list them twice.
      * <p>
      * Open groups come first, then closed ones, each most recently joined first.
      *
@@ -145,23 +162,31 @@ public class GroupMembershipService {
         Student student = findStudentByEmail(studentEmail);
         return groupMembershipRepository.findByStudentAndStatus(student, MembershipStatus.ACCEPTED).stream()
                 .filter(membership -> !membership.getStudyGroup().isLedBy(student))
+                .filter(membership -> !membership.isHiddenFromMyGroups())
                 .sorted(OPEN_GROUP_FIRST.thenComparing(NEWEST_ANSWER_FIRST))
                 .map(GroupMembership::getStudyGroup)
                 .toList();
     }
 
     /**
-     * The student's requests still waiting for a leader to answer, newest
-     * first, for the My groups page. They are all for open groups, because
-     * closing a group rejects its pending requests.
+     * The student's requests still waiting for a leader to answer, plus those
+     * that ended because the group closed first (GROUP_CLOSED), for the
+     * "Pending group join requests" section of My groups. Keeping the closed
+     * ones there tells the student what happened to their request; they can
+     * then remove the group from My groups.
+     * <p>
+     * Requests to open groups come first, each part newest first.
      *
      * @throws StudentNotFoundException if no student has this email
      */
     @Transactional(readOnly = true)
     public List<GroupMembership> findPendingRequestsBy(String studentEmail) {
         Student student = findStudentByEmail(studentEmail);
-        return groupMembershipRepository.findByStudentAndStatus(student, MembershipStatus.PENDING).stream()
-                .sorted(NEWEST_REQUEST_FIRST)
+        return groupMembershipRepository
+                .findByStudentAndStatusIn(student, List.of(MembershipStatus.PENDING, MembershipStatus.GROUP_CLOSED))
+                .stream()
+                .filter(membership -> !membership.isHiddenFromMyGroups())
+                .sorted(OPEN_GROUP_FIRST.thenComparing(NEWEST_REQUEST_FIRST))
                 .toList();
     }
 
@@ -169,9 +194,7 @@ public class GroupMembershipService {
      * The student's declined requests and removals, most recent answer first,
      * for the My groups page. Only open groups are included: the student can
      * still ask to join those again, while a closed group's history has
-     * nothing left to act on. This also hides the requests that
-     * {@link StudyGroup#close()} rejected, which a student would otherwise
-     * read as the leader turning them down.
+     * nothing left to act on, so the list doesn't keep growing.
      * <p>
      * A removal is sorted by its accept time, because no removal time is stored.
      *

@@ -58,4 +58,9 @@ public record GroupRequestSummary(
     public boolean removed() {
         return status == MembershipStatus.REMOVED;
     }
+
+    // The group closed while this request was still waiting, so the card says so instead of "Sent on"
+    public boolean endedByGroupClosing() {
+        return status == MembershipStatus.GROUP_CLOSED;
+    }
 }

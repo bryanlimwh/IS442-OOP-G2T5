@@ -17,8 +17,9 @@ import jakarta.persistence.UniqueConstraint;
 
 /**
  * Association class linking a {@link Student} to a {@link StudyGroup}. It
- * records where that link stands (pending, accepted, rejected or removed)
- * and when the request was made and answered.
+ * records where that link stands (pending, accepted, rejected, removed, or
+ * ended by the group closing), when the request was made and answered, and
+ * whether the student has removed the closed group from their My groups page.
  * <p>
  * The constructor and status changes are package-private, so every change
  * goes through {@link StudyGroup}, which checks the group's rules first.
@@ -47,6 +48,9 @@ public class GroupMembership {
     private LocalDateTime requestedAt;  // the time the student asked to join; reset on a re-request
     private LocalDateTime respondedAt;  // the time the leader accepted or rejected; null while pending
 
+    // Only this student's view: the group and its history stay, and other students still see it.
+    private boolean hiddenFromMyGroups;
+
     /**
      * No-arg constructor required by JPA.
      */
@@ -69,6 +73,31 @@ public class GroupMembership {
     }
 
     // ---- Behaviour ----
+
+    /**
+     * PENDING -> GROUP_CLOSED, when the group closes before the leader has
+     * answered. Kept apart from REJECTED so the student's My groups page can
+     * say the group closed instead of reading as the leader turning them down.
+     * <p>
+     * Package-private (no {@code public}) so it can only be reached through
+     * {@link StudyGroup#close}.
+     */
+    void endBecauseGroupClosed() {
+        requireStatus(MembershipStatus.PENDING, "end");
+        this.status = MembershipStatus.GROUP_CLOSED;
+        this.respondedAt = LocalDateTime.now();
+    }
+
+    /**
+     * Takes the group off this student's My groups page. Nothing else changes:
+     * the status and times stay as history.
+     * <p>
+     * Package-private (no {@code public}) so it can only be reached through
+     * {@link StudyGroup#removeFromMyGroups}, which checks the group is closed.
+     */
+    void hideFromMyGroups() {
+        this.hiddenFromMyGroups = true;
+    }
 
     /**
      * PENDING -> ACCEPTED.
@@ -164,5 +193,9 @@ public class GroupMembership {
 
     public LocalDateTime getRespondedAt() {
         return respondedAt;
+    }
+
+    public boolean isHiddenFromMyGroups() {
+        return hiddenFromMyGroups;
     }
 }

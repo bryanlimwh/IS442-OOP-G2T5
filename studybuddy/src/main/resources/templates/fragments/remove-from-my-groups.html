@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<!--
+    The "Remove" button on a closed group's card on My groups, so closed groups don't pile up there.
+    It only hides the group from this student's My groups page; nothing is deleted.
+    Usage: <form th:replace="~{fragments/remove-from-my-groups :: removeButton(${group.groupId}, ${group.name})}"></form>
+-->
+<form th:fragment="removeButton(groupId, groupName)"
+      th:action="@{/groups/{id}/remove-from-my-groups(id=${groupId})}" method="post">
+    <!-- Red like the other removing actions (Delete, Close group) -->
+    <button type="submit" class="button button-danger"
+            th:attr="aria-label=|Remove ${groupName} from My groups|">Remove</button>
+</form>
+</html>
