@@ -9,18 +9,18 @@ import com.studybuddy.matching.StudentPublicProfile;
 
 /**
  * What the match request API sends back, instead of the MatchRequest entity itself.
- * <p>
- * Why this exists: a MatchRequest holds the full sender and recipient Student
- * objects, and Student has public getters for the contact number and (through
- * User) the password hash. Returning the entity from a controller turns every
- * getter into JSON, so both would be sent to whoever called the API. This
- * record only carries fields that are safe to show:
- * <ul>
- * <li>each student's public profile (name, school, programme, year, courses), and</li>
- * <li>the other student's contact number, but only once the request is accepted,
- *     as the brief requires. Until then it is null.</li>
- * </ul>
+ * 
+ * Why this exists: a MatchRequest holds the full sender and recipient Student objects,
+ * and Student has public getters for the contact number and (through User) the password hash.
+ * 
+ * Returning the entity from a controller turns every getter into JSON,
+ * so both would be sent to whoever called the API.
+ * 
+ * This record only carries fields that are safe to show:
+ * - each student's public profile (name, school, programme, year, courses)
+ * - the other student's contact number, but only once the request is accepted, as the brief requires. Until then it is null
  */
+
 public record MatchRequestSummary(
         Long requestId,
         StudentPublicProfile sender,
