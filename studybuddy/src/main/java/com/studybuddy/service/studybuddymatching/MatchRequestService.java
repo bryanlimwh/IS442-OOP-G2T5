@@ -5,7 +5,10 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 
 import com.studybuddy.entity.Student;
+import com.studybuddy.entity.enums.MatchRequestStatus;
 import com.studybuddy.entity.MatchRequest;
+import com.studybuddy.exception.DuplicateMatchRequestException;
+import com.studybuddy.exception.MatchRequestNotFoundException;
 import com.studybuddy.exception.NotMatchRequestParticipantException;
 import com.studybuddy.exception.StudentNotFoundException;
 import com.studybuddy.repository.MatchRequestRepository;
@@ -32,15 +35,23 @@ public class MatchRequestService {
 
     // Stores the object containing the reference
     // to the 'match_request' table in the H2 database
-    private final MatchRequestRepository repo;
+    private final MatchRequestRepository matchrequestRepository;
 
     // Used to look up the logged-in student (by email) and the recipient (by id)
     private final StudentRepository studentRepository;
 
     // Spring's IoC container (the ApplicationContext) will create the repository objects automatically
     public MatchRequestService(MatchRequestRepository repo, StudentRepository studentRepository) {
-        this.repo = repo;
+        this.matchrequestRepository = repo;
         this.studentRepository = studentRepository;
+    }
+
+
+
+    // Retrieves the logged-in student's information with the email they logged in with
+    // Returns a Student object 
+    private Student findStudentByEmail(String email) {
+        return studentRepository.findByEmail(email).orElseThrow(() -> new StudentNotFoundException(email));
     }
 
     // @Transactional specified to treat all H2 database operations
@@ -52,7 +63,10 @@ public class MatchRequestService {
     // The sender is the logged-in student (senderEmail comes from their login session),
     // so a student can only send requests as themselves.
     @Transactional
-    public boolean createRequest(String senderEmail, Long recipientId, String message) {
+    // Returns a summary of the saved request (including its generated id).
+    // Any failure is thrown as an exception instead of returning false,
+    // so the controller can turn it into the correct HTTP error status.
+    public MatchRequestSummary createRequest(String senderEmail, Long recipientId, String message) {
         Student sender = findStudentByEmail(senderEmail);
         Student recipient = studentRepository.findById(recipientId)
                 .orElseThrow(() -> new StudentNotFoundException(recipientId));
@@ -62,15 +76,29 @@ public class MatchRequestService {
             throw new IllegalArgumentException("Same sender and recipient");
         }
 
+        // Rule: only 1 PENDING request may exist between two students, in either direction
+
+        // Case 1: this sender already sent this recipient a request that is still PENDING
+        if (matchrequestRepository.existsBySender_userIdAndRecipient_userIdAndStatus(
+                sender.getUserId(), recipient.getUserId(), MatchRequestStatus.PENDING)) {
+            throw DuplicateMatchRequestException.alreadySent(sender.getUserId(), recipient.getUserId());
+        }
+
+        // Case 2: the recipient already sent this sender a PENDING request
+        if (matchrequestRepository.existsBySender_userIdAndRecipient_userIdAndStatus(
+                recipient.getUserId(), sender.getUserId(), MatchRequestStatus.PENDING)) {
+            throw DuplicateMatchRequestException.alreadyReceived(sender.getUserId(), recipient.getUserId());
+        }
+
+        // TO IMPLEMENT (once StudyBuddyConnection exists):
+        // Block the request if the two students already have a StudyBuddyConnection
+
         MatchRequest req = new MatchRequest(sender, recipient, message);
 
-        try {
-            repo.save(req);
-        } catch (Exception e) {
-            System.out.println(e);
-            return false;
-        }
-        return true;
+        // INSERTs the new row into 'match_request'; save() returns it with its generated id.
+        // The summary is built from the sender's point of view (the logged-in student),
+        // so the recipient's contact number stays hidden while the request is PENDING.
+        return MatchRequestSummary.from(matchrequestRepository.save(req), sender);
     }
 
     // Retrieves the match request with the given id,
@@ -81,8 +109,8 @@ public class MatchRequestService {
 
         // Load the row from the 'match_request' table where 'id' = requestId
         // as a Java object (SELECT ... WHERE id = ?)
-        MatchRequest req = repo.findById(requestId)
-                .orElseThrow(() -> new IllegalArgumentException("Request not found: " + requestId));
+        MatchRequest req = matchrequestRepository.findById(requestId)
+                .orElseThrow(() -> new MatchRequestNotFoundException(requestId));
 
         // Allow access only if the student is the sender OR the recipient.
         // (Compared with equals(), which compares user ids; != on two Long objects
@@ -96,13 +124,13 @@ public class MatchRequestService {
         return MatchRequestSummary.from(req, student);
     }
 
-    // Retrieves every request the logged-in student has sent
+    // Retrieves every match request the logged-in student has sent
     // (all rows in the 'match_request' table where 'sender_id' = their id).
     // An empty list simply means they haven't sent any yet.
     @Transactional
     public List<MatchRequestSummary> getMatchRequestBySender(String studentEmail) {
         Student student = findStudentByEmail(studentEmail);
-        return repo.findBySender_userId(student.getUserId()).stream()
+        return matchrequestRepository.findBySender_userId(student.getUserId()).stream()
                 .map(req -> MatchRequestSummary.from(req, student))
                 .toList();
     }
@@ -113,7 +141,7 @@ public class MatchRequestService {
     @Transactional
     public List<MatchRequestSummary> getMatchRequestByRecipient(String studentEmail) {
         Student student = findStudentByEmail(studentEmail);
-        return repo.findByRecipient_userId(student.getUserId()).stream()
+        return matchrequestRepository.findByRecipient_userId(student.getUserId()).stream()
                 .map(req -> MatchRequestSummary.from(req, student))
                 .toList();
     }
@@ -127,8 +155,8 @@ public class MatchRequestService {
         Student student = findStudentByEmail(studentEmail);
 
         // 1. Load the row from H2 as a Java object (SELECT ... WHERE id = ?)
-        MatchRequest req = repo.findById(requestId)
-                .orElseThrow(() -> new IllegalArgumentException("Request not found: " + requestId));
+        MatchRequest req = matchrequestRepository.findById(requestId)
+                .orElseThrow(() -> new MatchRequestNotFoundException(requestId));
 
         // 2. Stop anyone other than the recipient from accepting it
         //    (including the sender, who can't accept their own request).
@@ -142,7 +170,7 @@ public class MatchRequestService {
         // 4. Optional: dirty checking would save it anyway, but calling save() makes the intent clear
         // Hibernate runs: UPDATE match_request SET status='ACCEPTED' WHERE id=?
         // The returned summary now includes the sender's contact number, since the request is accepted.
-        return MatchRequestSummary.from(repo.save(req), student);
+        return MatchRequestSummary.from(matchrequestRepository.save(req), student);
 
         // TO IMPLEMENT:
         // Create a new StudyBuddyConnection and save it to the database
@@ -153,8 +181,30 @@ public class MatchRequestService {
         // );
     }
 
-    // Finds the logged-in student's account from the email they logged in with.
-    private Student findStudentByEmail(String email) {
-        return studentRepository.findByEmail(email).orElseThrow(() -> new StudentNotFoundException(email));
+
+    @Transactional
+    public MatchRequestSummary rejectRequest(String studentEmail, Long requestId) {
+        Student student = findStudentByEmail(studentEmail);
+
+        // Loads the row from H2 as a MatchRequest Java object (SELECT ... WHERE id = ?)
+        MatchRequest req = matchrequestRepository.findById(requestId)
+                .orElseThrow(() -> new MatchRequestNotFoundException(requestId));
+        
+        // Verifies that the student identity attempting to reject the
+        // indicated match request is the recipient of the match requests
+        // Throws an exception if anyone other than the match request's recipient attempts to reject it
+        if (!req.getRecipient().equals(student)) {
+            throw new NotMatchRequestParticipantException(requestId, student.getUserId());
+        }
+
+        // Rejects the match request
+        req.reject();
+
+        // Explicitly calls save() to update the row in H2
+        // Hibernate runs: UPDATE match_request SET status='REJECTED' WHERE id=?
+        // Optional to do so as dirty checking would perform this save to H2 anyway
+
+        // Returns the match request summary now reflecting the match request status as "REJECTED".
+        return MatchRequestSummary.from(matchrequestRepository.save(req), student);
     }
 }
