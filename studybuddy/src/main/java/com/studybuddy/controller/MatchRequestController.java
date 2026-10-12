@@ -1,29 +1,41 @@
 package com.studybuddy.controller;
 
 import java.security.Principal;
-import java.util.List;
 
+import org.springframework.stereotype.Controller;
+import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
+import com.studybuddy.exception.DuplicateMatchRequestException;
+import com.studybuddy.exception.MatchRequestNotFoundException;
+import com.studybuddy.exception.NotMatchRequestParticipantException;
+import com.studybuddy.exception.StudentNotFoundException;
 import com.studybuddy.service.studybuddymatching.MatchRequestService;
-import com.studybuddy.service.studybuddymatching.MatchRequestSummary;
 
-// The URLs no longer contain a user id (previously e.g. /api/match-requests/{user_id}/sent).
-// Instead, every method takes the logged-in user from Principal, which Spring Security fills in
-// from the login session. That way a student can't change a number in the URL to see or act on
-// another student's requests.
+// The match requests page: shows the logged-in student's received and sent requests,
+// and handles sending, accepting and declining requests from HTML forms.
+// Only students reach this page: SecurityConfig restricts /match-requests/** to the STUDENT role.
 //
-// Every method returns MatchRequestSummary rather than the MatchRequest entity, so the JSON
-// response never contains contact numbers (until accepted) or password hashes.
-@RestController
-@RequestMapping("/api/match-requests")
+// The URLs never contain a student id. Every method takes the logged-in student from Principal,
+// which Spring Security fills in from the login session, so a student can't change a number
+// in the URL to act as another student.
+//
+// Each action redirects back to the list with a one-time success or error message
+// (Post/Redirect/Get), so refreshing the page doesn't repeat the action.
+// HTML forms only support GET and POST, so accept/decline use POST instead of PUT.
+@Controller
+@RequestMapping("/match-requests")
 public class MatchRequestController {
+
+    // Thymeleaf template rendered by the GET method (templates/student/match-requests.html)
+    private static final String VIEW = "student/match-requests";
+    // Where every action sends the browser afterwards
+    private static final String REDIRECT_TO_LIST = "redirect:/match-requests";
 
     // Stores the reference to a MatchRequestService object
     // to allow for system functionality related to match requests
@@ -35,43 +47,70 @@ public class MatchRequestController {
         this.service = service;
     }
 
-    // Handles POST requests to "/api/match-requests/create?recipientId=5&message=Hi"
+    // Handles GET requests to "/match-requests"
+    // Adds the logged-in student's received and sent requests to the Model for the page to display
+    @GetMapping
+    public String showRequests(Principal principal, Model model) {
+        // principal.getName() retrieves the email the student logged in with
+        model.addAttribute("received", service.getMatchRequestByRecipient(principal.getName()));
+        model.addAttribute("sent", service.getMatchRequestBySender(principal.getName()));
+        return VIEW;
+    }
+
+    // Handles POST requests to "/match-requests"
+    // Submitted by the "Send request" form on the matches page (fields: recipientId, message)
     // The sender is always the logged-in student; the message is optional.
-    @PostMapping("/create")
-    public boolean createMatchRequest(@RequestParam Long recipientId,
-            @RequestParam(required = false) String message, Principal principal) {
-        return service.createRequest(principal.getName(), recipientId, message);
+    @PostMapping
+    public String createRequest(@RequestParam Long recipientId, @RequestParam(required = false) String message,
+            Principal principal, RedirectAttributes redirectAttributes) {
+        try {
+            service.createRequest(principal.getName(), recipientId, message);
+            redirectAttributes.addFlashAttribute("success", "Request sent.");
+        } catch (DuplicateMatchRequestException | IllegalArgumentException e) {
+            // The service's messages are already readable, e.g. a request already exists,
+            // or the student tried to send a request to themselves
+            redirectAttributes.addFlashAttribute("error", e.getMessage());
+        } catch (StudentNotFoundException e) {
+            redirectAttributes.addFlashAttribute("error", "That student no longer exists.");
+        }
+        return REDIRECT_TO_LIST;
     }
 
-    // Handles GET requests to "/api/match-requests/sent"
-    // Returns the requests the logged-in student has sent
-    @GetMapping("/sent")
-    public List<MatchRequestSummary> getAllSentMatchRequests(Principal principal) {
-        return service.getMatchRequestBySender(principal.getName());
+    // Handles POST requests to "/match-requests/{requestId}/accept"
+    // Only the student the request was sent to can accept it.
+    @PostMapping("/{requestId}/accept")
+    public String accept(@PathVariable Long requestId, Principal principal, RedirectAttributes redirectAttributes) {
+        try {
+            // Updates the request's 'status' column to "ACCEPTED"
+            service.acceptRequest(principal.getName(), requestId);
+            redirectAttributes.addFlashAttribute("success", "Request accepted. Their contact number is now visible.");
+        } catch (MatchRequestNotFoundException e) {
+            redirectAttributes.addFlashAttribute("error", "That request no longer exists.");
+        } catch (NotMatchRequestParticipantException e) {
+            redirectAttributes.addFlashAttribute("error", "Only the student who received this request can accept it.");
+        } catch (IllegalStateException e) {
+            // Thrown by MatchRequest.accept() when the request is no longer PENDING
+            redirectAttributes.addFlashAttribute("error", e.getMessage());
+        }
+        return REDIRECT_TO_LIST;
     }
 
-    // Handles GET requests to "/api/match-requests/received"
-    // Returns the requests the logged-in student has received
-    @GetMapping("/received")
-    public List<MatchRequestSummary> getAllReceivedMatchRequest(Principal principal) {
-        return service.getMatchRequestByRecipient(principal.getName());
-    }
-
-    // Handles GET requests to "/api/match-requests/{request_id}"
-    // @PathVariable reads the {request_id} from the URL, e.g. /api/match-requests/5 -> request_id = 5
-    // Only the request's sender or recipient gets it; anyone else gets 403 Forbidden.
-    @GetMapping("/{request_id}")
-    public MatchRequestSummary getMatchRequest(@PathVariable("request_id") Long requestId, Principal principal) {
-        return service.getRequestById(principal.getName(), requestId);
-    }
-
-    // Handles PUT requests to "/api/match-requests/{request_id}/accept"
-    // e.g. PUT /api/match-requests/5/accept
-    // Only the student the request was sent to can accept it; anyone else gets 403 Forbidden.
-    @PutMapping("/{request_id}/accept")
-    public MatchRequestSummary accept(@PathVariable("request_id") Long requestId, Principal principal) {
-        // Update the 'status' column of the row in the
-        // 'match_request' table whose 'id' column = request_id
-        return service.acceptRequest(principal.getName(), requestId);
+    // Handles POST requests to "/match-requests/{requestId}/reject"
+    // Only the student the request was sent to can decline it.
+    @PostMapping("/{requestId}/reject")
+    public String reject(@PathVariable Long requestId, Principal principal, RedirectAttributes redirectAttributes) {
+        try {
+            // Updates the request's 'status' column to "REJECTED"
+            service.rejectRequest(principal.getName(), requestId);
+            redirectAttributes.addFlashAttribute("success", "Request declined.");
+        } catch (MatchRequestNotFoundException e) {
+            redirectAttributes.addFlashAttribute("error", "That request no longer exists.");
+        } catch (NotMatchRequestParticipantException e) {
+            redirectAttributes.addFlashAttribute("error", "Only the student who received this request can decline it.");
+        } catch (IllegalStateException e) {
+            // Thrown by MatchRequest.reject() when the request is no longer PENDING
+            redirectAttributes.addFlashAttribute("error", e.getMessage());
+        }
+        return REDIRECT_TO_LIST;
     }
 }
