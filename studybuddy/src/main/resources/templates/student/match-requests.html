@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/head :: head('Match requests')}"></head>
+<body>
+    <header th:replace="~{fragments/header :: header}"></header>
+
+    <main class="page">
+        <p><a th:href="@{/home}">&larr; Home</a></p>
+        <h1>Match requests</h1>
+        <p class="lead">Requests other students sent you, and requests you have sent.</p>
+
+        <!-- One-time messages set by the controller's flash attributes -->
+        <p class="message info" role="status" th:if="${success}" th:text="${success}">Request sent.</p>
+        <p class="message error" role="alert" th:if="${error}" th:text="${error}">Error</p>
+
+        <!-- ================= Received ================= -->
+        <h2>Received</h2>
+        <p class="message info" th:if="${#lists.isEmpty(received)}">You haven't received any requests yet.</p>
+
+        <div th:each="req : ${received}">
+            <p><strong th:text="${req.sender.name}">Alex Tan</strong>
+                <span class="muted" th:text="${req.status}">PENDING</span></p>
+            <!-- The message is optional, so only shown when one was written -->
+            <p th:if="${req.message}" th:text="${req.message}">Study IS442 together?</p>
+            <!-- Contact number is only non-null once the request is ACCEPTED -->
+            <p th:if="${req.buddyContactNumber}" th:text="'Contact: ' + ${req.buddyContactNumber}">Contact: 91234567</p>
+
+            <!-- Buttons only shown while PENDING; th:action adds the CSRF token automatically -->
+            <div th:if="${req.status.name() == 'PENDING'}">
+                <form th:action="@{/match-requests/{id}/accept(id=${req.requestId})}" method="post">
+                    <button type="submit" class="button button-primary">Accept</button>
+                </form>
+                <form th:action="@{/match-requests/{id}/reject(id=${req.requestId})}" method="post">
+                    <button type="submit" class="button button-quiet">Decline</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- ================= Sent ================= -->
+        <h2>Sent</h2>
+        <p class="message info" th:if="${#lists.isEmpty(sent)}">You haven't sent any requests yet.</p>
+
+        <div th:each="req : ${sent}">
+            <p><strong th:text="${req.recipient.name}">Ben Koh</strong>
+                <span class="muted" th:text="${req.status}">PENDING</span></p>
+            <p th:if="${req.message}" th:text="${req.message}">Study IS442 together?</p>
+            <p th:if="${req.buddyContactNumber}" th:text="'Contact: ' + ${req.buddyContactNumber}">Contact: 92345678</p>
+        </div>
+    </main>
+</body>
+</html>
