@@ -56,9 +56,11 @@ public class StudyGroupController {
     // The "from" value on links out of My groups. Package-private so GroupMembershipController keeps it on redirects.
     static final String FROM_MY_GROUPS = "mine";
 
+    // Package-private so GroupMembershipController's Manage members page uses the same wording.
+    static final String GROUP_GONE = "That group no longer exists.";
+    static final String NOT_LEADER = "Only the group's leader can do that.";
+
     private static final String FORM_VIEW = "studygroup/form";
-    private static final String GROUP_GONE = "That group no longer exists.";
-    private static final String NOT_LEADER = "Only the group's leader can do that.";
 
     private final StudyGroupService studyGroupService;
     private final GroupMembershipService groupMembershipService;
@@ -186,7 +188,8 @@ public class StudyGroupController {
         }
         redirectAttributes.addFlashAttribute("success",
                 "Group created. Other students can now find it on Study groups and ask to join.");
-        return redirectToGroup(group.getGroupId(), from, redirectAttributes);
+        // Always onto the My groups trail, even when created from Browse: that's where the leader's tools show
+        return redirectToGroup(group.getGroupId(), FROM_MY_GROUPS, redirectAttributes);
     }
 
     @GetMapping("/{groupId}/edit")

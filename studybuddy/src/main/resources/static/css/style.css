@@ -809,13 +809,12 @@ a {
     margin: 0;
 }
 
-/* On a group opened from My groups: "← My groups" on the left, "← All study groups" on the right */
-.back-links {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem 1.5rem;
-    justify-content: space-between;
-    max-width: none; /* p is capped at 65ch; let the links reach the page's right edge */
+/* A heads-up rather than an error, e.g. "Group is full..." on Manage members: the full pill's light red,
+   with normal dark text so it doesn't read like something went wrong */
+.message.warning {
+    background-color: var(--danger-bg);
+    border-color: var(--danger);
+    color: var(--ink);
 }
 
 /* A line under a card's footer, e.g. "The group is full right now..." on a pending request */
@@ -823,7 +822,7 @@ a {
     margin: 0.75rem 0 0;
 }
 
-/* My groups page: one section per kind of link, with a heading smaller than the page title */
+/* My groups and Manage members: one section per kind of link, with a heading smaller than the page title */
 .my-groups-section {
     margin-top: 2.5rem;
 }
@@ -904,6 +903,18 @@ a {
     border-radius: 999px;
     background-color: var(--danger-bg);
     color: var(--danger);
+}
+
+/* Manage members: a group with room also gets a pill, in the "Active" label's green, instead of the dot */
+.member-count-pill .member-count-space {
+    padding: 0.15em 0.65em;
+    border-radius: 999px;
+    background-color: color-mix(in srgb, var(--space) 15%, var(--surface));
+    color: var(--space);
+}
+
+.member-count-pill .member-count-space::before {
+    content: none;
 }
 
 .group-status {

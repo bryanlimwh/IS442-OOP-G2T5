@@ -33,10 +33,11 @@
                         <span th:replace="~{fragments/member-count :: memberCount(${group})}"></span>
                     </div>
                     <div class="group-card-footer">
-                        <!-- The waiting count becomes a link to Manage members in step 4d -->
+                        <!-- The waiting count opens Manage members, where the leader answers the requests -->
                         <p class="group-facts" th:if="${group.pendingRequestCount > 0}">
                             <span aria-hidden="true">🔔</span>
-                            <span th:text="${group.requestsWaiting()}">2 requests waiting</span>
+                            <a th:href="@{/groups/{id}/members(id=${group.groupId})}"
+                               th:text="${group.requestsWaiting()}">2 requests waiting</a>
                         </p>
                         <p class="group-facts" th:unless="${group.pendingRequestCount > 0}">No requests waiting</p>
                         <div class="group-card-actions">

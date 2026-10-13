@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/head :: head('Manage members')}"></head>
+<body>
+    <header th:replace="~{fragments/header :: header}"></header>
+
+    <main class="page">
+        <!-- A leader's tools only show on the My groups trail, so this page always leads back there,
+             and the group's name opens its page on that trail too (from=mine) -->
+        <p><a th:href="@{/groups/mine}">&larr; My groups</a></p>
+        <h1>Manage members</h1>
+        <p class="lead">
+            <a th:href="@{/groups/{id}(id=${group.groupId}, from='mine')}" th:text="${group.name}">IS442 OOP Exam Prep</a>
+            <span th:text="|· ${group.courseCode} ${group.courseName}|">· IS442 Object Oriented Programming</span>
+        </p>
+        <!-- Shown as a pill whether or not the group is full: here the count stands alone, not in a list of cards -->
+        <p class="member-count-pill"><span th:replace="~{fragments/member-count :: memberCount(${group})}"></span></p>
+        <!-- Under the count it explains, in the full pill's red, why every Accept below is greyed out -->
+        <p class="message warning" th:if="${group.active and group.full()}">
+            Group is full. Remove a member to accept new members.
+        </p>
+
+        <p class="message info" role="status" th:if="${success}" th:text="${success}">Farhan Ali is now a member of the group.</p>
+        <p class="message error" role="alert" th:if="${error}" th:text="${error}">Error</p>
+
+        <!-- A closed group keeps the members it had when it closed, so the page only lists them -->
+        <p class="message info" th:unless="${group.active}">
+            This group is closed, so its members can't be changed.
+        </p>
+
+        <!-- A closed group has no requests left: closing ended them all -->
+        <section class="my-groups-section" aria-labelledby="join-requests-heading" th:if="${group.active}">
+            <h2 id="join-requests-heading">Join requests</h2>
+            <p class="message info" th:if="${#lists.isEmpty(requests)}">No requests waiting.</p>
+            <!-- Oldest first: a full group keeps requests waiting, so whoever has waited longest is at the top -->
+            <ul class="group-list" th:unless="${#lists.isEmpty(requests)}">
+                <li class="group-card" th:each="request : ${requests}">
+                    <div class="group-card-header">
+                        <div>
+                            <h3 class="group-name" th:text="${request.student.name}">Farhan Ali</h3>
+                            <p class="muted" th:text="${request.studiesLine()}">Information Systems, Year 2 · School of Computing and Information Systems</p>
+                            <p class="muted" th:if="${!#lists.isEmpty(request.student.courseCodes)}" th:text="${request.coursesLine()}">Takes IS442, IS111</p>
+                        </div>
+                    </div>
+                    <div class="group-card-footer">
+                        <p class="group-facts" th:text="|Sent on ${request.requestedOn()}|">Sent on 9 Oct 2026, 19:05</p>
+                        <div class="group-card-actions">
+                            <!-- Full: the button stays visible but can't be clicked; the note under the member count says why -->
+                            <button type="button" class="button button-primary" disabled th:if="${group.full()}"
+                                    th:attr="aria-label=|Accept ${request.student.name}'s request|">Accept</button>
+                            <form th:unless="${group.full()}"
+                                  th:action="@{/groups/{groupId}/members/{id}/accept(groupId=${group.groupId}, id=${request.membershipId})}"
+                                  method="post">
+                                <button type="submit" class="button button-primary"
+                                        th:attr="aria-label=|Accept ${request.student.name}'s request|">Accept</button>
+                            </form>
+
+                            <!-- Confirm first. The popover attribute opens the box without JavaScript; each card has its own. -->
+                            <button type="button" class="button button-danger"
+                                    th:attr="popovertarget=|confirm-reject-${request.membershipId}|, aria-label=|Reject ${request.student.name}'s request|">Reject</button>
+                            <div class="confirm-popover" popover th:id="|confirm-reject-${request.membershipId}|">
+                                <p>Reject <strong th:text="${request.student.name}">Farhan Ali</strong>'s request? They can ask to join again later.</p>
+                                <div class="confirm-actions">
+                                    <button type="button" class="button button-quiet"
+                                            th:attr="popovertarget=|confirm-reject-${request.membershipId}|"
+                                            popovertargetaction="hide">Cancel</button>
+                                    <form th:action="@{/groups/{groupId}/members/{id}/reject(groupId=${group.groupId}, id=${request.membershipId})}"
+                                          method="post">
+                                                <button type="submit" class="button button-danger">Reject request</button>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </li>
+            </ul>
+        </section>
+
+        <!-- The leader first, then everyone else in the order they joined. The leader can't be removed. -->
+        <section class="my-groups-section" aria-labelledby="members-heading">
+            <h2 id="members-heading">Members</h2>
+            <ul class="group-list">
+                <li class="group-card" th:each="member : ${members}">
+                    <div class="group-card-header">
+                        <div>
+                            <h3 class="group-name" th:text="${member.student.name}">Jasmine Teo</h3>
+                            <p class="muted" th:text="${member.studiesLine()}">Computer Science, Year 3 · School of Computing and Information Systems</p>
+                            <p class="muted" th:if="${!#lists.isEmpty(member.student.courseCodes)}" th:text="${member.coursesLine()}">Takes IS442, CS201</p>
+                        </div>
+                        <span class="status-label status-label-leader" th:if="${member.leader}">You</span>
+                    </div>
+                    <div class="group-card-footer">
+                        <p class="group-facts"
+                           th:text="${member.leader} ? |Group started on ${member.joinedOn()}| : |Joined on ${member.joinedOn()}|">
+                            Joined on 9 Oct 2026, 19:05
+                        </p>
+                        <div class="group-card-actions" th:if="${group.active and !member.leader}">
+                            <button type="button" class="button button-danger"
+                                    th:attr="popovertarget=|confirm-remove-${member.membershipId}|, aria-label=|Remove ${member.student.name} from the group|">Remove</button>
+                            <div class="confirm-popover" popover th:id="|confirm-remove-${member.membershipId}|">
+                                <p>
+                                    Remove <strong th:text="${member.student.name}">Jasmine Teo</strong>
+                                    from <span th:text="${group.name}">IS442 OOP Exam Prep</span>?
+                                </p>
+                                <div class="confirm-actions">
+                                    <button type="button" class="button button-quiet"
+                                            th:attr="popovertarget=|confirm-remove-${member.membershipId}|"
+                                            popovertargetaction="hide">Cancel</button>
+                                    <form th:action="@{/groups/{groupId}/members/{id}/remove(groupId=${group.groupId}, id=${member.membershipId})}"
+                                          method="post">
+                                                <button type="submit" class="button button-danger">Remove member</button>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </li>
+            </ul>
+        </section>
+    </main>
+</body>
+</html>

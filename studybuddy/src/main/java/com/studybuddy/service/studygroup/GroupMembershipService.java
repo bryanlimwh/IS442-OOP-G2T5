@@ -51,6 +51,14 @@ public class GroupMembershipService {
             .comparing(GroupMembership::getRespondedAt, Comparator.nullsLast(Comparator.reverseOrder()))
             .thenComparing(GroupMembership::getMembershipId, Comparator.reverseOrder());
 
+    // Orders for the leader's Manage members page: the longest-waiting request and the earliest member first.
+    private static final Comparator<GroupMembership> OLDEST_REQUEST_FIRST = Comparator
+            .comparing(GroupMembership::getRequestedAt)
+            .thenComparing(GroupMembership::getMembershipId);
+    private static final Comparator<GroupMembership> EARLIEST_ANSWER_FIRST = Comparator
+            .comparing(GroupMembership::getRespondedAt, Comparator.nullsLast(Comparator.naturalOrder()))
+            .thenComparing(GroupMembership::getMembershipId);
+
     private final GroupMembershipRepository groupMembershipRepository;
     private final StudentRepository studentRepository;
     private final StudyGroupService studyGroupService;
@@ -81,41 +89,55 @@ public class GroupMembershipService {
 
     /**
      * Accepts a pending request, making the student a member.
+     * <p>
+     * The group id comes from the page's URL. Checking the leader against the
+     * group (not against whichever group the membership id points to) and then
+     * letting {@link StudyGroup} refuse a membership from another group means
+     * a changed id in the form can't reach someone else's group.
      *
-     * @throws MembershipNotFoundException if no membership has this id
+     * @return the accepted membership, so the page can name the student
+     * @throws StudyGroupNotFoundException if no group has this id
      * @throws NotGroupLeaderException if the caller doesn't lead the group
+     * @throws MembershipNotFoundException if no membership has this id
      */
     @Transactional
-    public void acceptRequest(Long membershipId, String leaderEmail) {
+    public GroupMembership acceptRequest(Long groupId, Long membershipId, String leaderEmail) {
+        StudyGroup group = studyGroupService.getGroupLedBy(groupId, leaderEmail);
         GroupMembership membership = findMembership(membershipId);
-        StudyGroup group = studyGroupService.getGroupLedBy(membership.getStudyGroup().getGroupId(), leaderEmail);
         group.acceptRequest(membership);
+        return membership;
     }
 
     /**
-     * Rejects a pending request.
+     * Rejects a pending request. The student can ask to join again later.
      *
-     * @throws MembershipNotFoundException if no membership has this id
+     * @return the rejected membership, so the page can name the student
+     * @throws StudyGroupNotFoundException if no group has this id
      * @throws NotGroupLeaderException if the caller doesn't lead the group
+     * @throws MembershipNotFoundException if no membership has this id
      */
     @Transactional
-    public void rejectRequest(Long membershipId, String leaderEmail) {
+    public GroupMembership rejectRequest(Long groupId, Long membershipId, String leaderEmail) {
+        StudyGroup group = studyGroupService.getGroupLedBy(groupId, leaderEmail);
         GroupMembership membership = findMembership(membershipId);
-        StudyGroup group = studyGroupService.getGroupLedBy(membership.getStudyGroup().getGroupId(), leaderEmail);
         group.rejectRequest(membership);
+        return membership;
     }
 
     /**
-     * Removes an accepted member from the group. The leader can't be removed.
+     * Removes an accepted member from an open group. The leader can't be removed.
      *
-     * @throws MembershipNotFoundException if no membership has this id
+     * @return the removed membership, so the page can name the student
+     * @throws StudyGroupNotFoundException if no group has this id
      * @throws NotGroupLeaderException if the caller doesn't lead the group
+     * @throws MembershipNotFoundException if no membership has this id
      */
     @Transactional
-    public void removeMember(Long membershipId, String leaderEmail) {
+    public GroupMembership removeMember(Long groupId, Long membershipId, String leaderEmail) {
+        StudyGroup group = studyGroupService.getGroupLedBy(groupId, leaderEmail);
         GroupMembership membership = findMembership(membershipId);
-        StudyGroup group = studyGroupService.getGroupLedBy(membership.getStudyGroup().getGroupId(), leaderEmail);
         group.removeMember(membership);
+        return membership;
     }
 
     /**
@@ -135,15 +157,36 @@ public class GroupMembershipService {
 
     /**
      * Requests waiting for the leader to accept or reject, for the leader's
-     * "manage members" page. Each one carries the membership id that its
+     * "Manage members" page. Each one carries the membership id that its
      * Accept and Reject buttons send back.
+     * <p>
+     * Oldest first: a full group keeps requests waiting, so the student who
+     * has waited longest is at the top when a place opens up.
      *
      * @throws StudyGroupNotFoundException if no group has this id
      * @throws NotGroupLeaderException if the caller doesn't lead the group
      */
     @Transactional(readOnly = true)
     public List<GroupMembership> getPendingRequests(Long groupId, String leaderEmail) {
-        return studyGroupService.getGroupLedBy(groupId, leaderEmail).getPendingRequests();
+        return studyGroupService.getGroupLedBy(groupId, leaderEmail).getPendingRequests().stream()
+                .sorted(OLDEST_REQUEST_FIRST)
+                .toList();
+    }
+
+    /**
+     * The group's accepted members for the leader's "Manage members" page:
+     * the leader first, then everyone else in the order they joined.
+     *
+     * @throws StudyGroupNotFoundException if no group has this id
+     * @throws NotGroupLeaderException if the caller doesn't lead the group
+     */
+    @Transactional(readOnly = true)
+    public List<GroupMembership> getMembers(Long groupId, String leaderEmail) {
+        StudyGroup group = studyGroupService.getGroupLedBy(groupId, leaderEmail);
+        return group.getAcceptedMemberships().stream()
+                .sorted(Comparator.comparing((GroupMembership membership) -> !group.isLedBy(membership.getStudent()))
+                        .thenComparing(EARLIEST_ANSWER_FIRST))
+                .toList();
     }
 
     /**

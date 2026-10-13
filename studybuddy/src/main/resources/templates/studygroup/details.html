@@ -5,10 +5,10 @@
     <header th:replace="~{fragments/header :: header}"></header>
 
     <main class="page" th:with="role=${viewerRole.name()}">
-        <!-- Opened from My groups (?from=mine): offer the way back there too -->
-        <p class="back-links">
+        <!-- Opened from My groups (?from=mine): lead back there instead; My groups links on to all study groups -->
+        <p>
             <a th:if="${fromMyGroups}" th:href="@{/groups/mine}">&larr; My groups</a>
-            <a th:href="@{/groups}">&larr; All study groups</a>
+            <a th:unless="${fromMyGroups}" th:href="@{/groups}">&larr; All study groups</a>
         </p>
         <h1 th:text="${group.name}">IS112 SQL Practice</h1>
         <p class="lead" th:text="|${group.courseCode} ${group.courseName}|">IS112 Data Management</p>
@@ -22,12 +22,17 @@
                 This group is closed, so it isn't taking new members.
             </p>
 
-            <p th:if="${role == 'LEADER'}"><strong>You lead this group.</strong></p>
+            <!-- The leader manages the group from My groups, so elsewhere (e.g. Browse) the page points there -->
+            <p th:if="${role == 'LEADER'}">
+                <strong>You lead this group.</strong>
+                <th:block th:if="${group.active and !fromMyGroups}">Go to <a th:href="@{/groups/mine}">My groups</a> to manage.</th:block>
+            </p>
 
-            <!-- The leader's tools. A closed group can't be changed, so they only show while it's open. -->
-            <div class="button-row" th:if="${role == 'LEADER' and group.active}">
+            <!-- The leader's tools, on the My groups trail only. A closed group can't be changed, so they only show while it's open. -->
+            <div class="button-row" th:if="${role == 'LEADER' and group.active and fromMyGroups}">
                 <a class="button button-primary"
-                   th:href="${fromMyGroups} ? @{/groups/{id}/edit(id=${group.groupId}, from='mine')} : @{/groups/{id}/edit(id=${group.groupId})}">Edit group</a>
+                   th:href="@{/groups/{id}/edit(id=${group.groupId}, from='mine')}">Edit group</a>
+                <a class="button button-secondary" th:href="@{/groups/{id}/members(id=${group.groupId})}">Manage members</a>
 
                 <!-- Closing ends every pending request and can't be undone, so confirm first (no JavaScript needed) -->
                 <button type="button" class="button button-danger" popovertarget="confirm-close">Close group</button>
@@ -46,7 +51,7 @@
                         <button type="button" class="button button-quiet"
                                 popovertarget="confirm-close" popovertargetaction="hide">Cancel</button>
                         <form th:action="@{/groups/{id}/close(id=${group.groupId})}" method="post">
-                            <input type="hidden" name="from" value="mine" th:if="${fromMyGroups}">
+                            <input type="hidden" name="from" value="mine">
                             <button type="submit" class="button button-danger">Close group</button>
                         </form>
                     </div>

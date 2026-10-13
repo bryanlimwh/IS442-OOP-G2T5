@@ -161,7 +161,8 @@ public class StudyGroup {
         requireActive();
         requireOwnMembership(membership);
         if (isFull()) {
-            throw new IllegalStateException("Group is full");
+            // Only the leader accepts, so the message says what they can do about it
+            throw new IllegalStateException("Group is full. Remove a member to accept new members.");
         }
         membership.accept();
     }
@@ -178,13 +179,15 @@ public class StudyGroup {
     }
 
     /**
-     * Removes an accepted member. The leader can't be removed.
+     * Removes an accepted member. The leader can't be removed, and a closed
+     * group's members stay as they were when it closed.
      *
-     * @throws IllegalStateException if the membership isn't accepted
+     * @throws IllegalStateException if the group is closed or the membership isn't accepted
      * @throws IllegalArgumentException if the membership belongs to another
      *         group or is the leader's
      */
     public void removeMember(GroupMembership membership) {
+        requireActive();
         requireOwnMembership(membership);
         if (isLedBy(membership.getStudent())) {
             throw new IllegalArgumentException("The leader can't be removed from their own group");
@@ -292,9 +295,18 @@ public class StudyGroup {
         return (int) memberships.stream().filter(GroupMembership::isAccepted).count();
     }
 
-    public List<Student> getAcceptedMembers() {
+    /**
+     * The accepted members' rows, the leader's included, for the leader's
+     * "manage members" page (each row's id is what its Remove button sends back).
+     */
+    public List<GroupMembership> getAcceptedMemberships() {
         return memberships.stream()
                 .filter(GroupMembership::isAccepted)
+                .toList();
+    }
+
+    public List<Student> getAcceptedMembers() {
+        return getAcceptedMemberships().stream()
                 .map(GroupMembership::getStudent)
                 .toList();
     }

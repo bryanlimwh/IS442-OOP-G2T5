@@ -29,6 +29,8 @@ import jakarta.persistence.UniqueConstraint;
 @Table(uniqueConstraints = @UniqueConstraint(columnNames = {"student_id", "study_group_id"}))
 public class GroupMembership {
 
+    private static final String ALREADY_ANSWERED = "This request has already been answered";
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long membershipId;
@@ -83,7 +85,7 @@ public class GroupMembership {
      * {@link StudyGroup#close}.
      */
     void endBecauseGroupClosed() {
-        requireStatus(MembershipStatus.PENDING, "end");
+        requireStatus(MembershipStatus.PENDING, "Only a pending request can end when the group closes");
         this.status = MembershipStatus.GROUP_CLOSED;
         this.respondedAt = LocalDateTime.now();
     }
@@ -107,7 +109,7 @@ public class GroupMembership {
      * not full and owns this membership.
      */
     void accept() {
-        requireStatus(MembershipStatus.PENDING, "accept");
+        requireStatus(MembershipStatus.PENDING, ALREADY_ANSWERED);
         this.status = MembershipStatus.ACCEPTED;
         this.respondedAt = LocalDateTime.now();
     }
@@ -120,7 +122,7 @@ public class GroupMembership {
      * membership, or {@link StudyGroup#close}.
      */
     void reject() {
-        requireStatus(MembershipStatus.PENDING, "reject");
+        requireStatus(MembershipStatus.PENDING, ALREADY_ANSWERED);
         this.status = MembershipStatus.REJECTED;
         this.respondedAt = LocalDateTime.now();
     }
@@ -133,7 +135,7 @@ public class GroupMembership {
      * {@link StudyGroup#removeMember}, which stops the leader from being removed.
      */
     void remove() {
-        requireStatus(MembershipStatus.ACCEPTED, "remove");
+        requireStatus(MembershipStatus.ACCEPTED, "This student isn't a member of the group any more");
         this.status = MembershipStatus.REMOVED;
     }
 
@@ -162,9 +164,10 @@ public class GroupMembership {
         return status == MembershipStatus.ACCEPTED;
     }
 
-    private void requireStatus(MembershipStatus expected, String action) {
+    // The message is shown to the leader as it is, e.g. after pressing Accept twice
+    private void requireStatus(MembershipStatus expected, String message) {
         if (status != expected) {
-            throw new IllegalStateException("Cannot " + action + " a membership that is " + status);
+            throw new IllegalStateException(message);
         }
     }
 
