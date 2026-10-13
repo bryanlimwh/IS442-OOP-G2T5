@@ -1,5 +1,6 @@
 package com.studybuddy.entity;
 
+import jakarta.persistence.Column;
 import jakarta.persistence.DiscriminatorColumn;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -32,6 +33,7 @@ public abstract class User {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long userId;
 
+    @Column(nullable = false, unique = true)
     private String email;          // unique, not null — the login identifier
     private String passwordHash;   // never a raw password; never logged or serialized
     private LocalDateTime createdAt; // set once, in the constructor

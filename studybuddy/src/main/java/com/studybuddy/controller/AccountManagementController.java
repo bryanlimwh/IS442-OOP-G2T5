@@ -31,6 +31,9 @@ public class AccountManagementController {
 
     private static final String VIEW = "admin/accounts";
     private static final String REDIRECT_TO_LIST = "redirect:/admin/accounts";
+    // Shown when the database's unique constraint, rather than the service's own check,
+    // rejects a duplicate email (see createAdminAccount and updateEmail below).
+    private static final String DUPLICATE_EMAIL_MESSAGE = "Another account already uses that email.";
 
     private final AccountManagementService accountManagementService;
 
@@ -58,6 +61,12 @@ public class AccountManagementController {
             redirectAttributes.addFlashAttribute("error", e.getMessage());
             // Refill the email so the admin doesn't retype it. The password is never sent back.
             redirectAttributes.addFlashAttribute("newAdminEmail", email);
+        } catch (DataIntegrityViolationException e) {
+            // The service checks for a duplicate first, but if two requests save the same email at
+            // the same moment, both pass that check and the unique constraint on user_account.email
+            // refuses the second one.
+            redirectAttributes.addFlashAttribute("error", DUPLICATE_EMAIL_MESSAGE);
+            redirectAttributes.addFlashAttribute("newAdminEmail", email);
         }
         return REDIRECT_TO_LIST;
     }
@@ -73,6 +82,9 @@ public class AccountManagementController {
             redirectAttributes.addFlashAttribute("error", "That account no longer exists.");
         } catch (InvalidAccountDetailsException | DuplicateEmailException e) {
             redirectAttributes.addFlashAttribute("error", e.getMessage());
+        } catch (DataIntegrityViolationException e) {
+            // Same race as in createAdminAccount: the unique constraint on email caught it.
+            redirectAttributes.addFlashAttribute("error", DUPLICATE_EMAIL_MESSAGE);
         }
         return REDIRECT_TO_LIST;
     }
