@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/head :: head('Study preferences')}"></head>
+<body>
+    <header th:replace="~{fragments/header :: header}"></header>
+
+    <main class="page">
+        <p><a th:href="@{/student/profile}">&larr; My profile</a></p>
+        <h1>Study preferences</h1>
+        <p class="lead">For each course you take, say how, why and when you'd like to study. Matching uses these to find your study buddies.</p>
+
+        <p class="message info" role="status" th:if="${success}" th:text="${success}">Preference added.</p>
+        <p class="message error" role="alert" th:if="${error}" th:text="${error}">Error</p>
+
+        <p class="message info" th:if="${#lists.isEmpty(preferences)}">You haven't set any study preferences yet.</p>
+
+        <div class="data-table-wrap" th:unless="${#lists.isEmpty(preferences)}">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th scope="col">Course</th>
+                        <th scope="col">Study mode</th>
+                        <th scope="col">Group size</th>
+                        <th scope="col">Study goal</th>
+                        <th scope="col">When you're free</th>
+                        <th scope="col">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr th:each="pref : ${preferences}">
+                        <!-- The preference being edited (?edit=id) shows as forms across the whole row -->
+                        <td colspan="6" th:if="${pref.id == editingId}">
+                            <h3 th:text="|${pref.course.courseCode} ${pref.course.courseName}|">IS442 Object Oriented Programming</h3>
+                            <form class="form" th:action="@{/student/preferences/{id}/update(id=${pref.id})}" method="post">
+                                <label th:for="|edit-mode-${pref.id}|">Study mode</label>
+                                <select name="studyMode" required th:id="|edit-mode-${pref.id}|">
+                                    <option th:each="mode : ${studyModes}" th:value="${mode}" th:text="${mode.label}"
+                                            th:selected="${mode == pref.studyMode}">Online</option>
+                                </select>
+                                <label th:for="|edit-arrangement-${pref.id}|">Group size</label>
+                                <select name="arrangement" required th:id="|edit-arrangement-${pref.id}|">
+                                    <option th:each="arrangement : ${arrangements}" th:value="${arrangement}" th:text="${arrangement.label}"
+                                            th:selected="${arrangement == pref.arrangement}">Small group</option>
+                                </select>
+                                <label th:for="|edit-goal-${pref.id}|">Study goal</label>
+                                <select name="studyGoal" required th:id="|edit-goal-${pref.id}|">
+                                    <option th:each="goal : ${studyGoals}" th:value="${goal}" th:text="${goal.label}"
+                                            th:selected="${goal == pref.studyGoal}">Exam preparation</option>
+                                </select>
+                                <div class="data-table-actions">
+                                    <button type="submit" class="button button-primary">Save</button>
+                                    <a class="button button-quiet" th:href="@{/student/preferences}">Done</a>
+                                </div>
+                            </form>
+
+                            <h3>When you're free</h3>
+                            <p class="muted" th:if="${#lists.isEmpty(pref.availabilitySlots)}">No time slots yet.</p>
+                            <ul class="session-list">
+                                <li class="data-table-actions" th:each="slot : ${pref.availabilitySlots}">
+                                    <span th:text="|${#strings.capitalize(#strings.toLowerCase(slot.dayOfWeek.name()))} ${slot.startTime}-${slot.endTime}|">Monday 09:00-11:00</span>
+                                    <form th:action="@{/student/preferences/{id}/slots/{slotId}/remove(id=${pref.id}, slotId=${slot.id})}" method="post">
+                                        <button type="submit" class="button button-quiet"
+                                                th:attr="aria-label=|Remove ${slot.dayOfWeek} ${slot.startTime} slot|">Remove</button>
+                                    </form>
+                                </li>
+                            </ul>
+
+                            <!-- Same Day / From / To row as the study group form. Times are 24-hour. -->
+                            <form class="form" th:action="@{/student/preferences/{id}/slots(id=${pref.id})}" method="post">
+                                <fieldset class="slot-row">
+                                    <legend>Add a time slot</legend>
+                                    <div class="filter-field slot-day">
+                                        <label th:for="|slot-day-${pref.id}|">Day</label>
+                                        <select name="dayOfWeek" required th:id="|slot-day-${pref.id}|">
+                                            <option value="">Choose a day</option>
+                                            <option th:each="day : ${days}" th:value="${day}"
+                                                    th:text="${#strings.capitalize(#strings.toLowerCase(day.name()))}">Monday</option>
+                                        </select>
+                                    </div>
+                                    <div class="filter-field">
+                                        <label th:for="|slot-start-${pref.id}|">From</label>
+                                        <select name="startTime" required th:id="|slot-start-${pref.id}|">
+                                            <option value="">--:--</option>
+                                            <option th:each="time : ${timeOptions}" th:value="${time}" th:text="${time}">08:00</option>
+                                        </select>
+                                    </div>
+                                    <div class="filter-field">
+                                        <label th:for="|slot-end-${pref.id}|">To</label>
+                                        <select name="endTime" required th:id="|slot-end-${pref.id}|">
+                                            <option value="">--:--</option>
+                                            <option th:each="time : ${timeOptions}" th:value="${time}" th:text="${time}">08:00</option>
+                                        </select>
+                                    </div>
+                                    <button type="submit" class="button button-quiet">+ Add slot</button>
+                                </fieldset>
+                            </form>
+                        </td>
+
+                        <th:block th:unless="${pref.id == editingId}">
+                            <td>
+                                <strong th:text="${pref.course.courseCode}">IS442</strong><br>
+                                <span class="muted" th:text="${pref.course.courseName}">Object Oriented Programming</span>
+                            </td>
+                            <td th:text="${pref.studyMode.label}">Online</td>
+                            <td th:text="${pref.arrangement.label}">Small group</td>
+                            <td th:text="${pref.studyGoal.label}">Exam preparation</td>
+                            <td>
+                                <span class="muted" th:if="${#lists.isEmpty(pref.availabilitySlots)}">&mdash;</span>
+                                <ul class="session-list">
+                                    <li th:each="slot : ${pref.availabilitySlots}"
+                                        th:text="|${#strings.capitalize(#strings.toLowerCase(slot.dayOfWeek.name()))} ${slot.startTime}-${slot.endTime}|">Monday 09:00-11:00</li>
+                                </ul>
+                            </td>
+                            <td>
+                                <div class="data-table-actions">
+                                    <a class="button button-quiet" th:href="@{/student/preferences(edit=${pref.id})}"
+                                       th:attr="aria-label=|Edit ${pref.course.courseCode} preference|">Edit</a>
+
+                                    <!-- Deleting can't be undone, so confirm first. The popover attribute opens the box without JavaScript. -->
+                                    <button type="button" class="button button-danger"
+                                            th:attr="popovertarget=|confirm-delete-${pref.id}|, aria-label=|Delete ${pref.course.courseCode} preference|">Delete</button>
+                                    <div class="confirm-popover" popover th:id="|confirm-delete-${pref.id}|">
+                                        <p>Delete your <strong th:text="${pref.course.courseCode}">IS442</strong> study preference and its time slots? This can't be undone.</p>
+                                        <div class="confirm-actions">
+                                            <button type="button" class="button button-quiet"
+                                                    th:attr="popovertarget=|confirm-delete-${pref.id}|"
+                                                    popovertargetaction="hide">Cancel</button>
+                                            <form th:action="@{/student/preferences/{id}/delete(id=${pref.id})}" method="post">
+                                                <button type="submit" class="button button-danger">Delete preference</button>
+                                            </form>
+                                        </div>
+                                    </div>
+                                </div>
+                            </td>
+                        </th:block>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <p class="message info" th:if="${#lists.isEmpty(coursesWithoutPreference)}">
+            Every course you take has a preference. To add another, first <a th:href="@{/student/profile}">add the course to your profile</a>.
+        </p>
+
+        <form class="form" th:unless="${#lists.isEmpty(coursesWithoutPreference)}" th:action="@{/student/preferences}" method="post">
+            <fieldset class="option-group">
+                <legend>Add a preference</legend>
+                <label for="new-courseId">Course</label>
+                <select id="new-courseId" name="courseId" required>
+                    <option value="">Choose a course</option>
+                    <option th:each="course : ${coursesWithoutPreference}" th:value="${course.courseId}"
+                            th:text="|${course.courseCode} ${course.courseName}|">IS442 Object Oriented Programming</option>
+                </select>
+                <label for="new-studyMode">Study mode</label>
+                <select id="new-studyMode" name="studyMode" required>
+                    <option value="">Choose a study mode</option>
+                    <option th:each="mode : ${studyModes}" th:value="${mode}" th:text="${mode.label}">Online</option>
+                </select>
+                <label for="new-arrangement">Group size</label>
+                <select id="new-arrangement" name="arrangement" required>
+                    <option value="">Choose a group size</option>
+                    <option th:each="arrangement : ${arrangements}" th:value="${arrangement}" th:text="${arrangement.label}">Small group</option>
+                </select>
+                <label for="new-studyGoal">Study goal</label>
+                <select id="new-studyGoal" name="studyGoal" required>
+                    <option value="">Choose a study goal</option>
+                    <option th:each="goal : ${studyGoals}" th:value="${goal}" th:text="${goal.label}">Exam preparation</option>
+                </select>
+                <button type="submit" class="button button-primary">Add preference</button>
+            </fieldset>
+        </form>
+    </main>
+</body>
+</html>

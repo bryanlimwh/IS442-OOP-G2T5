@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/head :: head('My profile')}"></head>
+<body>
+    <header th:replace="~{fragments/header :: header}"></header>
+
+    <main class="page">
+        <p><a th:href="@{/home}">&larr; Home</a></p>
+        <h1>My profile</h1>
+        <p class="lead">Your details and the courses you take. Other students see your name, school, programme and year, but never your email or contact number.</p>
+
+        <p class="button-row">
+            <a class="button button-secondary" th:href="@{/student/preferences}">Study preferences</a>
+        </p>
+
+        <p class="message info" role="status" th:if="${success}" th:text="${success}">Your profile has been updated.</p>
+        <p class="message error" role="alert" th:if="${error}" th:text="${error}">Error</p>
+
+        <!-- th:action adds the CSRF token. StudentProfileService checks every field, so the browser's checks are a convenience. -->
+        <form class="form" th:action="@{/student/profile}" method="post">
+            <fieldset class="option-group">
+                <legend>Your details</legend>
+                <p class="form-fixed-value">
+                    <strong>Email</strong>
+                    <span th:text="${student.email}">student@studybuddy.com</span>
+                </p>
+                <label for="name">Name</label>
+                <input type="text" id="name" name="name" required th:value="${student.name}">
+                <label for="school">School</label>
+                <input type="text" id="school" name="school" required th:value="${student.school}">
+                <label for="programme">Programme</label>
+                <input type="text" id="programme" name="programme" required th:value="${student.programme}">
+                <label for="yearOfStudy">Year of study</label>
+                <input class="input-short" type="number" id="yearOfStudy" name="yearOfStudy" required min="1" max="5"
+                       th:value="${student.yearOfStudy}">
+                <label for="contactNumber">Contact number</label>
+                <input class="input-short" type="tel" id="contactNumber" name="contactNumber" required
+                       pattern="\d{8}" aria-describedby="contact-help" th:value="${student.contactNumber}">
+                <p class="muted field-hint" id="contact-help">8 digits. Only you can see it.</p>
+                <button type="submit" class="button button-primary">Save details</button>
+            </fieldset>
+        </form>
+
+        <h2>Your courses</h2>
+        <p class="message info" th:if="${#lists.isEmpty(coursesTaken)}">You haven't added any courses yet.</p>
+
+        <div class="data-table-wrap" th:unless="${#lists.isEmpty(coursesTaken)}">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th scope="col">Code</th>
+                        <th scope="col">Name</th>
+                        <th scope="col">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr th:each="course : ${coursesTaken}">
+                        <td th:text="${course.courseCode}">IS442</td>
+                        <td th:text="${course.courseName}">Object Oriented Programming</td>
+                        <td>
+                            <div class="data-table-actions">
+                                <!-- Refused while the student has a study preference for the course -->
+                                <form th:action="@{/student/profile/courses/{id}/remove(id=${course.courseId})}" method="post">
+                                    <button type="submit" class="button button-quiet"
+                                            th:attr="aria-label=|Remove ${course.courseCode}|">Remove</button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <form class="form" th:unless="${#lists.isEmpty(otherCourses)}" th:action="@{/student/profile/courses}" method="post">
+            <fieldset class="option-group">
+                <legend>Add a course</legend>
+                <label for="courseId">Course</label>
+                <select id="courseId" name="courseId" required>
+                    <option value="">Choose a course</option>
+                    <option th:each="course : ${otherCourses}" th:value="${course.courseId}"
+                            th:text="|${course.courseCode} ${course.courseName}|">IS442 Object Oriented Programming</option>
+                </select>
+                <button type="submit" class="button button-primary">Add course</button>
+            </fieldset>
+        </form>
+    </main>
+</body>
+</html>
