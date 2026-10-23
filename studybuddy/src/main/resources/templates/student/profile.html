@@ -7,7 +7,7 @@
     <main class="page">
         <p><a th:href="@{/home}">&larr; Home</a></p>
         <h1>My profile</h1>
-        <p class="lead">Your details and the courses you take. Other students see your name, school, programme and year, but never your email or contact number.</p>
+        <p class="lead">Your details and the courses you take. Other students see your name, school, programme and year, but never your email. Only your study buddies see your contact number.</p>
 
         <p class="button-row">
             <a class="button button-secondary" th:href="@{/student/preferences}">Study preferences</a>
@@ -36,7 +36,7 @@
                 <label for="contactNumber">Contact number</label>
                 <input class="input-short" type="tel" id="contactNumber" name="contactNumber" required
                        pattern="\d{8}" aria-describedby="contact-help" th:value="${student.contactNumber}">
-                <p class="muted field-hint" id="contact-help">8 digits. Only you can see it.</p>
+                <p class="muted field-hint" id="contact-help">8 digits. Only shared with your study buddies.</p>
                 <button type="submit" class="button button-primary">Save details</button>
             </fieldset>
         </form>

@@ -27,7 +27,9 @@ import org.springframework.transaction.annotation.Transactional;
  * <li>A request can only be viewed by its sender or recipient, and only accepted by
  *     its recipient. Anyone else gets NotMatchRequestParticipantException (403).</li>
  * <li>Requests are returned as MatchRequestSummary, never as the entity, so contact
- *     numbers and password hashes are not sent back (see MatchRequestSummary).</li>
+ *     numbers and password hashes are not sent back (see MatchRequestSummary).
+ *     Contact numbers are shared through the study-buddy connection an accepted
+ *     request creates (see StudyBuddyConnectionService).</li>
  * </ul>
  */
 @Service
@@ -40,10 +42,16 @@ public class MatchRequestService {
     // Used to look up the logged-in student (by email) and the recipient (by id)
     private final StudentRepository studentRepository;
 
+    // Creates the study-buddy connection when a request is accepted,
+    // and stops new requests between students who are already connected
+    private final StudyBuddyConnectionService connectionService;
+
     // Spring's IoC container (the ApplicationContext) will create the repository objects automatically
-    public MatchRequestService(MatchRequestRepository repo, StudentRepository studentRepository) {
+    public MatchRequestService(MatchRequestRepository repo, StudentRepository studentRepository,
+            StudyBuddyConnectionService connectionService) {
         this.matchrequestRepository = repo;
         this.studentRepository = studentRepository;
+        this.connectionService = connectionService;
     }
 
 
@@ -90,15 +98,15 @@ public class MatchRequestService {
             throw DuplicateMatchRequestException.alreadyReceived(sender.getUserId(), recipient.getUserId());
         }
 
-        // TO IMPLEMENT (once StudyBuddyConnection exists):
-        // Block the request if the two students already have a StudyBuddyConnection
+        // Rule: students who are already study buddies can't send each other new requests
+        if (connectionService.areConnected(sender, recipient)) {
+            throw DuplicateMatchRequestException.alreadyConnected();
+        }
 
         MatchRequest req = new MatchRequest(sender, recipient, message);
 
         // INSERTs the new row into 'match_request'; save() returns it with its generated id.
-        // The summary is built from the sender's point of view (the logged-in student),
-        // so the recipient's contact number stays hidden while the request is PENDING.
-        return MatchRequestSummary.from(matchrequestRepository.save(req), sender);
+        return MatchRequestSummary.from(matchrequestRepository.save(req));
     }
 
     // Retrieves the match request with the given id,
@@ -121,7 +129,7 @@ public class MatchRequestService {
             throw new NotMatchRequestParticipantException(requestId, student.getUserId());
         }
 
-        return MatchRequestSummary.from(req, student);
+        return MatchRequestSummary.from(req);
     }
 
     // Retrieves every match request the logged-in student has sent
@@ -131,7 +139,7 @@ public class MatchRequestService {
     public List<MatchRequestSummary> getMatchRequestBySender(String studentEmail) {
         Student student = findStudentByEmail(studentEmail);
         return matchrequestRepository.findBySender_userId(student.getUserId()).stream()
-                .map(req -> MatchRequestSummary.from(req, student))
+                .map(MatchRequestSummary::from)
                 .toList();
     }
 
@@ -142,7 +150,7 @@ public class MatchRequestService {
     public List<MatchRequestSummary> getMatchRequestByRecipient(String studentEmail) {
         Student student = findStudentByEmail(studentEmail);
         return matchrequestRepository.findByRecipient_userId(student.getUserId()).stream()
-                .map(req -> MatchRequestSummary.from(req, student))
+                .map(MatchRequestSummary::from)
                 .toList();
     }
 
@@ -169,16 +177,12 @@ public class MatchRequestService {
 
         // 4. Optional: dirty checking would save it anyway, but calling save() makes the intent clear
         // Hibernate runs: UPDATE match_request SET status='ACCEPTED' WHERE id=?
-        // The returned summary now includes the sender's contact number, since the request is accepted.
-        return MatchRequestSummary.from(matchrequestRepository.save(req), student);
+        MatchRequest saved = matchrequestRepository.save(req);
 
-        // TO IMPLEMENT:
-        // Create a new StudyBuddyConnection and save it to the database
-        //
-        // StudyBuddyConnection connectionEntry = new StudyBuddyConnection(
-        //     this.sender,
-        //     this.recipient
-        // );
+        // 5. The two students are now study buddies, which shares their contact numbers.
+        // Same transaction, so if this fails the acceptance is rolled back too.
+        connectionService.connect(req.getSender(), req.getRecipient());
+        return MatchRequestSummary.from(saved);
     }
 
 
@@ -205,6 +209,6 @@ public class MatchRequestService {
         // Optional to do so as dirty checking would perform this save to H2 anyway
 
         // Returns the match request summary now reflecting the match request status as "REJECTED".
-        return MatchRequestSummary.from(matchrequestRepository.save(req), student);
+        return MatchRequestSummary.from(matchrequestRepository.save(req));
     }
 }

@@ -3,7 +3,6 @@ package com.studybuddy.service.studybuddymatching;
 import java.time.LocalDateTime;
 
 import com.studybuddy.entity.MatchRequest;
-import com.studybuddy.entity.Student;
 import com.studybuddy.entity.enums.MatchRequestStatus;
 import com.studybuddy.matching.StudentPublicProfile;
 
@@ -16,9 +15,11 @@ import com.studybuddy.matching.StudentPublicProfile;
  * Returning the entity from a controller turns every getter into JSON,
  * so both would be sent to whoever called the API.
  * 
- * This record only carries fields that are safe to show:
- * - each student's public profile (name, school, programme, year, courses)
- * - the other student's contact number, but only once the request is accepted, as the brief requires. Until then it is null
+ * This record only carries fields that are safe to show: each student's public
+ * profile (name, school, programme, year, courses), never a contact number.
+ * Accepting a request makes the two students study buddies, and contact numbers
+ * are shown on the connections page instead (see ConnectionSummary), so ending
+ * the connection hides them again.
  */
 
 public record MatchRequestSummary(
@@ -27,23 +28,12 @@ public record MatchRequestSummary(
         StudentPublicProfile recipient,
         String message,
         MatchRequestStatus status,
-        LocalDateTime createdAt,
-        String buddyContactNumber) {
+        LocalDateTime createdAt) {
 
-    /**
-     * @param viewer the logged-in student asking for this request (its sender or recipient)
-     */
-    public static MatchRequestSummary from(MatchRequest request, Student viewer) {
-        // "Buddy" is whichever of the two students is not the person viewing.
-        Student buddy = request.getSender().equals(viewer) ? request.getRecipient() : request.getSender();
-        // Contact numbers are only revealed after the request has been accepted.
-        String buddyContactNumber = request.getStatus() == MatchRequestStatus.ACCEPTED
-                ? buddy.getContactNumber()
-                : null;
-
+    public static MatchRequestSummary from(MatchRequest request) {
         return new MatchRequestSummary(request.getId(),
                 StudentPublicProfile.from(request.getSender()),
                 StudentPublicProfile.from(request.getRecipient()),
-                request.getMessage(), request.getStatus(), request.getCreatedAt(), buddyContactNumber);
+                request.getMessage(), request.getStatus(), request.getCreatedAt());
     }
 }

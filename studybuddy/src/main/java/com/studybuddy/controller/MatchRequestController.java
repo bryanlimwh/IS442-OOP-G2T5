@@ -83,7 +83,8 @@ public class MatchRequestController {
         try {
             // Updates the request's 'status' column to "ACCEPTED"
             service.acceptRequest(principal.getName(), requestId);
-            redirectAttributes.addFlashAttribute("success", "Request accepted. Their contact number is now visible.");
+            redirectAttributes.addFlashAttribute("success",
+                    "Request accepted. You're now study buddies: their contact number is on the Study buddies page.");
         } catch (MatchRequestNotFoundException e) {
             redirectAttributes.addFlashAttribute("error", "That request no longer exists.");
         } catch (NotMatchRequestParticipantException e) {

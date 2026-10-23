@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/head :: head('Study buddies')}"></head>
+<body>
+    <header th:replace="~{fragments/header :: header}"></header>
+
+    <main class="page">
+        <p><a th:href="@{/home}">&larr; Home</a></p>
+        <h1>Study buddies</h1>
+        <p class="lead">Students whose match request you accepted, or who accepted yours. You can see each other's contact numbers until one of you ends the connection.</p>
+
+        <!-- One-time messages set by the controller's flash attributes -->
+        <p class="message info" role="status" th:if="${success}" th:text="${success}">Connection ended.</p>
+        <p class="message error" role="alert" th:if="${error}" th:text="${error}">Error</p>
+
+        <p class="message info" th:if="${#lists.isEmpty(connections)}">
+            You don't have any study buddies yet. <a th:href="@{/matches}">Find study buddies</a>
+            and send a request, or accept one under <a th:href="@{/match-requests}">Match requests</a>.
+        </p>
+
+        <div class="data-table-wrap" th:unless="${#lists.isEmpty(connections)}">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th scope="col">Name</th>
+                        <th scope="col">Programme</th>
+                        <th scope="col">Courses</th>
+                        <th scope="col">Contact number</th>
+                        <th scope="col">Connected since</th>
+                        <th scope="col">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr th:each="connection : ${connections}">
+                        <td th:text="${connection.buddy.name}">Ben Koh</td>
+                        <td th:text="|${connection.buddy.programme}, Year ${connection.buddy.yearOfStudy}|">Information Systems, Year 3</td>
+                        <td th:text="${#strings.listJoin(connection.buddy.courseCodes, ', ')}">IS442, IS216, CS201</td>
+                        <td th:text="${connection.buddyContactNumber}">92345678</td>
+                        <td th:text="${#temporals.format(connection.connectedSince, 'd MMM yyyy')}">13 Oct 2026</td>
+                        <td>
+                            <!-- Asks first: ending hides both contact numbers, and only a new request reconnects them -->
+                            <button type="button" class="button button-quiet"
+                                    th:attr="popovertarget=|confirm-end-${connection.connectionId}|, aria-label=|End connection with ${connection.buddy.name}|">End</button>
+                            <div class="confirm-popover" popover th:id="|confirm-end-${connection.connectionId}|">
+                                <p>End your connection with <strong th:text="${connection.buddy.name}">Ben Koh</strong>?
+                                    You'll no longer see each other's contact numbers.</p>
+                                <div class="confirm-actions">
+                                    <button type="button" class="button button-quiet"
+                                            th:attr="popovertarget=|confirm-end-${connection.connectionId}|"
+                                            popovertargetaction="hide">Cancel</button>
+                                    <form th:action="@{/connections/{id}/end(id=${connection.connectionId})}" method="post">
+                                        <button type="submit" class="button button-danger">End connection</button>
+                                    </form>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </main>
+</body>
+</html>

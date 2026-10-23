@@ -20,6 +20,7 @@ import com.studybuddy.exception.StudentNotFoundException;
 import com.studybuddy.repository.StudentRepository;
 import com.studybuddy.service.studybuddymatching.MatchRequestService;
 import com.studybuddy.service.studybuddymatching.MatchRequestSummary;
+import com.studybuddy.service.studybuddymatching.StudyBuddyConnectionService;
 
 /**
  * Integration test for MatchRequestService using the real repositories and an in-memory H2.
@@ -27,7 +28,8 @@ import com.studybuddy.service.studybuddymatching.MatchRequestSummary;
  * Checks the match request rules:
  * - students act as themselves and only see their own requests
  * - only the recipient can accept, and only once
- * - contact numbers stay hidden until a request is accepted
+ * - accepting a request makes the two students study buddies (and only accepting does)
+ * - students who are already study buddies can't send each other new requests
  * - invalid input (unknown students/requests, sending to yourself) is rejected
  *
  * Creates its own test students, so it does not depend on the data seeders.
@@ -36,17 +38,20 @@ import com.studybuddy.service.studybuddymatching.MatchRequestSummary;
 // Starts only JPA + an in-memory H2 database (no controllers, security or seeders).
 // Each test runs in a transaction that is rolled back afterwards.
 @DataJpaTest
-// @DataJpaTest only loads repositories, so the service must be added explicitly
-@Import(MatchRequestService.class)
+// @DataJpaTest only loads repositories, so the services must be added explicitly
+@Import({ MatchRequestService.class, StudyBuddyConnectionService.class })
 class MatchRequestServiceTest {
 
-    // Test students' contact numbers, checked when a request is accepted
     private static final String ALEX_CONTACT = "91234567";
     private static final String BEN_CONTACT = "92345678";
 
     // The real service being tested, with real repositories injected by Spring
     @Autowired
     private MatchRequestService service;
+
+    // Used to check whether accepting a request created a study-buddy connection
+    @Autowired
+    private StudyBuddyConnectionService connectionService;
 
     // Used to save the test students into H2
     @Autowired
@@ -162,27 +167,53 @@ class MatchRequestServiceTest {
                 .isInstanceOf(NotMatchRequestParticipantException.class);
     }
 
-    // ================= Accepting and contact numbers =================
+    // ================= Accepting and connections =================
 
     @Test
-    void contactNumbersHiddenWhilePending() {
-        // Verifies neither student can see the other's number before acceptance
-        assertThat(service.getRequestById(alex.getEmail(), requestId).buddyContactNumber()).isNull();
-        assertThat(service.getRequestById(ben.getEmail(), requestId).buddyContactNumber()).isNull();
+    void pendingRequestDoesNotConnect() {
+        // Verifies sending a request alone doesn't make them study buddies (so no contact numbers are shared)
+        assertThat(connectionService.areConnected(alex, ben)).isFalse();
+        assertThat(connectionService.getConnections(alex.getEmail())).isEmpty();
     }
 
     @Test
-    void acceptingRevealsEachOthersContactNumber() {
+    void acceptingConnectsBothStudents() {
         // Ben (the recipient) accepts; the status is UPDATEd to ACCEPTED in H2
         MatchRequestSummary accepted = service.acceptRequest(ben.getEmail(), requestId);
 
         // Verifies the status changed
         assertThat(accepted.status()).isEqualTo(MatchRequestStatus.ACCEPTED);
-        // Verifies Ben now sees Alex's number
-        assertThat(accepted.buddyContactNumber()).isEqualTo(ALEX_CONTACT);
-        // Verifies Alex now sees Ben's number (re-read from H2, proving the change was saved)
-        assertThat(service.getRequestById(alex.getEmail(), requestId).buddyContactNumber())
-                .isEqualTo(BEN_CONTACT);
+        // Verifies a connection now exists, seen from either side
+        assertThat(connectionService.areConnected(alex, ben)).isTrue();
+        assertThat(connectionService.areConnected(ben, alex)).isTrue();
+        // Verifies each now sees the other's contact number on their connections list
+        assertThat(connectionService.getConnections(ben.getEmail()))
+                .singleElement().satisfies(c -> assertThat(c.buddyContactNumber()).isEqualTo(ALEX_CONTACT));
+        assertThat(connectionService.getConnections(alex.getEmail()))
+                .singleElement().satisfies(c -> assertThat(c.buddyContactNumber()).isEqualTo(BEN_CONTACT));
+    }
+
+    @Test
+    void cannotSendRequestToExistingStudyBuddy() {
+        service.acceptRequest(ben.getEmail(), requestId);
+
+        // Verifies neither student can send the other a new request while connected
+        assertThatThrownBy(() -> service.createRequest(alex.getEmail(), ben.getUserId(), null))
+                .isInstanceOf(DuplicateMatchRequestException.class);
+        assertThatThrownBy(() -> service.createRequest(ben.getEmail(), alex.getUserId(), null))
+                .isInstanceOf(DuplicateMatchRequestException.class);
+    }
+
+    @Test
+    void canSendNewRequestAfterConnectionEnds() {
+        service.acceptRequest(ben.getEmail(), requestId);
+        Long connectionId = connectionService.getConnections(alex.getEmail()).get(0).connectionId();
+
+        // Alex ends the connection, so the pair is free to reconnect with a new request
+        connectionService.endConnection(alex.getEmail(), connectionId);
+
+        assertThat(service.createRequest(ben.getEmail(), alex.getUserId(), null).status())
+                .isEqualTo(MatchRequestStatus.PENDING);
     }
 
     @Test
@@ -212,13 +243,11 @@ class MatchRequestServiceTest {
     }
 
     @Test
-    void contactNumbersStayHiddenAfterRejection() {
-        // Ben rejects the request
-        MatchRequestSummary rejected = service.rejectRequest(ben.getEmail(), requestId);
+    void rejectingDoesNotConnect() {
+        service.rejectRequest(ben.getEmail(), requestId);
 
-        // Verifies neither student sees the other's number, since the request was not accepted
-        assertThat(rejected.buddyContactNumber()).isNull();
-        assertThat(service.getRequestById(alex.getEmail(), requestId).buddyContactNumber()).isNull();
+        // Verifies no connection was made, so neither student sees the other's number
+        assertThat(connectionService.areConnected(alex, ben)).isFalse();
     }
 
     @Test

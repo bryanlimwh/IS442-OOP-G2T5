@@ -60,6 +60,8 @@ public class SecurityConfig {
             // Declares that the match request API can only be accessed by students
             // (an admin has no student profile to send, receive, accept or reject requests with)
             .requestMatchers("/match-requests/**").hasRole(Role.STUDENT.name())
+            // Declares that the study buddies page can only be accessed by students
+            .requestMatchers("/connections/**").hasRole(Role.STUDENT.name())
             // Declares that the profile and study preference pages can only be accessed by students
             // (an admin has no student profile or study preferences)
             .requestMatchers("/student/**").hasRole(Role.STUDENT.name())

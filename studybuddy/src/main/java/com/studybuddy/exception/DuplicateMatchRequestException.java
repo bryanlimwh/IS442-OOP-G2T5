@@ -5,7 +5,8 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 
 /**
  * Thrown when a student tries to send a match request while a PENDING request
- * already exists between the same two students, in either direction.
+ * already exists between the same two students, in either direction, or while
+ * they are already study buddies.
  * <p>
  * @ResponseStatus makes Spring answer with 409 Conflict instead of
  * a generic 500 error page when this is thrown from a controller.
@@ -13,7 +14,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 @ResponseStatus(HttpStatus.CONFLICT)
 public class DuplicateMatchRequestException extends RuntimeException {
 
-    // Private: callers use the two factory methods below,
+    // Private: callers use the factory methods below,
     // so each situation always gets the correct message
     private DuplicateMatchRequestException(String message) {
         super(message);
@@ -30,5 +31,11 @@ public class DuplicateMatchRequestException extends RuntimeException {
     public static DuplicateMatchRequestException alreadyReceived(Long senderId, Long recipientId) {
         return new DuplicateMatchRequestException(
                 "Student " + recipientId + " has already sent you a request. Accept it instead of sending a new one");
+    }
+
+    // The two students are already connected, so there's nothing to request
+    public static DuplicateMatchRequestException alreadyConnected() {
+        return new DuplicateMatchRequestException(
+                "You're already study buddies. Find them under Study buddies.");
     }
 }

@@ -78,11 +78,11 @@ class MatchRequestControllerTest {
 
     // ---------- Helper method ----------
     // Builds a fake MatchRequestSummary (id 5, Alex -> Ben) for the mocked service to return
-    private MatchRequestSummary summary(MatchRequestStatus status, String buddyContactNumber) {
+    private MatchRequestSummary summary(MatchRequestStatus status) {
         StudentPublicProfile alex = new StudentPublicProfile(1L, "Alex Tan", "SCIS", "Information Systems", 2, List.of("IS442"));
         StudentPublicProfile ben = new StudentPublicProfile(2L, "Ben Koh", "SCIS", "Information Systems", 3, List.of("IS442"));
         return new MatchRequestSummary(5L, alex, ben, "Study IS442 together?", status,
-                LocalDateTime.now(), buddyContactNumber);
+                LocalDateTime.now());
     }
 
     // ================= Security =================
@@ -129,7 +129,7 @@ class MatchRequestControllerTest {
     void pageShowsLoggedInStudentsReceivedAndSentRequests() throws Exception {
         // Mock: Alex has received nothing and sent one PENDING request
         when(service.getMatchRequestByRecipient(ALEX)).thenReturn(List.of());
-        when(service.getMatchRequestBySender(ALEX)).thenReturn(List.of(summary(MatchRequestStatus.PENDING, null)));
+        when(service.getMatchRequestBySender(ALEX)).thenReturn(List.of(summary(MatchRequestStatus.PENDING)));
 
         // Verifies the page renders templates/student/match-requests.html with both lists in the Model
         mockMvc.perform(get(BASE))
@@ -146,7 +146,7 @@ class MatchRequestControllerTest {
 
     @Test
     void sendRequestRedirectsWithSuccessMessage() throws Exception {
-        when(service.createRequest(ALEX, 2L, "Study?")).thenReturn(summary(MatchRequestStatus.PENDING, null));
+        when(service.createRequest(ALEX, 2L, "Study?")).thenReturn(summary(MatchRequestStatus.PENDING));
 
         // Simulates submitting the "Send request" form on the matches page
         mockMvc.perform(post(BASE)
@@ -164,7 +164,7 @@ class MatchRequestControllerTest {
     @Test
     void sendRequestWithoutMessageIsAllowed() throws Exception {
         // The brief says the message is optional
-        when(service.createRequest(ALEX, 2L, null)).thenReturn(summary(MatchRequestStatus.PENDING, null));
+        when(service.createRequest(ALEX, 2L, null)).thenReturn(summary(MatchRequestStatus.PENDING));
 
         mockMvc.perform(post(BASE).param("recipientId", "2").with(csrf()))
                 .andExpect(redirectedUrl(BASE))
@@ -219,12 +219,12 @@ class MatchRequestControllerTest {
 
     @Test
     void acceptRedirectsWithSuccessMessage() throws Exception {
-        when(service.acceptRequest(ALEX, 5L)).thenReturn(summary(MatchRequestStatus.ACCEPTED, "92345678"));
+        when(service.acceptRequest(ALEX, 5L)).thenReturn(summary(MatchRequestStatus.ACCEPTED));
 
         // Verifies {requestId} in the URL is read as 5 and the student is redirected back with a success message
         mockMvc.perform(post(BASE + "/5/accept").with(csrf()))
                 .andExpect(redirectedUrl(BASE))
-                .andExpect(flash().attribute("success", "Request accepted. Their contact number is now visible."));
+                .andExpect(flash().attribute("success", "Request accepted. You're now study buddies: their contact number is on the Study buddies page."));
 
         verify(service).acceptRequest(ALEX, 5L);
     }
@@ -261,7 +261,7 @@ class MatchRequestControllerTest {
 
     @Test
     void rejectRedirectsWithSuccessMessage() throws Exception {
-        when(service.rejectRequest(ALEX, 5L)).thenReturn(summary(MatchRequestStatus.REJECTED, null));
+        when(service.rejectRequest(ALEX, 5L)).thenReturn(summary(MatchRequestStatus.REJECTED));
 
         mockMvc.perform(post(BASE + "/5/reject").with(csrf()))
                 .andExpect(redirectedUrl(BASE))
