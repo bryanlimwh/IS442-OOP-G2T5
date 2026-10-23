@@ -35,7 +35,7 @@ public class SecurityConfig {
     }
 
     /**
-     * Rules for the rest of the app: the login page, static files and error
+     * Rules for the rest of the app: the login and sign-up pages, static files and error
      * page are public, /admin/** is for admins only, /matches/** and
      * /groups/** are for students only, and every other page needs a
      * logged-in user. Accounts
@@ -47,7 +47,7 @@ public class SecurityConfig {
         http
         .authorizeHttpRequests(auth -> auth
             // Declares which URLs do NOT require authentication
-            .requestMatchers("/login", "/error", "/css/**", "/js/**", "/images/**").permitAll()
+            .requestMatchers("/login", "/register", "/error", "/css/**", "/js/**", "/images/**").permitAll()
             // Declares that URLs with "/admin" as their root
             // can only be accessed by user accounts with the role "ADMIN" 
             .requestMatchers("/admin/**").hasRole(Role.ADMIN.name())

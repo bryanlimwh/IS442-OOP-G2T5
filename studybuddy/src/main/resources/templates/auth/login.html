@@ -53,6 +53,8 @@
                 That email and password don't match an active account. Check them and try again.
             </p>
             <p class="message info" role="status" th:if="${param.logout}">You've logged out.</p>
+            <!-- AuthController redirects here after a successful sign-up -->
+            <p class="message info" role="status" th:if="${param.registered}">Your account is ready. Log in to add your courses.</p>
 
             <!-- th:action adds the hidden CSRF token that Spring Security requires on every POST -->
             <form class="form" th:action="@{/login}" method="post">
@@ -64,6 +66,8 @@
 
                 <button type="submit" class="button button-primary">Log in</button>
             </form>
+
+            <p>New student? <a th:href="@{/register}">Create an account</a></p>
         </main>
 
     </div>

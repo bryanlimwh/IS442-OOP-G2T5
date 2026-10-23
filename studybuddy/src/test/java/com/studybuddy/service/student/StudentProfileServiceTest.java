@@ -6,10 +6,13 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.studybuddy.entity.Course;
 import com.studybuddy.entity.Student;
+import com.studybuddy.exception.DuplicateEmailException;
+import com.studybuddy.exception.InvalidAccountDetailsException;
 import com.studybuddy.matching.StudentPublicProfile;
 import com.studybuddy.repository.CourseRepository;
 import com.studybuddy.repository.StudentRepository;
@@ -36,6 +39,8 @@ class StudentProfileServiceTest {
     private CourseRepository courseRepository;
     @Autowired
     private EntityManager entityManager;
+    @Autowired
+    private PasswordEncoder passwordEncoder;
 
     @Test
     void updatedProfileIsSaved() {
@@ -46,6 +51,32 @@ class StudentProfileServiceTest {
         assertThat(saved.getProgramme()).isEqualTo("Computer Science");
         assertThat(saved.getYearOfStudy()).isEqualTo(3);
         assertThat(saved.getContactNumber()).isEqualTo("87654321");
+    }
+
+    @Test
+    void signUpCreatesAStudentWhoCanLogIn() {
+        Student created = service.createProfile("  New.Student@Example.com ", "password123",
+                "New Student", "SCIS", "Information Systems", 1, "98765432");
+        flushAndClear();
+
+        // Email is stored trimmed and lower-cased, like every other account
+        Student saved = studentRepository.findByEmail("new.student@example.com").orElseThrow();
+        assertThat(saved.getUserId()).isEqualTo(created.getUserId());
+        assertThat(saved.getName()).isEqualTo("New Student");
+        assertThat(saved.isActive()).isTrue();
+        // Only the hash is stored, and login can check the password against it
+        assertThat(saved.getPasswordHash()).isNotEqualTo("password123");
+        assertThat(passwordEncoder.matches("password123", saved.getPasswordHash())).isTrue();
+    }
+
+    @Test
+    void signUpRejectsTakenEmailAndBadDetails() {
+        assertThatThrownBy(() -> service.createProfile(ALEX, "password123", "Alex Two", "SCIS", "IS", 2, "91234567"))
+                .isInstanceOf(DuplicateEmailException.class);
+        assertThatThrownBy(() -> service.createProfile("x@example.com", "short", "X", "SCIS", "IS", 2, "91234567"))
+                .isInstanceOf(InvalidAccountDetailsException.class);
+        assertThatThrownBy(() -> service.createProfile("x@example.com", "password123", "X", "SCIS", "IS", 2, "123"))
+                .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test

@@ -1,9 +1,6 @@
 package com.studybuddy.service.admin;
 
-import java.nio.charset.StandardCharsets;
 import java.util.List;
-import java.util.Locale;
-import java.util.regex.Pattern;
 
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -13,13 +10,12 @@ import org.springframework.transaction.annotation.Transactional;
 import com.studybuddy.entity.Admin;
 import com.studybuddy.entity.Student;
 import com.studybuddy.entity.User;
-import com.studybuddy.exception.DuplicateEmailException;
-import com.studybuddy.exception.InvalidAccountDetailsException;
 import com.studybuddy.exception.LastAdminException;
 import com.studybuddy.exception.UserNotFoundException;
 import com.studybuddy.repository.AdminRepository;
 import com.studybuddy.repository.MatchRequestRepository;
 import com.studybuddy.repository.UserRepository;
+import com.studybuddy.service.auth.AccountCredentials;
 
 /**
  * System Administrator account management: viewing, creating admin accounts,
@@ -39,13 +35,6 @@ import com.studybuddy.repository.UserRepository;
 @PreAuthorize("hasRole('ADMIN')")
 public class AccountManagementService {
 
-    private static final int MIN_PASSWORD_LENGTH = 8;
-    // BCrypt only uses the first 72 bytes of a password, and Spring Security's
-    // BCryptPasswordEncoder refuses anything longer, so it's checked up front.
-    private static final int MAX_PASSWORD_BYTES = 72;
-    // A basic shape check (something@something.something), not full email validation.
-    private static final Pattern EMAIL_PATTERN = Pattern.compile("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$");
-
     // Queries the 'user_account' table; with JOINED inheritance Hibernate also
     // joins the 'student' / 'admin' table and returns the right subclass.
     private final UserRepository userRepository;
@@ -60,14 +49,19 @@ public class AccountManagementService {
     // login checks against, so passwords set here work at the login page.
     private final PasswordEncoder passwordEncoder;
 
+    // Email and password rules shared with student sign-up
+    private final AccountCredentials credentials;
+
     public AccountManagementService(UserRepository userRepository,
             MatchRequestRepository matchRequestRepository,
             AdminRepository adminRepository,
-            PasswordEncoder passwordEncoder) {
+            PasswordEncoder passwordEncoder,
+            AccountCredentials credentials) {
         this.userRepository = userRepository;
         this.matchRequestRepository = matchRequestRepository;
         this.adminRepository = adminRepository;
         this.passwordEncoder = passwordEncoder;
+        this.credentials = credentials;
     }
 
     // readOnly: the student's courses, preferences and groups are lazy collections,
@@ -107,14 +101,14 @@ public class AccountManagementService {
         return setActive(userId, true);
     }
 
-    // Creates an active Admin account. Student accounts aren't created here: there is
-    // no student registration flow yet, and students need profile details an admin
-    // wouldn't know.
+    // Creates an active Admin account. Student accounts aren't created here: students
+    // sign up themselves at /register, since they need profile details an admin
+    // wouldn't know (see StudentProfileService.createProfile).
     @Transactional
     public AccountStatus createAdminAccount(String email, String rawPassword) {
-        String normalisedEmail = normaliseEmail(email);
-        checkPassword(rawPassword);
-        requireEmailAvailable(normalisedEmail, null);
+        String normalisedEmail = credentials.normaliseEmail(email);
+        credentials.checkPassword(rawPassword);
+        credentials.requireEmailAvailable(normalisedEmail, null);
 
         Admin admin = new Admin(normalisedEmail, passwordEncoder.encode(rawPassword));
         return toAccountStatus(adminRepository.save(admin));
@@ -124,9 +118,9 @@ public class AccountManagementService {
     // email is allowed (nothing changes); taking another account's email is not.
     @Transactional
     public AccountStatus updateEmail(Long userId, String newEmail) {
-        String normalisedEmail = normaliseEmail(newEmail);
+        String normalisedEmail = credentials.normaliseEmail(newEmail);
         User user = getUserById(userId);
-        requireEmailAvailable(normalisedEmail, userId);
+        credentials.requireEmailAvailable(normalisedEmail, userId);
 
         user.setEmail(normalisedEmail);
         return toAccountStatus(userRepository.save(user));
@@ -135,7 +129,7 @@ public class AccountManagementService {
     // Sets a new password chosen by the admin. Only the hash is stored.
     @Transactional
     public AccountStatus resetPassword(Long userId, String newRawPassword) {
-        checkPassword(newRawPassword);
+        credentials.checkPassword(newRawPassword);
         User user = getUserById(userId);
 
         user.changePasswordHash(passwordEncoder.encode(newRawPassword));
@@ -169,42 +163,7 @@ public class AccountManagementService {
         return activeAdminCount <= 1;
     }
 
-    // Trims and lower-cases the email, so "Admin@X.com " and "admin@x.com" can't
-    // become two accounts. Lower case also matches how the seeded accounts are stored.
-    private String normaliseEmail(String email) {
-        if (email == null || email.isBlank()) {
-            throw new InvalidAccountDetailsException("Enter an email address.");
-        }
-        String normalised = email.strip().toLowerCase(Locale.ROOT);
-        if (!EMAIL_PATTERN.matcher(normalised).matches()) {
-            throw new InvalidAccountDetailsException("Enter a valid email address, like name@example.com.");
-        }
-        return normalised;
-    }
 
-    // Passwords aren't trimmed: spaces in a password may be deliberate.
-    private void checkPassword(String rawPassword) {
-        if (rawPassword == null || rawPassword.length() < MIN_PASSWORD_LENGTH) {
-            throw new InvalidAccountDetailsException(
-                    "Passwords must be at least " + MIN_PASSWORD_LENGTH + " characters.");
-        }
-        if (rawPassword.isBlank()) {
-            throw new InvalidAccountDetailsException("Passwords can't be only spaces.");
-        }
-        if (rawPassword.getBytes(StandardCharsets.UTF_8).length > MAX_PASSWORD_BYTES) {
-            throw new InvalidAccountDetailsException("Passwords can be at most 72 characters.");
-        }
-    }
-
-    // The user_account table has no unique constraint on email, so this check is
-    // what keeps emails unique. userIdKeepingEmail is the account allowed to
-    // already have it (the one being updated), or null when creating an account.
-    private void requireEmailAvailable(String email, Long userIdKeepingEmail) {
-        User existing = userRepository.findByEmail(email);
-        if (existing != null && !existing.getUserId().equals(userIdKeepingEmail)) {
-            throw new DuplicateEmailException(email);
-        }
-    }
 
     private AccountStatus setActive(Long userId, boolean active) {
         User user = getUserById(userId);

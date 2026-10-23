@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/head :: head('Sign up')}"></head>
+<body>
+    <div class="auth-page">
+
+        <section class="auth-intro">
+            <p class="wordmark">Study Buddy Matcher</p>
+            <h1 class="display">Create your student profile.</h1>
+            <p class="lead">Other students see your name, school, programme and year. Your email stays private, and only your study buddies see your contact number.</p>
+            <p class="lead">Once you're in, add your courses and study preferences to start getting matches.</p>
+        </section>
+
+        <main class="auth-form-panel">
+            <h2>Sign up</h2>
+
+            <p class="message error" role="alert" th:if="${error}" th:text="${error}">Error</p>
+
+            <!-- th:action adds the CSRF token. StudentProfileService checks every field, so the browser's checks are a convenience. -->
+            <form class="form" th:action="@{/register}" method="post">
+                <label for="email">Email</label>
+                <input type="email" id="email" name="email" autocomplete="username" required autofocus th:value="${email}">
+
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" autocomplete="new-password" required
+                       minlength="8" maxlength="72" aria-describedby="password-help">
+                <p class="muted field-hint" id="password-help">At least 8 characters.</p>
+
+                <label for="name">Name</label>
+                <input type="text" id="name" name="name" autocomplete="name" required th:value="${name}">
+
+                <label for="school">School</label>
+                <input type="text" id="school" name="school" required th:value="${school}">
+
+                <label for="programme">Programme</label>
+                <input type="text" id="programme" name="programme" required th:value="${programme}">
+
+                <label for="yearOfStudy">Year of study</label>
+                <input class="input-short" type="number" id="yearOfStudy" name="yearOfStudy" required min="1" max="5"
+                       th:value="${yearOfStudy}">
+
+                <label for="contactNumber">Contact number</label>
+                <input class="input-short" type="tel" id="contactNumber" name="contactNumber" autocomplete="tel" required
+                       pattern="\d{8}" aria-describedby="contact-help" th:value="${contactNumber}">
+                <p class="muted field-hint" id="contact-help">8 digits. Only shared with your study buddies.</p>
+
+                <button type="submit" class="button button-primary">Create account</button>
+            </form>
+
+            <p>Already have an account? <a th:href="@{/login}">Log in</a></p>
+        </main>
+
+    </div>
+</body>
+</html>
