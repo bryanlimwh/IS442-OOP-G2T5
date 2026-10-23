@@ -623,6 +623,19 @@ a {
     background-color: var(--surface);
 }
 
+/* Match requests page: space before the next heading, and no extra gap under a card's last line */
+.request-list {
+    margin-bottom: 2rem;
+}
+
+.request-list .match-card > :last-child {
+    margin-bottom: 0;
+}
+
+.request-list .match-card > :first-child {
+    margin-top: 0;
+}
+
 .match-header {
     display: grid;
     grid-template-columns: auto 1fr auto;
@@ -1129,6 +1142,11 @@ a {
 
 .data-table-actions form {
     margin: 0;
+}
+
+/* Keeps short values like a name or date on one line instead of wrapping in a narrow column */
+.data-table .cell-nowrap {
+    white-space: nowrap;
 }
 
 /* ---- Small screens ---- */

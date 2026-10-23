@@ -17,38 +17,43 @@
         <h2>Received</h2>
         <p class="message info" th:if="${#lists.isEmpty(received)}">You haven't received any requests yet.</p>
 
-        <div th:each="req : ${received}">
-            <p><strong th:text="${req.sender.name}">Alex Tan</strong>
-                <span class="muted" th:text="${req.status}">PENDING</span></p>
-            <!-- The message is optional, so only shown when one was written -->
-            <p th:if="${req.message}" th:text="${req.message}">Study IS442 together?</p>
-            <!-- Accepting makes them study buddies; contact numbers live on the Study buddies page.
-                 Worded neutrally because the request stays ACCEPTED even if the connection is later ended. -->
-            <p th:if="${req.status.name() == 'ACCEPTED'}">Accepted. Contact numbers for your current study buddies are under
-                <a th:href="@{/connections}">Study buddies</a>.</p>
+        <!-- Same card style as the matches page, so each request is clearly separate -->
+        <ul class="match-list request-list" th:unless="${#lists.isEmpty(received)}">
+            <li class="match-card" th:each="req : ${received}">
+                <p><strong th:text="${req.sender.name}">Alex Tan</strong>
+                    <span class="muted" th:text="${req.status}">PENDING</span></p>
+                <!-- The message is optional, so only shown when one was written -->
+                <p th:if="${req.message}" th:text="${req.message}">Study IS442 together?</p>
+                <!-- Accepting makes them study buddies; contact numbers live on the Study buddies page.
+                     Worded neutrally because the request stays ACCEPTED even if the connection is later ended. -->
+                <p th:if="${req.status.name() == 'ACCEPTED'}">Accepted. Contact numbers for your current study buddies are under
+                    <a th:href="@{/connections}">Study buddies</a>.</p>
 
-            <!-- Buttons only shown while PENDING; th:action adds the CSRF token automatically -->
-            <div th:if="${req.status.name() == 'PENDING'}">
-                <form th:action="@{/match-requests/{id}/accept(id=${req.requestId})}" method="post">
-                    <button type="submit" class="button button-primary">Accept</button>
-                </form>
-                <form th:action="@{/match-requests/{id}/reject(id=${req.requestId})}" method="post">
-                    <button type="submit" class="button button-quiet">Decline</button>
-                </form>
-            </div>
-        </div>
+                <!-- Buttons only shown while PENDING; th:action adds the CSRF token automatically -->
+                <div class="button-row" th:if="${req.status.name() == 'PENDING'}">
+                    <form th:action="@{/match-requests/{id}/accept(id=${req.requestId})}" method="post">
+                        <button type="submit" class="button button-primary">Accept</button>
+                    </form>
+                    <form th:action="@{/match-requests/{id}/reject(id=${req.requestId})}" method="post">
+                        <button type="submit" class="button button-quiet">Decline</button>
+                    </form>
+                </div>
+            </li>
+        </ul>
 
         <!-- ================= Sent ================= -->
         <h2>Sent</h2>
         <p class="message info" th:if="${#lists.isEmpty(sent)}">You haven't sent any requests yet.</p>
 
-        <div th:each="req : ${sent}">
-            <p><strong th:text="${req.recipient.name}">Ben Koh</strong>
-                <span class="muted" th:text="${req.status}">PENDING</span></p>
-            <p th:if="${req.message}" th:text="${req.message}">Study IS442 together?</p>
-            <p th:if="${req.status.name() == 'ACCEPTED'}">Accepted. Contact numbers for your current study buddies are under
-                <a th:href="@{/connections}">Study buddies</a>.</p>
-        </div>
+        <ul class="match-list request-list" th:unless="${#lists.isEmpty(sent)}">
+            <li class="match-card" th:each="req : ${sent}">
+                <p><strong th:text="${req.recipient.name}">Ben Koh</strong>
+                    <span class="muted" th:text="${req.status}">PENDING</span></p>
+                <p th:if="${req.message}" th:text="${req.message}">Study IS442 together?</p>
+                <p th:if="${req.status.name() == 'ACCEPTED'}">Accepted. Contact numbers for your current study buddies are under
+                    <a th:href="@{/connections}">Study buddies</a>.</p>
+            </li>
+        </ul>
     </main>
 </body>
 </html>

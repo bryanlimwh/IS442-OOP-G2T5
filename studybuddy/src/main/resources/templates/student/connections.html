@@ -32,11 +32,11 @@
                 </thead>
                 <tbody>
                     <tr th:each="connection : ${connections}">
-                        <td th:text="${connection.buddy.name}">Ben Koh</td>
+                        <td class="cell-nowrap" th:text="${connection.buddy.name}">Ben Koh</td>
                         <td th:text="|${connection.buddy.programme}, Year ${connection.buddy.yearOfStudy}|">Information Systems, Year 3</td>
                         <td th:text="${#strings.listJoin(connection.buddy.courseCodes, ', ')}">IS442, IS216, CS201</td>
                         <td th:text="${connection.buddyContactNumber}">92345678</td>
-                        <td th:text="${#temporals.format(connection.connectedSince, 'd MMM yyyy')}">13 Oct 2026</td>
+                        <td class="cell-nowrap" th:text="${#temporals.format(connection.connectedSince, 'd MMM yyyy')}">13 Oct 2026</td>
                         <td>
                             <!-- Asks first: ending hides both contact numbers, and only a new request reconnects them -->
                             <button type="button" class="button button-quiet"
