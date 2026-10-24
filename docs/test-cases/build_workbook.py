@@ -9,6 +9,10 @@ Run from the repository root AFTER ./mvnw test:
 
 It stops with an error if a test method in src/test has no description here, or a description
 names a test that doesn't exist, so the workbook can't drift from the code.
+
+Manual results (Status, Tester, Date, Actual result) typed into the existing workbook are read
+first and carried over by Test ID, so rebuilding never loses them. A manual ID that is in the old
+workbook but no longer described here is reported with a WARNING (its results are dropped).
 Needs openpyxl (pip install openpyxl). Nothing here touches pom.xml or src/.
 """
 import re
@@ -17,17 +21,22 @@ import xml.etree.ElementTree as ET
 from collections import Counter, defaultdict
 from pathlib import Path
 
-from openpyxl import Workbook
+from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
+from openpyxl.worksheet.datavalidation import DataValidation
 
 ROOT = Path(__file__).resolve().parents[2]
 TEST_SRC = ROOT / "studybuddy" / "src" / "test" / "java"
 REPORTS = ROOT / "studybuddy" / "target" / "surefire-reports"
 OUT = Path(__file__).resolve().parent / "study-buddy-test-cases.xlsx"
 
-# Full-suite results before Batch A (recorded by hand from the baseline run on 2026-10-23)
-BASELINE = {"run": 99, "passed": 99, "failed": 0, "errors": 0, "skipped": 0}
+# Full-suite results before each batch (recorded by hand from the baseline runs)
+BASELINES = [
+    ("Baseline before Batch A (2026-10-23)", {"run": 99, "passed": 99, "failed": 0, "errors": 0, "skipped": 0}),
+    ("Baseline before Batch B (2026-10-24)", {"run": 207, "passed": 204, "failed": 0, "errors": 0, "skipped": 3}),
+]
+BATCH_B = "Batch B"
 
 ID_PATTERN = re.compile(r"\b(?:[SLAD]\d+|ACC-\d+|CRS-\d+|PRF-\d+|PRE-\d+|REQ-\d+|GRP-\d+|MAT-\d+|SEC-\d+|K\d+)\b")
 TYPES = ["happy", "negative", "boundary", "permission", "conflict", "side-effect"]
@@ -96,9 +105,9 @@ REQUIREMENTS = [
 
 # Where uncovered items are scheduled
 PLANNED = {
-    "L1": "Batch B / C", "L2": "Batch B / C", "L3": "Batch B / C", "L4": "Batch B / C", "L5": "Batch B / C",
-    "L6": "Batch B / C", "GRP-1": "Batch B", "GRP-2": "Batch B", "GRP-3": "Batch B", "GRP-4": "Batch B",
-    "GRP-5": "Batch B", "GRP-6": "Batch B", "GRP-7": "Batch B", "D1": "Batch D", "SEC-3": "Batch C",
+    "L1": "Batch C (controllers)", "L2": "Batch C (controllers)", "L3": "Batch C (controllers)",
+    "L4": "Batch C (controllers)", "L5": "Batch C (controllers)", "L6": "Batch C (controllers)",
+    "GRP-2": "Batch C (controller messages)", "GRP-7": "Batch C (form errors on the page)", "D1": "Batch D", "SEC-3": "Batch C",
     "S6": "Gap K7 (no profile page)", "MAT-4": "Batch D (more bounds)", "S5": "Batch D (mode, group size)",
     "PRF-1": "Batch E (boundaries)", "PRE-1": "Batch E", "PRE-2": "Batch E", "REQ-4": "Batch E (negative)",
     "SEC-1": "Batch C (other URL groups)", "SEC-2": "Batch C (other URL groups)", "D3": "Batch C (other URL groups)",
@@ -132,6 +141,15 @@ CLASSES = {
     "CourseServiceTest": ("CRS", "New", "@DataJpaTest + CourseService, empty H2. Own data, rolled back."),
     "CourseControllerTest": ("CRC", "New", "@WebMvcTest with the real SecurityConfig; CourseService is a Mockito mock. Logged in as ADMIN unless stated."),
     "CourseControllerKnownBugTest": ("CRK", "New", "@WebMvcTest with the real SecurityConfig; CourseService mocked; ADMIN. @Disabled known-bug tests: describe the desired behaviour."),
+    # New (Batch B)
+    "StudyGroupTest": ("SGE", BATCH_B, "Plain unit test (no Spring, no database). Group 'IS442 Revision' (IS442, Exam preparation, Online, maximum size 4) led by Alex; Ben, Chloe and Daniel are other students. Nothing is saved, so ids are null."),
+    "StudyGroupFormValidatorTest": ("SGV", BATCH_B, "Plain unit test. Settings built by hand with the application.properties values: 3 slots, 08:00 to 23:00, 15-minute steps. Errors collected in a BeanPropertyBindingResult."),
+    "StudyGroupFormValidatorPropertiesTest": ("SGP", BATCH_B, "@SpringBootTest(classes = StudyGroupFormValidator): only the validator and its settings bound from the real application.properties. No auto-configuration, so no database, no seeders, no web server."),
+    "StudyGroupFormTest": ("SGF", BATCH_B, "Plain unit test with a jakarta Validator (no Spring). Form starts valid: 'IS442 Revision', course 1, Exam preparation, Online, size 4."),
+    "StudyGroupSettingsTest": ("SGT", BATCH_B, "Plain unit test of the StudyGroupSettings record."),
+    "GroupSortTest": ("GSO", BATCH_B, "Plain unit test. Unsaved groups whose sort values all differ."),
+    "StudyGroupServiceTest": ("SGS", BATCH_B, "@DataJpaTest + StudyGroupService (+ StudentProfileService, AccountCredentials, BCrypt for the K8 test), empty H2. Courses IS442, CS201; Alex (IS442), Ben and Chloe (IS442, CS201), Daniel (no courses). Own data, rolled back."),
+    "GroupMembershipServiceTest": ("GMS", BATCH_B, "@DataJpaTest + GroupMembershipService + StudyGroupService, empty H2. Course IS442 taken by Alex, Ben, Chloe, Emily (Daniel takes nothing). Alex leads 'IS442 Revision', maximum size 4. Own data, rolled back."),
 }
 
 
@@ -394,25 +412,140 @@ CASES = {
         t("addCourseTheDatabaseRefusesShowsAnError", "negative", "Adding an over-long course should show an error", "Service throws DataIntegrityViolationException; POST /courses", "code 'C' x 256", "DESIRED: redirect /courses with a flash error. TODAY: uncaught exception, 500 (confirmed when enabled)"),
         t("updateCourseTheDatabaseRefusesShowsAnError", "negative", "Renaming to an over-long value should show an error", "Service throws DataIntegrityViolationException; POST /courses/5/update", "code 'C' x 256", "DESIRED: flash error. TODAY: uncaught exception, 500 (confirmed when enabled)"),
     ],
+
+    # ================================ NEW (Batch B) ================================
+    "StudyGroupTest": [
+        t("newGroupIsActiveWithLeaderAsOnlyMember", "happy", "New group is active with the leader as its only member", "new StudyGroup(...)", "IS442 Revision, Past papers, size 4", "ACTIVE; all fields kept; createdAt set; 1 member (Alex, ACCEPTED); no pending; Alex isLeader and groupsLed has the group"),
+        t("blankNameIsRefused", "negative", "Blank group name refused", "new StudyGroup with each name", "null, '', '   '", "IllegalArgumentException 'Group name is required'; Ben not made a leader"),
+        t("sizeBelowTwoIsRefusedAndTwoIsAllowed", "boundary", "Size 0/1 refused, 2 allowed", "new StudyGroup with each size", "1, 0, 2", "1 and 0: IllegalArgumentException 'Max size must be at least 2'; 2 created"),
+        t("missingCourseOrLeaderIsRefused", "negative", "Course and leader are required", "new StudyGroup with null course, then null leader", "null", "NullPointerException 'course is required' / 'leader is required' (the entity's own Objects.requireNonNull check)"),
+        t("requestToJoinAddsPendingRequest", "happy", "Join request is pending", "requestToJoin(Ben)", "-", "PENDING, requestedAt set, respondedAt null, in pending list; member count still 1"),
+        t("leaderCannotRequestToJoinOwnGroup", "negative", "Leader can't join own group", "requestToJoin(Alex)", "-", "IllegalArgumentException 'The leader is already in the group'; still 1 row"),
+        t("duplicatePendingOrAcceptedRequestIsRefused", "conflict", "Duplicate pending or accepted request refused", "Ben pending, Chloe accepted; both ask again", "-", "IllegalStateException 'Student has already requested or joined this group'; still 3 rows, statuses unchanged"),
+        t("rejectedOrRemovedStudentCanAskAgain", "conflict", "Rejected or removed student can ask again", "Reject Ben, remove Chloe; both requestToJoin", "-", "Same row objects come back PENDING with respondedAt null; still 3 rows"),
+        t("fullGroupRefusesRequestsAndAccepts", "boundary", "Group exactly full (size 2)", "Size 2; Chloe pending; accept Ben (fills it); Daniel asks; accept Chloe", "maxSize 2", "Not full before Ben; then full (2 of 2): request 'Group is full', accept 'Group is full. Remove a member to accept new members.'; Chloe stays PENDING"),
+        t("acceptAndRejectNeedPendingRequest", "conflict", "Answered requests can't be answered again", "Accept Ben, reject Chloe; accept/reject again", "-", "IllegalStateException 'This request has already been answered' x3; statuses unchanged"),
+        t("membershipOfAnotherGroupIsRefused", "conflict", "Membership from another group refused", "Daniel's group has Ben pending, Chloe member; Alex's group accept/reject/remove them", "-", "IllegalArgumentException 'Membership does not belong to this group' x3; nothing changed"),
+        t("removeMemberEndsMembershipButNotTheLeaders", "happy", "Remove a member; the leader can't be removed", "removeMember(Ben); removeMember(leader's row)", "-", "Ben REMOVED (accept time kept), count 1; leader: IllegalArgumentException 'The leader can't be removed from their own group'"),
+        t("removeNeedsAcceptedMember", "negative", "Only accepted members can be removed", "removeMember on a pending and an already removed row", "-", "IllegalStateException 'This student isn't a member of the group any more'"),
+        t("updateDetailsChangesEverythingButCourse", "happy", "Update changes the details, not the course", "updateDetails('OOP Finals', 'Mock exams', PROBLEM_SOLVING, IN_PERSON, 6)", "-", "All five values saved; course still IS442"),
+        t("updateSizeCannotGoBelowMemberCount", "boundary", "Size = member count allowed, below refused", "3 members; size 3, then 2; blank name; size 1", "3, 2, '   ', 1", "3 accepted (group full); 2: 'Max size can't be below the current member count (3)'; blank: 'Group name is required'; 1: 'Max size must be at least 2'; nothing changed by the refused ones"),
+        t("replaceAvailabilityReplacesEverySlot", "happy", "Replace the slots", "Mon + Tue slots; replace with Fri; replace with own list", "-", "Only Friday left; passing the group's own list keeps it"),
+        t("closeEndsPendingRequestsAsGroupClosed", "side-effect", "Closing ends pending requests as GROUP_CLOSED", "Ben pending, Chloe member, Daniel rejected; close()", "-", "CLOSED; Ben GROUP_CLOSED with respondedAt; Chloe ACCEPTED, Daniel REJECTED unchanged; 2 members"),
+        t("closedGroupIsFrozen", "side-effect", "Closed group is frozen", "Close, then join, accept, remove, update, replace slots, add slot, close, reject", "-", "IllegalStateException 'Group is closed' for 7 actions; reject: 'This request has already been answered' (N-B3); nothing changed"),
+        t("removeFromMyGroupsOnlyForClosedGroupAndLinkedStudent", "conflict", "Remove from My groups: closed and linked only", "Open group; close; unlinked Daniel; Ben", "-", "Open: 'Only a closed group can be removed from My groups'; Daniel: 'You aren't linked to this group'; Ben hidden, Alex not, Ben still ACCEPTED"),
+    ],
+    "StudyGroupFormValidatorTest": [
+        t("validSlotsPass", "happy", "A valid slot passes", "validate", "Mon 10:00-12:00", "No errors"),
+        t("supportsOnlyTheGroupForm", "happy", "Validator only applies to the group form", "supports()", "StudyGroupForm, SlotForm", "true, false"),
+        t("noSlotsIsRefused", "boundary", "0 slots refused", "validate", "no slots", "'Please add at least one time slot'"),
+        t("oneToThreeSlotsAreAllowed", "boundary", "1 and 3 slots allowed, 4 refused", "validate", "1, 3, 4 slots", "1 and 3: no errors; 4: only 'A group can have at most 3 time slots'"),
+        t("incompleteRowSaysWhatIsMissing", "negative", "Incomplete rows name what is missing", "validate", "empty row; no day; no end", "'Slot 1: please choose a day, a start time and an end time', 'Slot 2: please choose a day', 'Slot 3: please choose an end time'"),
+        t("earliestAndLatestTimesAreAccepted", "boundary", "08:00 and 23:00 accepted", "validate", "Mon 08:00-23:00", "No errors"),
+        t("quarterHourSlotIsAccepted", "boundary", "One 15-minute step is a valid slot", "validate", "Mon 08:15-08:30", "No errors"),
+        t("timesNotOnTheListAreRefused", "boundary", "Times off the list refused", "validate each", "07:45, 23:15, 10:10, 11:59", "'Slot 1: please choose times from the list (08:00 to 23:00)'"),
+        t("endMustBeAfterStart", "boundary", "End must be after start", "validate each", "12:00-10:00, 10:00-10:00, 23:00-23:00", "'Slot 1: the end time must be after the start time'"),
+        t("overlappingSlotsAreRefused", "conflict", "Overlapping slots refused", "validate", "Mon 10-12 + 11:45-13; Fri 10-14 + 11-12 + 13-15", "'Slots 1 and 2 overlap'; then 'Slots 1 and 2 overlap', 'Slots 1 and 3 overlap'"),
+        t("touchingOrOtherDaySlotsAreAllowed", "boundary", "Touching or other-day slots allowed", "validate", "Mon 14-16, Mon 16-18, Tue 14-16", "No errors"),
+        t("badRowIsNotComparedForOverlaps", "negative", "A bad row isn't also reported as an overlap", "validate", "Mon 10-12; 11:30-11:00; 11:00-11:10", "Only 'Slot 2: the end time must be after the start time' and 'Slot 3: please choose times from the list (08:00 to 23:00)'"),
+        t("messagesAreFiledUnderSlots", "side-effect", "Every message is on the 'slots' field", "validate a reversed and an empty row", "-", "2 errors, both on field 'slots', codes slot.endBeforeStart and slot.incomplete"),
+    ],
+    "StudyGroupFormValidatorPropertiesTest": [
+        t("settingsComeFromApplicationProperties", "happy", "Settings bound from application.properties", "Read StudyGroupSettings from the light context", "application.properties", "3 slots, 08:00, 23:00, 15 minutes, NEWEST; context has no DataSource and no CommandLineRunner (no database, no seeders)"),
+        t("configuredValidatorUsesTheseSettings", "boundary", "Configured validator uses the real settings", "validate", "Mon 08:00-23:00; 07:45-10:00; 4 slots", "No errors; 'Slot 1: please choose times from the list (08:00 to 23:00)'; 'A group can have at most 3 time slots'"),
+    ],
+    "StudyGroupFormTest": [
+        t("validFormHasNoErrors", "happy", "Valid form passes", "Validator.validate", "valid form", "No violations"),
+        t("nameIsRequiredAndAtMost255Characters", "boundary", "Name required, 255 / 256", "validate each", "null, '   ', 'N' x 255, 'N' x 256", "Blank: 'Please enter a group name'; 255 OK; 256: 'Please keep the group name under 255 characters'", notes="N-B4: the message says 'under 255' but 255 is allowed."),
+        t("descriptionIsOptionalAndAtMost1000Characters", "boundary", "Description optional, 1000 / 1001", "validate each", "null, 'D' x 1000, 'D' x 1001", "null and 1000 OK; 1001: 'Please keep the description under 1000 characters'"),
+        t("sizeIsRequiredAndAtLeastTwo", "boundary", "Size required, 1 / 2", "validate each", "null, 1, 2", "null: 'Please enter a maximum group size'; 1: 'A group needs room for at least 2 members, including you'; 2 OK"),
+        t("courseGoalAndModeAreRequired", "negative", "Course, goal and mode required", "validate", "all three null", "'Please choose a course', 'Please choose a study goal', 'Please choose a study mode'"),
+        t("addSlotStopsAtTheMaximumAndRemoveKeepsOneRow", "boundary", "Add slot stops at 3; Remove keeps one row", "blank(); addSlot(3) x3; removeSlot(5), (-1); removeSlot(0) x3", "-", "1 row, then 3 (not 4); bad indexes ignored; 1 row left"),
+        t("editFormIsFilledFromTheGroup", "happy", "Edit form pre-filled from the group", "StudyGroupForm.from(group)", "Fri 14-16, Mon 18-20, Mon 9-10", "Name, description, goal, mode, size copied; slots Mon 9, Mon 18, Fri 14"),
+    ],
+    "StudyGroupSettingsTest": [
+        t("timeOptionsRunFromEarliestToLatestInSteps", "boundary", "Time list 08:00 to 23:00 in 15-minute steps", "timeOptions()", "3, 08:00, 23:00, 15", "61 times from 08:00, 08:15 ... 23:00; no 07:45, 08:10, 23:15"),
+        t("timeOptionsStopBeforeMidnight", "boundary", "Time list doesn't wrap at midnight", "timeOptions()", "23:00 to 23:59, 30 minutes", "23:00, 23:30 only"),
+        t("unusableSettingsAreRefused", "negative", "Unusable settings stop the app", "new StudyGroupSettings with each bad value", "0 slots; earliest = latest; null earliest; step 0; null sort", "IllegalArgumentException with the property name each time; smallest usable values accepted"),
+    ],
+    "GroupSortTest": [
+        t("fromNameFallsBackForUnknownNames", "negative", "Unknown sort name falls back", "fromName", "NAME, MOST_PLACES, null, bogus, name", "NAME, MOST_PLACES, then the fallback for the other three"),
+        t("eachOptionSortsByItsOwnValue", "happy", "Each sort option orders correctly", "Sort three groups", "beta (IS442, 3 left), Alpha (IS442, 5 left), Gamma (CS201, 2 left)", "NAME Alpha, beta, Gamma; MOST_PLACES Alpha, beta, Gamma; COURSE Gamma, Alpha, beta", notes="GAP-NR5: no requirement fixes the browse order."),
+    ],
+    "StudyGroupServiceTest": [
+        t("createGroupSavesDetailsSlotsAndLeader", "happy", "Create a group", "createGroup as Alex; flushAndClear; getGroup", "IS442 Revision, Past papers, size 4, Mon 10-12 + Wed 14-16", "All fields saved, ACTIVE, leader Alex the only member, 2 slots; Alex isLeader"),
+        t("createGroupWithUnknownCourseOrStudentSavesNothing", "negative", "Unknown course or student", "createGroup with course 999999; as ghost@test.com", "-", "CourseNotFoundException; StudentNotFoundException; 0 groups"),
+        t("createGroupRejectsBadDetailsAndSavesNothing", "negative", "Blank name or size 1 refused", "createGroup twice", "'   '; size 1", "'Group name is required'; 'Max size must be at least 2'; 0 groups"),
+        t("nameOver255CharactersFailsInDatabase", "boundary", "Name 255 / 256 at the database", "createGroup", "'N' x 255, 'N' x 256", "255 saved; 256 DataIntegrityViolationException (only the form's @Size stops it in the app)"),
+        t("descriptionOver1000CharactersFailsInDatabase", "boundary", "Description 1000 / 1001 at the database", "createGroup", "'D' x 1000, 'D' x 1001", "1000 saved; 1001 DataIntegrityViolationException"),
+        t("createGroupDoesNotRequireTakingTheCourse", "boundary", "Leader needn't take the course", "Daniel (no courses) creates a CS201 group", "-", "Group saved with Daniel as leader"),
+        t("leaderCanDropTheCourseAndStillLeadTheGroup", "side-effect", "Leader can drop the group's course", "Ben creates a CS201 group; StudentProfileService.removeCourse(Ben, CS201)", "-", "Ben takes only IS442; the CS201 group is still active and led by Ben"),
+        t("updateGroupChangesDetailsAndSlotsButNotCourse", "happy", "Update details and slots; course ignored", "updateGroup with course CS201 in the form", "OOP Finals, Mock exams, PROBLEM_SOLVING, IN_PERSON, 6, Fri + Sat slots", "All saved; course still IS442; slots Fri and Sat; old slot deleted (2 slot rows in total)"),
+        t("updateSizeCannotGoBelowMemberCount", "boundary", "Size = member count allowed, below refused", "3 members; update size 3, then size 2 with new name and slot", "3, 2", "3 saved (full); 2: 'Max size can't be below the current member count (3)'; name and slots unchanged"),
+        t("onlyTheLeaderCanUpdateOrClose", "permission", "Only the leader updates or closes", "As member Ben, pending Chloe, outsider Daniel: update, close, getGroupLedBy", "-", "NotGroupLeaderException each time; group unchanged and active; Alex still gets it"),
+        t("closeGroupEndsPendingRequestsAndReturnsHowMany", "side-effect", "Close returns the number of requests ended", "Ben, Chloe pending; Daniel member; closeGroup", "-", "Returns 2; CLOSED; Ben and Chloe GROUP_CLOSED; Daniel ACCEPTED; 2 members"),
+        t("closeGroupWithNoRequestsReturnsZero", "boundary", "Close with nothing waiting", "closeGroup", "-", "Returns 0"),
+        t("closedGroupCannotBeUpdatedOrClosedAgain", "conflict", "Closed group can't be updated or closed again", "closeGroup; updateGroup; closeGroup", "-", "IllegalStateException 'Group is closed' twice; name, slot and CLOSED unchanged"),
+        t("unknownGroupOrStudentIsNotFound", "negative", "Unknown group or student", "get, getGroupLedBy, update, close with 999999; close and findGroupsLedBy as ghost@test.com", "999999", "StudyGroupNotFoundException x4; StudentNotFoundException x2"),
+        t("browseListsOpenGroupsWithFullOnesLast", "happy", "Browse: open groups only, full ones last, every sort", "Full 'Alpha full', 'Charlie', closed 'Closed', newer 'bravo' (CS201); findActiveGroups with each sort", "-", "Closed left out; NEWEST bravo, Charlie, full; NAME bravo, Charlie, full; MOST_PLACES Charlie, bravo, full; COURSE bravo, Charlie, full"),
+        t("browseByCourseListsThatCourseOnly", "happy", "Browse one course", "IS442 open, CS201 open, IS442 closed; findActiveGroupsByCourse(IS442); unknown course", "-", "Only the open IS442 group; CourseNotFoundException for 999999"),
+        t("groupsLedByListsOpenFirstAndHidesRemovedClosedGroups", "side-effect", "My groups (led): open first, removed closed ones hidden", "Alex leads 4 groups (1 open, 3 closed, 1 removed from My groups); Ben leads 1", "-", "Open, Closed new, Closed old (hidden and Ben's left out)"),
+    ],
+    "GroupMembershipServiceTest": [
+        t("requestToJoinCreatesPendingRequestTheLeaderSees", "happy", "Ask to join; the leader sees it", "requestToJoin(Ben); flushAndClear", "-", "Saved PENDING, requestedAt set, respondedAt null; in Alex's pending list and Ben's pending list; 1 member"),
+        t("pendingRequestsAreOldestFirst", "happy", "Join requests oldest first", "Chloe, Ben, Emily ask in that order", "-", "getPendingRequests: Chloe, Ben, Emily"),
+        t("leaderCannotJoinOwnGroup", "negative", "Leader can't join own group", "requestToJoin as Alex", "-", "IllegalArgumentException 'The leader is already in the group'; still 1 row"),
+        t("duplicatePendingOrAcceptedRequestIsRefused", "conflict", "Duplicate request refused", "Ben pending, Chloe accepted; both ask again", "-", "IllegalStateException 'Student has already requested or joined this group'; still 3 rows"),
+        t("rejectedOrRemovedStudentCanAskAgain", "conflict", "Rejected or removed student can ask again", "Reject Ben; accept then remove Chloe; both ask again", "-", "Same membership ids back as PENDING; respondedAt null; still 3 rows; both in the pending list"),
+        t("fullOrClosedGroupCannotBeJoined", "conflict", "Full or closed group can't be joined", "Chloe's size-2 group with Ben accepted; Alex's group closed; Emily asks both", "-", "'Group is full'; 'Group is closed'; Emily has no requests"),
+        t("joiningDoesNotRequireTakingTheCourse", "boundary", "Member needn't take the course", "Daniel (no courses) asks; Alex accepts", "-", "Daniel is a member"),
+        t("leaderAcceptsRequest", "happy", "Leader accepts a request", "acceptRequest(Ben's request)", "-", "Returns Ben's row; ACCEPTED with respondedAt; 2 members; members Alex, Ben; Ben's joined groups has it; nothing pending"),
+        t("leaderRejectsRequest", "happy", "Leader rejects a request", "rejectRequest(Ben's request)", "-", "REJECTED with respondedAt; 1 member; Ben not joined; in Ben's past requests"),
+        t("acceptingIntoFullGroupIsRefused", "boundary", "Accepting into an exactly full group", "Size 4; Ben, Chloe, Emily accepted (the last one fills it); accept Daniel", "-", "Third accept works; Daniel: 'Group is full. Remove a member to accept new members.'; Daniel PENDING; 4 members; rejecting Daniel still works"),
+        t("answeringTwiceIsRefused", "conflict", "Answer twice refused", "Accept Ben, reject Chloe; accept/reject again", "-", "IllegalStateException 'This request has already been answered' x3; statuses unchanged"),
+        t("membershipOfAnotherGroupIsRefused", "permission", "Membership id from another group refused", "Ben's group: Chloe pending, Emily member; Alex sends them with his group id, then with Ben's group id", "-", "IllegalArgumentException 'Membership does not belong to this group' x3; NotGroupLeaderException with Ben's group id; nothing changed"),
+        t("onlyTheLeaderManagesMembers", "permission", "Only the leader views and manages members", "As member Ben, pending Chloe, outsider Daniel: getPendingRequests, getMembers, accept, reject, remove", "-", "NotGroupLeaderException for all 15 calls; Ben still ACCEPTED, Chloe still PENDING"),
+        t("unknownGroupMembershipOrStudentIsNotFound", "negative", "Unknown group, membership or student", "Calls with group 999999, membership 999999, ghost@test.com", "999999", "StudyGroupNotFoundException x4; MembershipNotFoundException x3; StudentNotFoundException x2"),
+        t("leaderRemovesMember", "happy", "Leader removes a member", "removeMember(Ben)", "-", "Returns Ben's row; REMOVED; 1 member; members Alex only; Ben not joined; in Ben's past requests"),
+        t("leaderCannotBeRemovedAndPendingRequestCannotBeRemoved", "negative", "Leader and pending request can't be removed", "removeMember(leader's row); removeMember(Chloe pending)", "-", "'The leader can't be removed from their own group'; 'This student isn't a member of the group any more'; nothing changed"),
+        t("closedGroupIsFrozenForMembership", "side-effect", "Closed group is frozen for membership", "Ben member, Chloe pending; close; join, accept, remove, reject", "-", "'Group is closed' x3; reject: 'This request has already been answered' (N-B3); Ben ACCEPTED, Chloe GROUP_CLOSED; leader still sees 2 members, no requests"),
+        t("closingMovesPendingRequestsToGroupClosed", "side-effect", "Closing shows the student 'group closed', not a decline", "Ben pending; close", "-", "Ben's pending list has the row as GROUP_CLOSED; past list empty; viewer role GROUP_CLOSED (can't ask again)"),
+        t("removeFromMyGroupsOnlyWorksForClosedGroups", "conflict", "Remove from My groups only for closed groups", "Open group (Ben, Alex); close; Daniel (no link)", "-", "Open: 'Only a closed group can be removed from My groups' x2; Daniel: 'You aren't linked to this group'; Ben still sees it"),
+        t("removeFromMyGroupsHidesTheGroupForThatStudentOnly", "side-effect", "Remove from My groups hides it for that student only", "Ben, Chloe members, Emily pending; close; Alex, Ben, Emily remove it", "-", "Gone from Alex's led list, Ben's joined list, Emily's pending list; Chloe still sees it; 3 members unchanged"),
+        t("membersAreLeaderFirstThenInJoinOrder", "happy", "Members: leader first, then join order", "Chloe asks, Ben asks; accept Ben, (clock ticks), accept Chloe", "-", "Alex, Ben, Chloe", notes="Accept times on this machine tick once a millisecond; equal times fall back to the request order, so the test waits for the clock to tick (no fixed sleep)."),
+        t("joinedGroupsListOpenFirstAndLeaveOutLedGroups", "happy", "Joined groups: open first; led groups left out", "Ben joins Chloe's group (then closed) and Alex's group; Ben leads his own", "-", "Alex's group, then Chloe's closed group; Ben's own left out; Alex has none"),
+        t("pastRequestsListDeclinesAndRemovalsForOpenGroupsOnly", "happy", "Declined or removed: open groups only, newest first", "Ben removed from Chloe's, rejected by Alex, rejected by Emily (then closed)", "-", "Alex's rejection, then Chloe's removal; Emily's closed group left out"),
+        t("viewerRoleForEveryKindOfStudent", "happy", "What the group page offers each student", "Ben member, Chloe pending, Daniel rejected, Emily removed, Frank no link; getViewerRole, getViewerRoles", "-", "LEADER, MEMBER, PENDING, REJECTED, REMOVED, NONE; map for Ben: MEMBER / LEADER; only NONE, REJECTED, REMOVED can ask"),
+    ],
 }
 
 # --------------------------------------------------------------------------------------
 # Manual (browser) test cases
 # --------------------------------------------------------------------------------------
-APP_PRE = ("App running: in the studybuddy folder run ./mvnw spring-boot:run, wait for 'Started StudybuddyApplication', "
+MANUAL_BANNER = ("MANUAL CASES: restart the app before each full manual run. The database is in memory, so restarting "
+                 "resets it to the seeded data; a case marked 'Do not restart' must follow the case it names in the same app run.")
+APP_RUN = ("App running: in the studybuddy folder run ./mvnw spring-boot:run, wait for 'Started StudybuddyApplication', "
            "then open http://localhost:8080/login. Seeded password for every seeded account: password123 "
-           "(studybuddy.seed.password in application.properties). The database is in memory: restart the app to get the "
-           "seeded data back before this test.")
+           "(studybuddy.seed.password in application.properties). The database is in memory: restarting the app resets "
+           "it to the seeded data.")
+APP_PRE = APP_RUN + " Restart the app right before this case."
 LOGIN = "Open http://localhost:8080/login, type {who} in Email and password123 in Password, click 'Log in'."
+LOGOUT = "Click 'Log out' at the top of the page."
 
 
 def login(who):
     return LOGIN.format(who=who)
 
 
-def m(mid, ids, kind, title, pre, steps, data, expected, notes=""):
+def after(*earlier):
+    """Preconditions for a case that builds on earlier ones in the same app run."""
+    return (APP_RUN + f" Do not restart: run straight after {' and '.join(earlier)} in the same app run "
+            "(a restart undoes them).")
+
+
+def m(mid, ids, kind, title, pre, steps, data, expected, notes="", batch="New"):
     return {"id": mid, "ids": ids, "type": kind, "title": title, "pre": pre, "steps": steps,
-            "data": data, "expected": expected, "notes": notes}
+            "data": data, "expected": expected, "notes": notes, "batch": batch}
 
 
 def numbered(*lines):
@@ -498,14 +631,14 @@ MANUAL = [
                "Slot 1: Day Monday, From 10:00, To 12:00. Click '+ Add slot'; Slot 2: Day Wednesday, From 14:00, To 16:00.",
                "Click 'Create group'."),
       "As in steps 3-4",
-      "The group page shows 'Group created. Other students can now find it on Study groups and ask to join.', the name, IS442, the description, goal, mode, 1 of 4 members (Alex Tan) and the sessions Mon 10:00-12:00 and Wed 14:00-16:00."),
-    m("MAN-13", "L3, GRP-3, GRP-6", "happy", "Edit and close a group", APP_PRE + " MAN-12 done in the same app run.",
+      "The group page shows 'Group created. Other students can now find it on Study groups and ask to join.', the name, 'IS442 Object Oriented Programming', the description, 'Exam preparation', 'Online', Members '1/4 members' with a green dot then 'Alex Tan' (screen readers also hear ', places left'), and Time slots 'Mon 10:00-12:00' and 'Wed 14:00-16:00'."),
+    m("MAN-13", "L3, GRP-3, GRP-6", "happy", "Edit and close a group", after("MAN-12"),
       numbered(login("student@studybuddy.com"), "Open http://localhost:8080/groups/mine and open 'Manual Test Group'.",
                "Click 'Edit group', change Description to 'Edited', click 'Save changes'.",
                "Open http://localhost:8080/groups/mine, open 'IS442 OOP Exam Prep', click 'Edit group', set Maximum group size to 2 and click 'Save changes'.",
                "Open 'Manual Test Group' again, click 'Close group', then 'Close group' in the box."),
       "Description 'Edited'; size 2",
-      "Step 3: 'Changes saved.' and the new description. Step 4: the browser refuses to submit (the field's minimum is the member count, 3). Step 5: 'Group closed.' and the group shows as closed with no Edit or join options."),
+      "Step 3: 'Changes saved.' and the new description. Step 4: the form comes back (the form has novalidate, so the server checks it) with 'Some details need fixing. See the messages below.' and, under Maximum group size, 'The group has 3 members, so the maximum size can't be below 3'; nothing is saved. Step 5: the box says 'Close this group? It will stop taking new members, and you can't reopen it.'; then 'Group closed.' and 'This group is closed, so it isn't taking new members.', with no 'Edit group', 'Manage members' or 'Close group' buttons."),
     m("MAN-14", "L4, L5, GRP-2, GRP-5", "happy", "View, accept and reject join requests", APP_PRE,
       numbered(login("student@studybuddy.com"), "Open http://localhost:8080/groups/mine and open 'IS442 OOP Exam Prep'. Click 'Manage members'.",
                "Under 'Join requests', click 'Accept' for Farhan Ismail.",
@@ -614,7 +747,67 @@ MANUAL = [
                "Open http://localhost:8080/groups and open 'IS216 Web App Project Team'.",
                "Open http://localhost:8080/groups/mine."),
       "Seeded IS112 group (has space) and IS216 group (full, 3 of 3)",
-      "Step 3: 'Request sent. The group's leader will review it.' and the page now says the request was sent. Step 4: the 'Request to join' button is greyed out (group full). Step 5: 'IS112 SQL Practice' is under 'Pending group join requests'."),
+      "Step 3: 'Request sent. The group's leader will review it.' and the page now says 'Request sent. Waiting for the group's leader to respond.' Step 4: the 'Request to join' button is greyed out and 'This group is full.' is shown under it. Step 5: 'IS112 SQL Practice' is under 'Pending group join requests'."),
+
+    # ================================ NEW (Batch B) ================================
+    # Seeded groups (checked against the seeders on 2026-10-24; ids follow the seeding order):
+    # 1 IS442 OOP Exam Prep (Alex leads; Ben, Chloe members; Farhan, Jasmine pending; 3/4)
+    # 2 CS201 DSA Problem Solvers (Ben leads; Alex, Emily Wong members; 3/5)
+    # 3 IS111 Python Basics (Farhan leads), 4 IS112 SQL Practice (Daniel Ng leads; 2/4),
+    # 5 IS216 Web App Project Team (Grace Lee leads; full 3/3), 6 ECON101 Midterm Revision (Emily Wong leads; CLOSED)
+    m("MAN-32", "L2, GRP-1, GRP-7", "negative", "Create form shows every problem, then accepts touching slots", APP_PRE,
+      numbered(login("student@studybuddy.com"), "Open http://localhost:8080/groups and click '+ Create a group'.",
+               "Leave Group name empty. Course: 'IS442 Object Oriented Programming'; Study goal: 'Exam preparation'; Study mode: 'Online'; Maximum group size: 1.",
+               "Slot 1: Day Monday, From 10:00, To 12:00. Click '+ Add slot'. Slot 2: Day Monday, From 11:00, To 13:00. Click '+ Add slot'. Slot 3: Day Tuesday, From 12:00, To 10:00.",
+               "Check the time slots section, then click 'Create group'.",
+               "Type 'Form Check Group' in Group name, set Maximum group size to 3, change Slot 2 to From 12:00 To 13:00 and Slot 3 to From 10:00 To 12:00. Click 'Create group'."),
+      "Empty name, size 1, Mon 10-12 / Mon 11-13 / Tue 12-10; then the fixed values",
+      "Step 4: '+ Add slot' is gone and 'Max time slots reached (3)' is shown. Step 5: 'Some details need fixing. See the messages below.' at the top; under Group name 'Please enter a group name'; under Maximum group size 'A group needs room for at least 2 members, including you'; under Weekly time slots 'Slot 3: the end time must be after the start time' and 'Slots 1 and 2 overlap'; everything typed is still there. Step 6: 'Group created. Other students can now find it on Study groups and ask to join.' and Time slots 'Mon 10:00-12:00', 'Mon 12:00-13:00', 'Tue 10:00-12:00'.",
+      "The form has novalidate, so the browser doesn't stop the submit; the server lists every problem.", BATCH_B),
+    m("MAN-33", "L3, L4, GRP-2", "permission", "A member can't manage or edit someone else's group", APP_PRE,
+      numbered(login("student@studybuddy.com"), "Open http://localhost:8080/groups/mine. Under 'Joined groups', on 'CS201 DSA Problem Solvers' click 'View'. Note the number after /groups/ in the address bar (2 on a fresh start).",
+               "Type http://localhost:8080/groups/2/members in the address bar and press Enter.",
+               "Type http://localhost:8080/groups/2/edit and press Enter."),
+      "Alex Tan, a member of Ben Koh's CS201 group (group 2)",
+      "Step 2: 'You're a member of this group.'; no 'Edit group', 'Manage members' or 'Close group' buttons. Step 3 and step 4: back on the CS201 DSA Problem Solvers page with the error 'Only the group's leader can do that.'", batch=BATCH_B),
+    m("MAN-34", "L3, GRP-6", "side-effect", "Closing a group ends its pending requests", APP_PRE + " Needs the seeded pending requests of Farhan Ismail and Jasmine Teo.",
+      numbered(login("student@studybuddy.com"), "Open http://localhost:8080/groups/mine. Under 'Groups I lead', the 'IS442 OOP Exam Prep' card shows '2 requests waiting'. Click 'View'.",
+               "Click 'Close group' and read the box, then click 'Close group' in the box.",
+               "Open http://localhost:8080/groups/mine.",
+               LOGOUT + " " + login("farhan.ismail@studybuddy.com") + " Open http://localhost:8080/groups/mine.",
+               "Under 'Pending group join requests', on 'IS442 OOP Exam Prep' click 'Remove'.",
+               LOGOUT + " " + login("jasmine.teo@studybuddy.com") + " Open http://localhost:8080/groups/mine."),
+      "Seeded IS442 OOP Exam Prep (Farhan, Jasmine pending)",
+      "Step 3: the box says 'Close this group? Its 2 pending requests will end without an answer, and you can't reopen it.'; then 'Group closed. 2 pending requests ended without an answer.' and 'This group is closed, so it isn't taking new members.' with no Edit group, Manage members or Close group buttons. Step 4: the card shows 'Closed', 'No requests waiting' and a 'Remove' button. Step 5: under 'Pending group join requests' the card shows 'Closed' and 'The group was closed before the leader answered your request.' Step 6: 'Removed from My groups.' and the card is gone. Step 7: Jasmine still sees the closed card with the same note.", batch=BATCH_B),
+    m("MAN-35", "L6, GRP-4", "conflict", "A removed student asks to join again", after("MAN-15"),
+      numbered(LOGOUT + " " + login("chloe.lim@studybuddy.com"), "Open http://localhost:8080/groups/mine. Under 'Declined or removed', on 'IS442 OOP Exam Prep' click 'View'.",
+               "Click 'Request to join again' and read the box, then click 'Request again'.",
+               LOGOUT + " " + login("student@studybuddy.com") + " Open http://localhost:8080/groups/mine, on 'IS442 OOP Exam Prep' click 'View', then 'Manage members'."),
+      "Chloe Lim, removed in MAN-15",
+      "Step 2: the card says 'Removed from the group'. The group page says 'You were removed from this group before.' Step 3: the box says 'You were removed from this group before. Do you want to request to join again?'; then 'Request sent. The group's leader will review it.' and 'Request sent. Waiting for the group's leader to respond.' Step 4: Chloe Lim is listed under 'Join requests' (with Farhan Ismail and Jasmine Teo unless MAN-14 ran first).", batch=BATCH_B),
+    m("MAN-36", "L5, GRP-4, GRP-5", "boundary", "A full group keeps requests waiting until a place opens", APP_PRE,
+      numbered(login("student@studybuddy.com"), "Open http://localhost:8080/groups/mine, on 'IS442 OOP Exam Prep' click 'View', then 'Manage members'.",
+               "Under 'Join requests' click 'Accept' for Farhan Ismail.",
+               LOGOUT + " " + login("jasmine.teo@studybuddy.com") + " Open http://localhost:8080/groups/mine.",
+               LOGOUT + " " + login("student@studybuddy.com") + " Open the IS442 OOP Exam Prep 'Manage members' page again (as in step 2). Under 'Members' click 'Remove' for Ben Koh, then 'Remove member' in the box.",
+               "Click 'Accept' for Jasmine Teo."),
+      "Seeded IS442 OOP Exam Prep, 3/4 with Farhan and Jasmine pending",
+      "Step 3: 'Farhan Ismail is now a member of the group.', the count shows '4/4 members', the warning 'Group is full. Remove a member to accept new members.' appears and Jasmine Teo's 'Accept' is greyed out (can't be clicked). Step 4: under 'Pending group join requests' the IS442 OOP Exam Prep card shows 'Full' and 'The group is full right now. The leader can still accept you if a place opens up.' Step 5: 'Ben Koh was removed from the group.', '3/4 members', Jasmine's 'Accept' works again. Step 6: 'Jasmine Teo is now a member of the group.' and '4/4 members'.", batch=BATCH_B),
+    m("MAN-37", "L3, GRP-6", "conflict", "A closed group can't be edited or changed, only removed from My groups", APP_PRE,
+      numbered(login("emily.wong@studybuddy.com"), "Open http://localhost:8080/groups/mine. Under 'Groups I lead', on 'ECON101 Midterm Revision' click 'View'. Note the number after /groups/ in the address bar (6 on a fresh start).",
+               "Type http://localhost:8080/groups/6/edit and press Enter.",
+               "Type http://localhost:8080/groups/6/members and press Enter.",
+               "Open http://localhost:8080/groups/mine and click 'Remove' on 'ECON101 Midterm Revision'."),
+      "Emily Wong, leader of the seeded closed ECON101 group (group 6)",
+      "Step 2: 'This group is closed, so it isn't taking new members.' and 'You lead this group.'; no Edit group, Manage members or Close group buttons. Step 3: back on the group page with the error 'This group is closed, so it can't be edited.' Step 4: Manage members shows 'This group is closed, so its members can't be changed.', no 'Join requests' section, and Emily Wong, Grace Lee, Isaac Chua with no Remove buttons. Step 5: 'Removed from My groups.' and ECON101 Midterm Revision is gone from 'Groups I lead'; 'CS201 DSA Problem Solvers' is still under 'Joined groups'.", batch=BATCH_B),
+    m("MAN-38", "L1, GRP-4, K8", "side-effect", "Groups don't need the course (known gap K8)", APP_PRE,
+      numbered(login("ben.koh@studybuddy.com"), "Open http://localhost:8080/student/profile. Under 'Your courses' click 'Remove' next to CS201.",
+               "Open http://localhost:8080/groups/mine.",
+               "Open http://localhost:8080/groups, open 'IS112 SQL Practice' and click 'Request to join'.",
+               "Open http://localhost:8080/groups and click '+ Create a group'. Group name 'K8 Check'; Course 'ECON101 Principles of Economics'; Study goal 'Exam preparation'; Study mode 'Online'; Maximum group size 3; Slot 1: Day Monday, From 10:00, To 12:00. Click 'Create group'."),
+      "Ben Koh takes IS442, IS216, CS201 (no CS201 preference) and leads the CS201 group",
+      "TODAY: Step 2: 'The course has been removed.' Step 3: 'CS201 DSA Problem Solvers' is still under 'Groups I lead'. Step 4: 'Request sent. The group's leader will review it.' although Ben doesn't take IS112. Step 5: 'Group created. Other students can now find it on Study groups and ask to join.' although Ben doesn't take ECON101.",
+      "Pins current behaviour K8 (team decision, treatment (a)); matches SGS and GMS K8 tests.", BATCH_B),
 ]
 
 # --------------------------------------------------------------------------------------
@@ -624,11 +817,11 @@ GAPS = [
     ("K1", "Candidate bug (confirmed)", "Login is case-sensitive, but sign-up and the admin page lower-case emails.", "AuthService.java:27", "(b) Known-bug test, @Disabled", "AUK-01, MAN-28", "Confirmed failing when enabled (2026-10-24)."),
     ("K2", "Candidate bug", "Changing a logged-in student's email breaks their session (404s); deactivation and password reset don't end open sessions.", "AccountManagementService.java:120", "(a) Pin + manual case", "AMS (oldEmailNoLongerFindsStudentAfterUpdate), MAN-29", "Pinned."),
     ("K3", "Candidate bug", "Any DataIntegrityViolationException shows 'Another account already uses that email', including over-long fields.", "AuthController.java:61; AccountManagementController.java:64,85", "(a) Pin current message", "AMC (createAdminDatabaseRefusal..., updateEmailDatabaseRefusal...), AUC (registerDatabaseRefusal...)", "Pinned."),
-    ("K4", "Candidate bug (confirmed)", "Inputs over 255 characters reach the database: course code and name give a 500. Also match message and profile fields (not yet tested).", "CourseController.java:53,66; MatchRequestController.java:63; StudentProfileController.java:52", "(b) controller known-bug tests; (a) service pin", "CRK-01, CRK-02, CRS (courseCodeOver255...), MAN-30", "Controller tests confirmed failing when enabled. Match message and profile parts: not yet scheduled (open question)."),
+    ("K4", "Candidate bug (confirmed)", "Inputs over 255 characters reach the database: course code and name give a 500. Also match message and profile fields (planned, see PLAN-K4a/b). Study groups are NOT affected in the app: StudyGroupForm's @Size refuses a name over 255 or a description over 1000 with a message; only the service and entity accept them, and the database refuses them.", "CourseController.java:53,66; MatchRequestController.java:63; StudentProfileController.java:52; StudyGroupForm.java:31,34", "(b) controller known-bug tests; (a) service pin (courses and groups)", "CRK-01, CRK-02, CRS (courseCodeOver255...), SGS (nameOver255..., descriptionOver1000...), SGF (name/description limits), MAN-30", "Course controller tests confirmed failing when enabled. Group service limits pinned (Batch B). Profile and match-message parts planned for Batch C and E."),
     ("K5", "Candidate bug", "Duplicate course codes allowed; CourseService has no @Transactional.", "CourseService.java:20; Course.java:21", "(c) List only", "-", "Listed."),
     ("K6", "Candidate bug", "A match request can be sent to a deactivated student by direct POST.", "MatchRequestService.java:79", "(b) Known-bug test in Batch E", "-", "Batch E."),
     ("K7", "Not implemented", "getPublicProfile and getRequestById have no route; no profile page (S6 partial).", "StudentProfileService.java:66; MatchRequestService.java:115", "Not decided (outside Batch A)", "MAN-07", "Open."),
-    ("K8", "Candidate bug", "A student can drop a course while leading or in a group for it; creating or joining a group doesn't require taking the course.", "StudentProfileService.java:113; StudyGroupService.java:68", "Not decided (Batch B)", "SPS (addAndRemoveCourse shows it)", "Open."),
+    ("K8", "Candidate bug (team decision)", "A student can drop a course while leading or in a group for it; creating or joining a group doesn't require taking the course. requirements.md L1 records 'Leader need not take the course' as current behaviour.", "StudentProfileService.java:113; StudyGroupService.java:68; StudyGroup.java:446", "(a) Pin all three (agreed 2026-10-24)", "SGS (createGroupDoesNotRequireTakingTheCourse, leaderCanDropTheCourseAndStillLeadTheGroup), GMS (joiningDoesNotRequireTakingTheCourse), SPS (addAndRemoveCourse), MAN-38", "Pinned. If the team decides it is a bug, add a StudyGroupServiceKnownBugTest."),
     ("K9", "Candidate bug", "Preference slots are looser than group slots (any times, no maximum).", "StudyPreferenceService.java:93", "(c) List only (Batch E)", "-", "Listed."),
     ("K10", "Candidate bug", "/register doesn't strip spaces from the contact number; profile update does.", "AuthController.java:57", "(a) Pin", "AUC (contactNumberIsPassedOnAsTyped)", "Pinned."),
     ("K11", "Candidate bug", "A non-numeric year of study gives a raw 400.", "AuthController.java:53; StudentProfileController.java:54", "(a) Pin", "AUC (nonNumericYearOfStudyIsBadRequest)", "Pinned."),
@@ -638,7 +831,7 @@ GAPS = [
     ("K15", "Candidate bug", "H2 console open to everyone with CSRF off.", "SecurityConfig.java:28; application.properties:15", "Batch C", "-", "Open."),
     ("K16", "Candidate bug", "No @ControllerAdvice or custom error pages.", "-", "(c) List only", "MAN-26", "Listed."),
     ("K17", "Candidate bug", "/matches still lists existing buddies.", "MatchingService.java:91", "Batch D", "-", "Open."),
-    ("K18", "Test risk", "Open-session-in-view is relied on; non-transactional tests can hit LazyInitializationException.", "-", "Handled: every new service test is transactional", "-", "Mitigated."),
+    ("K18", "Test risk", "Open-session-in-view is relied on; non-transactional tests can hit LazyInitializationException.", "-", "Handled: every new service test is transactional (@DataJpaTest); entity, form and validator tests use no session", "SGS, GMS", "Mitigated (Batch A and B)."),
     ("K19", "Test risk", "StudyPreferenceServiceTest.newPreferenceShowsUpInMatching depends on seeded random data.", "StudyPreferenceServiceTest.java:160", "(c) List only (teammate file is read-only)", "SPF (newPreferenceShowsUpInMatching)", "Listed."),
     ("N1", "New finding", "Password limit is 72 BYTES, but the message says 'Passwords can be at most 72 characters.' 25 x '€' (25 characters) is refused.", "AccountCredentials.java:58-59", "(a) Byte behaviour tested; message mismatch listed", "CRD (multibytePasswordIsLimitedByBytes)", "Listed."),
     ("N2", "New finding", "The 8-character minimum counts UTF-16 units: 4 emoji pass.", "AccountCredentials.java:51", "(c) List only", "-", "Listed."),
@@ -650,7 +843,26 @@ GAPS = [
     ("GAP-NR2", "Behaviour with no requirement", "Email change and password reset are allowed on deactivated accounts.", "AccountManagementService.java:120,131", "List only", "-", "Listed."),
     ("GAP-NR3", "Behaviour with no requirement", "/register works while logged in.", "SecurityConfig.java:50", "List only", "-", "Listed."),
     ("GAP-NR4", "Behaviour with no requirement", "'Groups led' in the usage figures includes closed groups.", "AccountStatus.java:49", "List only", "-", "Listed."),
-    ("GAP-OPEN1", "Open question", "The match-message and profile-field parts of K4 aren't assigned to a batch yet.", "-", "To decide", "-", "Open."),
+    ("GAP-OPEN1", "Open question", "The match-message and profile-field parts of K4 aren't assigned to a batch yet.", "-", "Decided: PLAN-K4a (Batch C), PLAN-K4b (Batch E)", "-", "Closed (2026-10-24)."),
+    ("PLAN-K4a", "Planned test (Batch C)", "K4 on the profile fields: StudentProfileControllerKnownBugTest, @Disabled('KNOWN BUG K4: ...'). Profile values over 255 characters should show a message on the profile page, not a 500.", "StudentProfileController.java:52", "(b) Known-bug test, @Disabled", "-", "Planned, not built."),
+    ("PLAN-K4b", "Planned test (Batch E)", "K4 on the match-request message: new MatchRequestControllerKnownBugTest, @Disabled('KNOWN BUG K4: ...'). A message over 255 characters should show an error, not a 500.", "MatchRequestController.java:63", "(b) Known-bug test, @Disabled", "-", "Planned, not built."),
+    # ---- Batch B (study groups) ----
+    ("N-B1", "New finding", "The service and entity accept a null study goal or study mode (saved as null); a null maximum size gives a NullPointerException and a null course id a Spring data exception. Only StudyGroupForm's @NotNull stops them (the service expects an already validated form).", "StudyGroupService.java:68-76; StudyGroup.java:413", "(c) List only (agreed: don't pin NPE or Spring data exceptions)", "SGF (courseGoalAndModeAreRequired, sizeIsRequiredAndAtLeastTwo) cover the form side", "Listed."),
+    ("N-B2", "New finding", "Check order: the leader asking to join their own FULL group gets 'Group is full' (not 'The leader is already in the group'); accepting an already accepted member of a full group says 'Group is full...' (not 'already answered').", "StudyGroup.java:447-453, 477-483", "(c) List only", "-", "Listed."),
+    ("N-B3", "New finding", "rejectRequest doesn't check that the group is open. On a closed group every pending request is already GROUP_CLOSED, so it fails with 'This request has already been answered' rather than 'Group is closed'. The group stays frozen; only the message is misleading.", "StudyGroup.java:492", "(a) Pin inside the 'closed group is frozen' tests", "SGE (closedGroupIsFrozen), GMS (closedGroupIsFrozenForMembership)", "Pinned."),
+    ("N-B4", "New finding", "Form messages say 'under 255 characters' / 'under 1000 characters', but exactly 255 / 1000 is allowed.", "StudyGroupForm.java:31,34", "(c) List only", "SGF (nameIsRequired..., descriptionIsOptional...)", "Listed."),
+    ("N-B5", "New finding", "The service doesn't re-check slots: createGroup / updateGroup save 0 or overlapping slots if called without StudyGroupFormValidator (documented design: the controller runs the validator).", "StudyGroupService.java:74,92", "(c) List only", "-", "Listed."),
+    ("N-B6", "New finding", "Two leader tabs accepting at the same moment could go over maxSize: no lock or version column (like K14).", "StudyGroup.java:476", "(c) List only", "-", "Listed."),
+    ("N-B7", "New finding", "A deactivated student can still ask to join or be accepted, and groups they lead stay on Browse (similar to K6). No requirement covers it.", "GroupMembershipService.java:271", "(c) List only", "-", "Listed."),
+    ("N-B8", "New finding", "Stale Javadoc: GroupMembership.reject() says it is also reached through StudyGroup#close, but close() uses endBecauseGroupClosed().", "GroupMembership.java:853-859", "(c) List only", "-", "Listed."),
+    ("N-B9", "Test note", "LocalDateTime.now() ticks about once a millisecond on the test machine, so two quick actions can get the same time; the code then falls back to the id order (documented). Tests that depend on join order wait for the clock to tick.", "GroupMembershipService.java:244-249", "Handled in the test", "GMS (membersAreLeaderFirstThenInJoinOrder)", "Handled."),
+    ("N-B10", "Manual case fix", "MAN-13 step 4 said the browser refuses a size below the member count; the group form has novalidate, so the server shows the error instead. MAN-12's member count text and MAN-31's request-sent text were also made exact.", "studygroup/form.html:31", "Fixed in the workbook", "MAN-12, MAN-13, MAN-31", "Fixed (2026-10-24)."),
+    ("GAP-L2", "Ambiguous requirement", "L2 lists 'goals' (plural); a group has exactly one study goal.", "StudyGroup.java:376", "Ask the team", "-", "Open."),
+    ("GAP-GRP1", "Ambiguous requirement", "GRP-1 'name max 255, description max 1000': only StudyGroupForm (@Size) and the database columns enforce it, not the entity or service.", "StudyGroupForm.java:31,34; StudyGroup.java:365,367", "Recorded (see K4 row)", "SGF, SGS", "Open."),
+    ("GAP-GRP4", "Ambiguous requirement", "GRP-4 says join needs a 'non-full' group, but requests sent before the group filled up stay pending as a waiting list and can be accepted once a place opens.", "StudyGroup.java:446-483", "Recorded (tested as built)", "SGE (fullGroupRefusesRequestsAndAccepts), MAN-36", "Open."),
+    ("GAP-GRP6", "Ambiguous requirement", "No rule says closing is permanent; the code and the confirm box say it can't be reopened.", "StudyGroup.java:565; studygroup/details.html:41", "Recorded", "SGS (closedGroupCannotBeUpdatedOrClosedAgain), MAN-34", "Open."),
+    ("GAP-NR5", "Behaviour with no requirement", "Browse sort options, 'only groups I can join', full groups listed last, viewer roles, GROUP_CLOSED status and 'Remove from My groups' have no requirement in the brief.", "GroupSort.java; StudyGroupService.java:145-183; ViewerRole.java", "Tested as built", "GSO, SGS (browse...), GMS (viewerRole..., removeFromMyGroups...)", "Listed."),
+    ("GAP-NI1", "Not implemented (no requirement)", "A member can't leave a group, a student can't withdraw a pending join request, and a group can't be deleted.", "GroupMembershipService.java", "List only", "-", "Listed."),
 ]
 
 # --------------------------------------------------------------------------------------
@@ -712,7 +924,34 @@ def parse_reports(sources):
     return results
 
 
-def build_rows(sources, reports):
+MANUAL_STATUSES = ["Not run", "Pass", "Fail"]
+WRITTEN_BY = {"Existing": "Existing (teammates)", "New": "New (Batch A)", BATCH_B: "New (Batch B)"}
+RESULT_COLUMNS = {"status": "Status", "tester": "Tester", "date": "Date", "actual": "Actual result"}
+
+
+def read_previous_manual_results():
+    """{Test ID: {status, tester, date, actual}} for every manual row of the existing workbook, so
+    rebuilding never wipes results typed in by hand. Columns are found by their header text, so an
+    older workbook without Tester / Date / Actual result still gives its Status."""
+    if not OUT.exists():
+        return {}
+    ws = load_workbook(OUT)["Test Cases"]
+    header = [cell.value for cell in ws[1]]
+    col = {name: header.index(name) for name in ["Test ID", "Automated or Manual", *RESULT_COLUMNS.values()]
+           if name in header}
+    results = {}
+    for row in ws.iter_rows(min_row=2, values_only=True):
+        test_id = row[col["Test ID"]] if "Test ID" in col else None
+        if not test_id or row[col["Automated or Manual"]] != "Manual":
+            continue
+        kept = {key: row[col[name]] for key, name in RESULT_COLUMNS.items() if name in col and row[col[name]]}
+        if kept.get("status") not in MANUAL_STATUSES:
+            kept.pop("status", None)
+        results[test_id] = kept
+    return results
+
+
+def build_rows(sources, reports, previous):
     problems = []
     for cls in sources:
         if cls not in CLASSES:
@@ -737,8 +976,10 @@ def build_rows(sources, reports):
                 problems.append(f"{cls}.{test['method']} has no requirement IDs")
             notes = [case["notes"]] if case["notes"] else []
             if "pins current behaviour" in test["comment"]:
-                ks = ", ".join(k for k in ID_PATTERN.findall(ids) if k.startswith("K"))
-                notes.insert(0, f"Pins current behaviour (suspected bug {ks}): update if fixed.")
+                # K ids come from the requirement IDs; new findings (N-B3 ...) are only named in the comment
+                ks = [k for k in ID_PATTERN.findall(ids) if k.startswith("K")]
+                ks += [f for f in re.findall(r"\bN-[A-Z]?\d+\b", test["comment"]) if f not in ks]
+                notes.insert(0, f"Pins current behaviour (suspected bug {', '.join(ks)}): update if fixed.")
             status = reports.get((cls, test["method"]), "Not run")
             if test["disabled"]:
                 status = "Known bug (disabled)" if status in ("Skipped", "Not run") else status
@@ -748,13 +989,23 @@ def build_rows(sources, reports):
                 "pre": pre, "steps": case["steps"], "data": case["data"], "expected": case["expected"],
                 "mode": "Automated", "where": f"{cls}#{test['method']}", "status": status,
                 "by": written_by, "notes": " ".join(notes), "cls": cls,
+                "tester": "", "date": "", "actual": "",
             })
+    manual_ids = Counter(case["id"] for case in MANUAL)
+    problems += [f"Manual ID {mid} is used {n} times" for mid, n in manual_ids.items() if n > 1]
     for case in MANUAL:
+        # Results typed into the last workbook are kept, matched by Test ID
+        kept = previous.get(case["id"], {})
         rows.append({
             "id": case["id"], "ids": case["ids"], "title": case["title"], "type": case["type"], "pre": case["pre"],
             "steps": case["steps"], "data": case["data"], "expected": case["expected"], "mode": "Manual",
-            "where": "", "status": "Not run", "by": "New", "notes": case["notes"], "cls": "",
+            "where": "", "status": kept.get("status", "Not run"), "by": case["batch"], "notes": case["notes"],
+            "cls": "", "tester": kept.get("tester", ""), "date": kept.get("date", ""),
+            "actual": kept.get("actual", ""),
         })
+    for mid in sorted(previous.keys() - manual_ids.keys()):
+        print(f"WARNING: manual case {mid} is in the old workbook but no longer exists; its results were dropped "
+              f"({previous[mid]})")
     if problems:
         print("Workbook does not match the code:", *problems, sep="\n  ")
         sys.exit(1)
@@ -804,15 +1055,31 @@ def write(rows, reports):
 
     # --- Test Cases ---
     headers = ["Test ID", "Requirement/Rule IDs", "Title", "Type", "Preconditions", "Steps", "Test data",
-               "Expected result", "Automated or Manual", "Test class and method", "Status", "Written by", "Notes"]
-    ws = sheet(wb, "Test Cases", headers,
-               [[r["id"], r["ids"], r["title"], r["type"], r["pre"], r["steps"], r["data"], r["expected"],
-                 r["mode"], r["where"], r["status"], r["by"], r["notes"]] for r in rows],
-               [11, 18, 34, 12, 40, 48, 26, 48, 12, 44, 14, 10, 44])
+               "Expected result", "Automated or Manual", "Test class and method", "Status", "Tester", "Date",
+               "Actual result", "Written by", "Notes"]
+    lines = []
+    for r in rows:
+        # One banner line above the first manual case
+        if r["mode"] == "Manual" and (not lines or lines[-1][8] != "Manual"):
+            lines.append([None, None, MANUAL_BANNER] + [None] * (len(headers) - 3))
+        lines.append([r["id"], r["ids"], r["title"], r["type"], r["pre"], r["steps"], r["data"], r["expected"],
+                      r["mode"], r["where"], r["status"], r["tester"], r["date"], r["actual"],
+                      WRITTEN_BY[r["by"]], r["notes"]])
+    ws = sheet(wb, "Test Cases", headers, lines, [11, 18, 34, 12, 40, 48, 26, 48, 12, 44, 14, 14, 12, 40, 14, 44])
+    # Manual Status is typed in by the tester: offer only Not run / Pass / Fail
+    status_choice = DataValidation(type="list", formula1='"' + ",".join(MANUAL_STATUSES) + '"', allow_blank=False)
+    ws.add_data_validation(status_choice)
     for row in ws.iter_rows(min_row=2):
+        if row[0].value is None:
+            for cell in row:
+                cell.fill, cell.font = FILLS["amber"], Font(bold=True)
+            continue
         fill = FILLS.get(row[10].value)
         if fill:
             row[10].fill = fill
+        if row[8].value == "Manual":
+            status_choice.add(row[10])
+            row[12].number_format = "yyyy-mm-dd"
 
     # --- Traceability ---
     auto, known, manual = defaultdict(list), defaultdict(list), defaultdict(list)
@@ -871,21 +1138,21 @@ def write(rows, reports):
     statuses = Counter(reports.values())
     after = [sum(statuses.values()), statuses["Pass"], statuses["Fail"], statuses["Skipped"]]
     block("./mvnw test results", ["Run", "Tests run", "Passed", "Failed or errors", "Skipped (known bugs)"],
-          [["Baseline (before Batch A)", BASELINE["run"], BASELINE["passed"], BASELINE["failed"] + BASELINE["errors"],
-            BASELINE["skipped"]],
-           ["Last run (this workbook)"] + after])
+          [[label, b["run"], b["passed"], b["failed"] + b["errors"], b["skipped"]] for label, b in BASELINES]
+          + [["Last run (this workbook)"] + after])
 
     automated = [r for r in rows if r["mode"] == "Automated"]
     manual_rows = [r for r in rows if r["mode"] == "Manual"]
-    block("Test cases", ["", "Automated", "Manual", "Total"],
-          [["Existing (teammates)", sum(r["by"] == "Existing" for r in automated), 0,
-            sum(r["by"] == "Existing" for r in rows)],
-           ["New", sum(r["by"] == "New" for r in automated), len(manual_rows), sum(r["by"] == "New" for r in rows)],
-           ["Total", len(automated), len(manual_rows), len(rows)]])
+    block("Test cases", ["Written by", "Automated", "Manual", "Total"],
+          [[WRITTEN_BY[by], sum(r["by"] == by for r in automated), sum(r["by"] == by for r in manual_rows),
+            sum(r["by"] == by for r in rows)] for by in WRITTEN_BY]
+          + [["Total", len(automated), len(manual_rows), len(rows)]])
 
     status_counts = Counter(r["status"] for r in rows)
-    block("By status", ["Status", "Test cases"],
-          [[s, status_counts[s]] for s in ["Pass", "Fail", "Known bug (disabled)", "Not run"]])
+    mode_status = Counter((r["mode"], r["status"]) for r in rows)
+    block("By status", ["Status", "Automated", "Manual", "Total"],
+          [[s, mode_status[("Automated", s)], mode_status[("Manual", s)], status_counts[s]]
+           for s in ["Pass", "Fail", "Known bug (disabled)", "Not run"]])
 
     type_counts = Counter((r["type"], r["mode"]) for r in rows)
     block("By type", ["Type", "Automated", "Manual"],
@@ -897,16 +1164,18 @@ def write(rows, reports):
         def in_group(r):
             return any((rid.split("-")[0] if "-" in rid else rid[0]) == g for rid in ids_of(r["ids"]))
         a = [r for r in rows if r["mode"] == "Automated" and in_group(r)]
+        man = [r for r in rows if r["mode"] == "Manual" and in_group(r)]
         group_rows.append([g, sum(r["status"] == "Pass" for r in a), sum(r["status"] == "Fail" for r in a),
-                           sum(r["status"] == "Known bug (disabled)" for r in a),
-                           sum(r["mode"] == "Manual" and in_group(r) for r in rows)])
+                           sum(r["status"] == "Known bug (disabled)" for r in a), len(man),
+                           sum(r["status"] == "Pass" for r in man), sum(r["status"] == "Fail" for r in man)])
     block("By requirement group (a test counts once per group it covers)",
-          ["Group", "Automated pass", "Automated fail", "Known bug (disabled)", "Manual"], group_rows)
+          ["Group", "Automated pass", "Automated fail", "Known bug (disabled)", "Manual", "Manual pass",
+           "Manual fail"], group_rows)
 
     coverage = Counter(line[7] for line in trace)
     block("Requirement and rule coverage", ["Coverage", "IDs"], [[c, n] for c, n in sorted(coverage.items())])
     ws.column_dimensions["A"].width = 44
-    for col in "BCDE":
+    for col in "BCDEFG":
         ws.column_dimensions[col].width = 18
     for row in ws.iter_rows():
         if row[0].value and str(row[0].value).startswith("Total"):
@@ -923,8 +1192,13 @@ def main():
         sys.exit("No surefire reports: run ./mvnw test in studybuddy/ first")
     sources = parse_sources()
     reports = parse_reports(sources)
-    rows = build_rows(sources, reports)
+    # Read before writing: the workbook is rebuilt from scratch
+    previous = read_previous_manual_results()
+    rows = build_rows(sources, reports, previous)
     after, status_counts, coverage = write(rows, reports)
+    kept = sum(1 for r in rows if r["mode"] == "Manual"
+               and (r["status"] != "Not run" or r["tester"] or r["date"] or r["actual"]))
+    print(f"Manual results carried over: {kept} of {sum(r['mode'] == 'Manual' for r in rows)} manual cases have a result")
     print(f"Wrote {OUT}")
     print(f"Last run: {after[0]} run, {after[1]} passed, {after[2]} failed, {after[3]} skipped")
     print(f"Test cases: {len(rows)} ({dict(status_counts)})")
