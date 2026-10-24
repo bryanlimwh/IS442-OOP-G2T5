@@ -35,8 +35,10 @@ OUT = Path(__file__).resolve().parent / "study-buddy-test-cases.xlsx"
 BASELINES = [
     ("Baseline before Batch A (2026-10-23)", {"run": 99, "passed": 99, "failed": 0, "errors": 0, "skipped": 0}),
     ("Baseline before Batch B (2026-10-24)", {"run": 207, "passed": 204, "failed": 0, "errors": 0, "skipped": 3}),
+    ("Baseline before Batch C (2026-10-24)", {"run": 294, "passed": 291, "failed": 0, "errors": 0, "skipped": 3}),
 ]
 BATCH_B = "Batch B"
+BATCH_C = "Batch C"
 
 ID_PATTERN = re.compile(r"\b(?:[SLAD]\d+|ACC-\d+|CRS-\d+|PRF-\d+|PRE-\d+|REQ-\d+|GRP-\d+|MAT-\d+|SEC-\d+|K\d+)\b")
 TYPES = ["happy", "negative", "boundary", "permission", "conflict", "side-effect"]
@@ -105,13 +107,10 @@ REQUIREMENTS = [
 
 # Where uncovered items are scheduled
 PLANNED = {
-    "L1": "Batch C (controllers)", "L2": "Batch C (controllers)", "L3": "Batch C (controllers)",
-    "L4": "Batch C (controllers)", "L5": "Batch C (controllers)", "L6": "Batch C (controllers)",
-    "GRP-2": "Batch C (controller messages)", "GRP-7": "Batch C (form errors on the page)", "D1": "Batch D", "SEC-3": "Batch C",
+    "D1": "Batch D",
     "S6": "Gap K7 (no profile page)", "MAT-4": "Batch D (more bounds)", "S5": "Batch D (mode, group size)",
     "PRF-1": "Batch E (boundaries)", "PRE-1": "Batch E", "PRE-2": "Batch E", "REQ-4": "Batch E (negative)",
-    "SEC-1": "Batch C (other URL groups)", "SEC-2": "Batch C (other URL groups)", "D3": "Batch C (other URL groups)",
-    "A3": "Batch C / D (controller, service)", "MAT-1": "Batch C / D",
+    "A3": "Batch D (MatchingConfigService)", "MAT-1": "Batch D (MatchingConfigService)",
     "ACC-8": "Fix K1, then remove @Disabled from AUK-01",
 }
 
@@ -149,6 +148,22 @@ CLASSES = {
     "StudyGroupSettingsTest": ("SGT", BATCH_B, "Plain unit test of the StudyGroupSettings record."),
     "GroupSortTest": ("GSO", BATCH_B, "Plain unit test. Unsaved groups whose sort values all differ."),
     "StudyGroupServiceTest": ("SGS", BATCH_B, "@DataJpaTest + StudyGroupService (+ StudentProfileService, AccountCredentials, BCrypt for the K8 test), empty H2. Courses IS442, CS201; Alex (IS442), Ben and Chloe (IS442, CS201), Daniel (no courses). Own data, rolled back."),
+    # New (Batch C)
+    "SecurityConfigTest": ("SCM", BATCH_C, "@WebMvcTest(HomeController) + SecurityConfig, NO mocks. Only HomeController is loaded, so a request that passes security ends as 404 (no handler) and one that doesn't is 302 /login or 403. Route table ROUTES lists every controller route with who may call it (RouteInventoryTest keeps it complete). Users: alex@test.com STUDENT, admin@test.com ADMIN."),
+    "RouteInventoryTest": ("RTI", BATCH_C, "@WebMvcTest of every controller + SecurityConfig + StudyGroupFormValidator; every service is a Mockito mock that is only declared (no behaviour). Compares the real request mappings with SecurityConfigTest.ROUTES."),
+    "HomeControllerTest": ("HMC", BATCH_C, "@WebMvcTest with the real SecurityConfig and real templates (Thymeleaf renders the page). No service."),
+    "StudentProfileControllerTest": ("SPC", BATCH_C, "@WebMvcTest with the real SecurityConfig and real templates (Thymeleaf renders the page); StudentProfileService and CourseService mocked. Logged in as STUDENT alex@test.com (takes IS442; courses IS442, CS201)."),
+    "StudentProfileControllerKnownBugTest": ("SPK", BATCH_C, "@WebMvcTest with the real SecurityConfig and real templates (Thymeleaf renders the page); services mocked; STUDENT alex@test.com. @Disabled known-bug test: describes the desired behaviour."),
+    "StudyPreferenceControllerTest": ("PFC", BATCH_C, "@WebMvcTest with the real SecurityConfig and real templates (Thymeleaf renders the page); StudyPreferenceService and StudentProfileService mocked; real study group settings (time list). STUDENT alex@test.com; preference 4 (IS442) with slot 9 Mon 10:00-12:00."),
+    "MatchingControllerTest": ("MTC", BATCH_C, "@WebMvcTest with the real SecurityConfig and real templates (Thymeleaf renders the page); MatchingService and MatchingConfigService mocked. STUDENT alex@test.com; one result Ben Koh scoring 92; strategy Balanced."),
+    "StudyBuddyConnectionControllerTest": ("CNC", BATCH_C, "@WebMvcTest with the real SecurityConfig and real templates (Thymeleaf renders the page); StudyBuddyConnectionService mocked. STUDENT alex@test.com connected to Ben Koh (connection 3, 92345678)."),
+    "AdminMatchingConfigControllerTest": ("MCC", BATCH_C, "@WebMvcTest with the real SecurityConfig and real templates (Thymeleaf renders the page); MatchingConfigService mocked. ADMIN admin@test.com; settings in use Balanced, all weights 20, 120 minutes."),
+    "MatchRequestControllerPrincipalTest": ("MRP", BATCH_C, "@WebMvcTest with the real SecurityConfig and real templates (Thymeleaf renders the page); MatchRequestService mocked; STUDENT alex@test.com. Adds to the teammate's MatchRequestControllerTest (unchanged)."),
+    "MatchRequestControllerKnownBugTest": ("MRK", BATCH_C, "@WebMvcTest with the real SecurityConfig and real templates (Thymeleaf renders the page); MatchRequestService mocked; STUDENT alex@test.com. @Disabled known-bug tests: describe the desired behaviour. Batch E adds its K4 test here."),
+    "ContactNumberVisibilityTest": ("CNV", BATCH_C, "@WebMvcTest with the real SecurityConfig and real templates (Thymeleaf renders the page) for /matches, /match-requests and /connections; services mocked but returning summaries built from real Student entities through the real from() methods. Contacts: Alex 91110001 (logged in), Ben 92220002 (buddy), Chloe 93330003."),
+    "HtmlEscapingTest": ("ESC", BATCH_C, "@WebMvcTest with the real SecurityConfig and real templates (Thymeleaf renders the page) for /match-requests, /groups/{id} and /student/profile; services mocked. Typed text contains <script>alert(1)</script>."),
+    "StudyGroupControllerTest": ("SGC", BATCH_C, "@WebMvcTest with the real SecurityConfig and real templates (Thymeleaf renders the page); StudyGroupService, GroupMembershipService, CourseService mocked; real StudyGroupFormValidator and settings (3 slots, 08:00-23:00, NEWEST). STUDENT alex@test.com leads group 1 'IS442 Revision' (size 4; Alex, Ben, Chloe)."),
+    "GroupMembershipControllerTest": ("GMC", BATCH_C, "@WebMvcTest with the real SecurityConfig and real templates (Thymeleaf renders the page); GroupMembershipService and StudyGroupService mocked. STUDENT alex@test.com leads group 1 (size 4): Chloe Lim member (membership 12), Farhan Ismail waiting (13)."),
     "GroupMembershipServiceTest": ("GMS", BATCH_B, "@DataJpaTest + GroupMembershipService + StudyGroupService, empty H2. Course IS442 taken by Alex, Ben, Chloe, Emily (Daniel takes nothing). Alex leads 'IS442 Revision', maximum size 4. Own data, rolled back."),
 }
 
@@ -517,6 +532,146 @@ CASES = {
         t("pastRequestsListDeclinesAndRemovalsForOpenGroupsOnly", "happy", "Declined or removed: open groups only, newest first", "Ben removed from Chloe's, rejected by Alex, rejected by Emily (then closed)", "-", "Alex's rejection, then Chloe's removal; Emily's closed group left out"),
         t("viewerRoleForEveryKindOfStudent", "happy", "What the group page offers each student", "Ben member, Chloe pending, Daniel rejected, Emily removed, Frank no link; getViewerRole, getViewerRoles", "-", "LEADER, MEMBER, PENDING, REJECTED, REMOVED, NONE; map for Ben: MEMBER / LEADER; only NONE, REJECTED, REMOVED can ask"),
     ],
+    # ================================ NEW (Batch C) ================================
+    "SecurityConfigTest": [
+        t("anonymousIsSentToLogin", "permission", "Anonymous user sent to login on every protected route", "Each protected route in ROUTES, with a CSRF token, not logged in", "45 routes", "302 to /login"),
+        t("anonymousPostWithoutCsrfIsForbidden", "permission", "Anonymous POST without CSRF refused", "Each protected POST, no token, not logged in", "30 POST routes", "403 (the CSRF check runs before the login check, N-C3)"),
+        t("studentIsForbiddenFromAdminRoutes", "permission", "Student refused on every admin route", "Each /admin route as STUDENT with CSRF", "9 routes", "403"),
+        t("adminIsForbiddenFromStudentRoutes", "permission", "Admin refused on every student route", "Each student route as ADMIN with CSRF", "31 routes", "403"),
+        t("rightRoleGetsPastSecurity", "happy", "The right role gets past security on every route", "Each protected route as its role (ADMIN for /admin, otherwise STUDENT) with CSRF", "45 routes", "Neither 403 nor a redirect to /login (404 here: no controller loaded)"),
+        t("anyLoggedInUserGetsPastSecurity", "happy", "/home and /courses open to both roles", "Each any-user route as STUDENT and as ADMIN", "5 routes", "Neither 403 nor /login", notes="The /courses POSTs are admin-only through @PreAuthorize, not the URL rules; CourseControllerTest checks the refusal."),
+        t("loggedInPostWithoutCsrfIsForbidden", "permission", "Every POST needs a CSRF token, even for the right role", "Each protected POST as its role, no token", "30 POST routes", "403"),
+        t("publicRoutesNeedNoLogin", "happy", "Login and sign-up need no login; sign-up POST still needs CSRF", "GET /login, GET /register, POST /register anonymous", "-", "Not refused or redirected; POST /register without token 403"),
+        t("staticFilesAndErrorPageNeedNoLogin", "happy", "Static files and the error page are public", "GET /css/style.css, /js/app.js, /images/logo.png, /error anonymous", "-", "style.css 200; none refused or redirected to /login"),
+        t("logoutNeedsCsrfToken", "permission", "Logout needs a CSRF token", "POST /logout as a student without and with a token", "-", "403; with token redirect /login?logout"),
+        t("h2ConsoleIsOpenWithoutLoginOrCsrf", "permission", "H2 console open to everyone, no CSRF check", "GET /h2-console/ and POST /h2-console/login.do (no token) anonymous; POST as a student", "-", "Never 302 or 403 (404 only because the console servlet isn't in this slice)"),
+        t("h2ConsoleRelaxesFrameOptionsOnlyForItself", "side-effect", "Only the console may be framed", "GET /h2-console/, /login, /home", "-", "Console: no X-Frame-Options; /login and /home: X-Frame-Options DENY"),
+    ],
+    "RouteInventoryTest": [
+        t("securityMatrixListsEveryControllerRoute", "boundary", "Security matrix lists every controller route", "Read every request mapping of com.studybuddy.controller; compare with SecurityConfigTest.ROUTES", "48 mappings", "Same set both ways; otherwise 'Route table out of date: add <method path> to the SecurityConfigTest matrix and say which role may call it' (or remove ...)"),
+        t("rootAddressIsNotMapped", "negative", "Bare address / is not mapped", "GET / anonymous, as STUDENT, as ADMIN", "-", "Anonymous: /login; logged in: 404"),
+    ],
+    "HomeControllerTest": [
+        t("studentSeesStudentLinks", "happy", "Student home page links", "GET /home as STUDENT", "alex@test.com", "View home; username, isAdmin false; links to profile, matches, match requests, connections, groups, courses; no admin links"),
+        t("adminSeesAdminLinks", "happy", "Admin home page links", "GET /home as ADMIN", "admin@test.com", "isAdmin true; links to accounts, courses, matching settings; no student links"),
+        t("anonymousIsRedirectedToLogin", "permission", "Anonymous sent to login", "GET /home not logged in", "-", "302 to /login"),
+    ],
+    "StudentProfileControllerTest": [
+        t("pageShowsOwnProfileAndOnlyOtherCoursesToAdd", "happy", "Profile page", "Mock: Alex takes IS442; all courses IS442, CS201; GET /student/profile", "-", "View student/profile; student, coursesTaken [IS442], otherCourses [CS201]"),
+        t("updateProfileStripsValuesAndRedirectsWithSuccess", "happy", "Update profile (values stripped)", "POST /student/profile", "'  Alex Tan ', ' SCIS ', ' Computer Science ', 3, ' 87654321 '", "Service gets stripped values for alex@test.com; flash 'Your profile has been updated.'"),
+        t("invalidProfileShowsServiceMessage", "negative", "Invalid profile value", "Mock throws IllegalArgumentException('Contact number must be 8 digits')", "contact 1234", "Flash 'Contact number must be 8 digits.'"),
+        t("missingFieldsAreSentAsBlanks", "boundary", "Missing fields reach the service as blanks", "POST with no fields", "-", "Service gets ('', '', '', 0, '')"),
+        t("nonNumericYearOfStudyIsBadRequest", "negative", "Non-numeric year", "POST yearOfStudy 'two'", "'two'", "400; service not called"),
+        t("addCourseRedirectsWithSuccess", "happy", "Add a course", "POST /student/profile/courses courseId 2", "-", "Flash 'The course has been added.'; addCourse(alex, 2)"),
+        t("addCourseWithoutChoosingOneSavesNothing", "negative", "Add without choosing a course", "POST /student/profile/courses, no courseId", "-", "Flash 'Choose a course to add.'; service not called"),
+        t("addUnknownCourseShowsError", "negative", "Add a missing course", "Mock throws CourseNotFoundException", "99", "Flash 'That course no longer exists.'"),
+        t("addCourseAlreadyTakenShowsServiceMessage", "conflict", "Add a course already taken", "Mock throws IllegalStateException", "IS442", "Flash 'You are already taking IS442.'"),
+        t("removeCourseRedirectsWithSuccess", "happy", "Remove a course", "POST /student/profile/courses/1/remove", "-", "Flash 'The course has been removed.'"),
+        t("removeCourseWithPreferenceShowsServiceMessage", "conflict", "Remove a course that has a preference", "Mock throws IllegalStateException", "IS442", "Flash 'Delete your IS442 study preference before removing the course.'"),
+        t("removeUnknownCourseShowsError", "negative", "Remove a missing course", "Mock throws CourseNotFoundException", "99", "Flash 'That course no longer exists.'"),
+        t("emailParameterIsIgnored", "permission", "An 'email' field can't act for another student", "Three POSTs with email=ben@test.com", "-", "Service always gets alex@test.com"),
+        t("missingStudentAccountIsNotFound", "negative", "Logged-in email with no student account", "Mock throws StudentNotFoundException; GET /student/profile", "-", "404 (bare error page)"),
+        t("refusedRequestsNeverReachTheService", "permission", "Refused requests never reach the service", "4 routes anonymous and as ADMIN; 3 POSTs without CSRF", "-", "/login, 403, 403; no service call"),
+    ],
+    "StudentProfileControllerKnownBugTest": [
+        t("profileValueTheDatabaseRefusesShowsAnError", "negative", "Over-long profile value should show an error", "Mock throws DataIntegrityViolationException; POST /student/profile", "name 'A' x 256", "DESIRED: redirect /student/profile with a flash error. TODAY: uncaught exception, 500 (confirmed when enabled)"),
+    ],
+    "StudyPreferenceControllerTest": [
+        t("pageShowsPreferencesAndOnlyCoursesWithoutOne", "happy", "Preferences page", "Mock: preference 4 (IS442); Alex takes IS442, CS201; GET ?edit=4", "-", "View student/preferences; preferences, coursesWithoutPreference [CS201], editingId 4, 61 time options"),
+        t("createPreferenceRedirectsToItsEditForm", "happy", "Add a preference", "POST /student/preferences", "IS442, ONLINE, ONE_TO_ONE, CONCEPT_REVIEW", "Redirect ?edit=4; flash 'Your IS442 preference has been added. Add the times you're free below.'"),
+        t("createWithoutCourseSavesNothing", "negative", "Add without a course", "POST without courseId", "-", "Flash 'Choose a course for the preference.'; service not called"),
+        t("createForUnknownCourseShowsError", "negative", "Add for a missing course", "Mock throws CourseNotFoundException", "99", "Flash 'That course no longer exists.'"),
+        t("refusedCreateShowsServiceMessage", "conflict", "Refused add shows the service message", "Mock throws IllegalArgumentException, then IllegalStateException", "-", "'Choose a study mode, group size and study goal.'; 'You already have a preference for IS442.'"),
+        t("updatePreferenceRedirectsWithSuccess", "happy", "Update a preference", "POST /student/preferences/4/update", "IN_PERSON, SMALL_GROUP, PROBLEM_SOLVING", "Flash 'Your IS442 preference has been updated.'"),
+        t("updateWithMissingChoiceReturnsToEditForm", "negative", "Update with a missing choice", "Mock throws IllegalArgumentException", "-", "Redirect ?edit=4; flash 'Choose a study mode, group size and study goal.'"),
+        t("unknownPreferenceShowsErrorOnEveryAction", "permission", "Missing or someone else's preference", "Mock throws StudyPreferenceNotFoundException for update, delete, add slot, remove slot", "preference 8", "Redirect /student/preferences; flash 'That study preference no longer exists.' each time"),
+        t("deletePreferenceRedirectsWithSuccess", "happy", "Delete a preference", "POST /student/preferences/4/delete", "-", "Flash 'The study preference has been deleted.'"),
+        t("addSlotReadsTimesAndReturnsToEditForm", "happy", "Add a slot", "POST /student/preferences/4/slots", "MONDAY 10:00-12:00", "Service gets MONDAY, 10:00, 12:00; redirect ?edit=4; flash 'The time slot has been added.'"),
+        t("refusedSlotShowsServiceMessageOnEditForm", "conflict", "Overlapping slot", "Mock throws IllegalArgumentException", "MONDAY 11:00-13:00", "Redirect ?edit=4; flash 'This slot overlaps one you already have on MONDAY.'"),
+        t("timeNotInHourMinuteFormatIsBadRequest", "negative", "Time not in HH:mm", "POST startTime 25:00", "25:00, 26:00", "400; service not called"),
+        t("removeSlotReturnsToEditForm", "happy", "Remove a slot", "POST /student/preferences/4/slots/9/remove", "-", "Redirect ?edit=4; flash 'The time slot has been removed.'"),
+        t("removeUnknownSlotShowsError", "negative", "Remove a missing slot", "Mock throws IllegalArgumentException", "slot 77", "Flash 'That time slot no longer exists.'"),
+        t("emailParameterIsIgnored", "permission", "An 'email' field can't act for another student", "POSTs and GET with email=ben@test.com", "-", "Service always gets alex@test.com"),
+        t("refusedRequestsNeverReachTheService", "permission", "Refused requests never reach the service", "6 routes anonymous and as ADMIN; 5 POSTs without CSRF", "-", "/login, 403, 403; no service call"),
+    ],
+    "MatchingControllerTest": [
+        t("pageShowsRankedResultsForLoggedInStudent", "happy", "Matches page", "GET /matches", "-", "View student/matches; myPreferences, results, strategy BALANCED; filter choices without EITHER; page shows Ben Koh and 92"),
+        t("filtersAreBoundToTheSearch", "happy", "Every filter reaches the service", "GET /matches with all five filters", "courseId 1, EXAM_PREPARATION, ONLINE, SMALL_GROUP, sharedTimeOnly true", "findMatches(alex, MatchSearch(1, EXAM_PREPARATION, ONLINE, SMALL_GROUP, true))"),
+        t("noFiltersSearchEverything", "boundary", "No filters", "GET /matches", "-", "MatchSearch(null, null, null, null, false)"),
+        t("emailParameterIsIgnored", "permission", "An 'email' parameter can't search as another student", "GET /matches?email=ben@test.com", "-", "findMatches with alex@test.com only"),
+        t("unknownFilterValueIsBadRequest", "negative", "Hand-edited filter value", "GET ?studyGoal=BOGUS; ?courseId=abc", "-", "400 each; service not called"),
+        t("missingStudentAccountIsNotFound", "negative", "Logged-in email with no student account", "Mock throws StudentNotFoundException", "-", "404"),
+        t("refusedRequestsNeverReachTheService", "permission", "Refused requests never reach the service", "GET anonymous and as ADMIN", "-", "/login, 403; no service call"),
+    ],
+    "StudyBuddyConnectionControllerTest": [
+        t("pageListsLoggedInStudentsBuddies", "happy", "Study buddies page", "GET /connections", "Ben Koh, 92345678, 13 Oct 2026", "View student/connections; page shows name, number and date"),
+        t("endConnectionRedirectsWithSuccess", "happy", "End a connection", "POST /connections/3/end", "-", "Flash 'Connection ended. You can no longer see each other's contact numbers.'; endConnection(alex, 3)"),
+        t("endUnknownConnectionShowsError", "negative", "End a missing or someone else's connection", "Mock throws ConnectionNotFoundException", "8", "Flash 'That connection no longer exists.'"),
+        t("emailParameterIsIgnored", "permission", "An 'email' field can't act for another student", "POST end and GET with email=ben@test.com", "-", "Service gets alex@test.com"),
+        t("refusedRequestsNeverReachTheService", "permission", "Refused requests never reach the service", "GET and POST anonymous, as ADMIN, POST without CSRF", "-", "/login, 403, 403; no service call"),
+    ],
+    "AdminMatchingConfigControllerTest": [
+        t("pageShowsCurrentSettings", "happy", "Matching settings page", "GET /admin/matching", "-", "View admin/matching-config; form from the current settings, strategies, current"),
+        t("saveRedirectsWithSavedMessage", "happy", "Save settings", "POST AVAILABILITY_FIRST, weights 0/1/0/0/0, 60 minutes", "-", "update(form with those values); redirect /admin/matching; flash saved = true"),
+        t("invalidSettingsShowServiceMessage", "negative", "Refused settings", "Mock throws InvalidMatchingConfigException", "all weights 0", "Form again with error 'At least one criterion needs a weight above 0.'; current settings shown"),
+        t("blankOrNonNumericFieldShowsMessage", "boundary", "Blank or non-numeric field", "POST with course weight '', 'abc', '1.5'", "-", "Form again with 'Every weight and the session length must be a whole number.'; update never called"),
+        t("missingStrategyIsLeftToTheService", "negative", "No strategy chosen", "POST without strategy; mock throws", "-", "Service gets strategy null; its message shown"),
+        t("refusedRequestsNeverReachTheService", "permission", "Refused requests never reach the service", "GET and POST anonymous, as STUDENT, POST without CSRF", "-", "/login, 403, 403; no service call"),
+    ],
+    "MatchRequestControllerPrincipalTest": [
+        t("emailParameterIsIgnoredOnEveryAction", "permission", "An 'email' field can't act for another student", "POST send, accept, reject and GET with email / senderEmail = ben@test.com", "-", "Service always gets alex@test.com"),
+        t("refusedPostsNeverReachTheService", "permission", "Refused POSTs never reach the service", "3 POSTs anonymous and as ADMIN (with CSRF)", "-", "/login and 403; no service call"),
+    ],
+    "MatchRequestControllerKnownBugTest": [
+        t("shortMessagesThatReadAsFalseAreShown", "negative", "Messages 'no', 'false', 'off' should be shown", "Mock: received 'no' and 'Study IS442 together?', sent 'false' and 'off'; GET /match-requests", "-", "DESIRED: <p>no</p>, <p>false</p>, <p>off</p> on the page. TODAY: only the ordinary message is shown (th:if reads the three words as false; confirmed when enabled)"),
+    ],
+    "ContactNumberVisibilityTest": [
+        t("matchesPageNeverShowsContactNumbers", "side-effect", "Matches page never shows a contact number", "Mock: results for Ben and Chloe built with from(); GET /matches", "91110001, 92220002, 93330003", "Names shown; none of the three numbers in the HTML"),
+        t("matchRequestsPageNeverShowsContactNumbers", "side-effect", "Match requests never show a contact number, even accepted", "Mock: accepted request from Ben, pending to Chloe (from()); GET /match-requests", "same numbers", "Names shown; no number in the HTML"),
+        t("connectionsPageShowsOnlyTheBuddysNumber", "happy", "Study buddies shows only the buddy's number", "Mock: Alex-Ben connection via ConnectionSummary.from(); GET /connections", "same numbers", "Ben's 92220002 shown; Alex's own and Chloe's not"),
+    ],
+    "HtmlEscapingTest": [
+        t("matchRequestMessageIsEscaped", "negative", "Match request message is escaped", "Mock: received message 'Hi <script>alert(1)</script>'; GET /match-requests", "<script>alert(1)</script>", "HTML has '&lt;script&gt;alert(1)&lt;/script&gt;' and never the raw tag"),
+        t("groupNameAndDescriptionAreEscaped", "negative", "Group name and description are escaped", "Mock group 1 with the script in name and description; GET /groups/1", "<script>alert(1)</script>", "Both escaped; raw tag absent"),
+        t("profileNameIsEscaped", "negative", "Profile name is escaped (inside an input value)", "Mock profile name 'Alex <script>alert(1)</script>'; GET /student/profile", "<script>alert(1)</script>", "Escaped; raw tag absent"),
+    ],
+    "StudyGroupControllerTest": [
+        t("browseListsOpenGroupsWithViewerRoles", "happy", "Browse groups", "Mock: Alex's group (leader) and a full group; GET /groups", "-", "View studygroup/browse; both summaries; spaceCount 1, fullCount 1; selectedSort NEWEST; joinableOnly false"),
+        t("browseUsesCourseFilterAndSort", "happy", "Course filter and sort", "GET ?courseId=1&sort=NAME; GET ?sort=bogus", "-", "findActiveGroupsByCourse(1, NAME); bogus falls back to NEWEST"),
+        t("browseUnknownCourseShowsAllGroupsInstead", "negative", "Browse a missing course", "Mock throws CourseNotFoundException", "99", "Redirect /groups; flash 'That course doesn't exist. Showing all groups instead.'"),
+        t("joinableOnlyKeepsGroupsTheStudentCanJoin", "boundary", "Only groups I can join", "Roles NONE, MEMBER, REJECTED, NONE-but-full; GET ?joinableOnly=true", "-", "Only the NONE and REJECTED groups with room"),
+        t("myGroupsShowsTheStudentsFourLists", "happy", "My groups", "GET /groups/mine", "-", "View studygroup/my-groups; groupsLed, groupsJoined, pendingRequests, pastRequests for alex@test.com"),
+        t("groupPageShowsGroupAndViewerRole", "happy", "Group page", "GET /groups/1?from=mine", "-", "View studygroup/details; group summary, viewerRole LEADER, fromMyGroups true"),
+        t("unknownGroupPageGoesBackToBrowse", "negative", "Missing group page", "Mock throws StudyGroupNotFoundException", "99", "Redirect /groups; flash 'That group no longer exists.'"),
+        t("createFormStartsBlank", "happy", "Create form", "GET /groups/new", "-", "View studygroup/form; 1 slot row; minSize 2; maxSlots 3; 61 time options"),
+        t("createGroupRedirectsToItsPage", "happy", "Create a group", "POST /groups (valid form)", "New Group, IS442, size 3, Mon 10:00-12:00", "Redirect /groups/7?from=mine; flash 'Group created. Other students can now find it on Study groups and ask to join.'; service gets the form for alex@test.com"),
+        t("invalidCreateShowsEveryErrorOnTheForm", "negative", "Invalid create shows every error", "POST blank name, size 1, overlapping slots", "-", "Form again: 'Please enter a group name', 'A group needs room for at least 2 members, including you', 'Slots 1 and 2 overlap'; service not called"),
+        t("createForUnknownCourseShowsErrorUnderCourse", "negative", "Course deleted meanwhile", "Mock throws CourseNotFoundException", "-", "Form again; under Course 'That course no longer exists. Please choose another.'"),
+        t("createRefusedByTheGroupShowsItsMessage", "negative", "Entity refuses the group", "Mock throws IllegalArgumentException", "-", "Form again with error 'Max size must be at least 2'"),
+        t("addAndRemoveSlotRowsSaveNothing", "boundary", "Add slot / Remove rows", "POST with addSlot (1 row, then 3 rows), with removeSlot=0 (2 rows)", "-", "2 rows; still 3 (no fourth); only the Tuesday row left; nothing saved"),
+        t("editFormIsFilledForTheLeader", "happy", "Edit form", "GET /groups/1/edit?from=mine", "-", "Form filled ('IS442 Revision'); editing summary; minSize 3 (member count)"),
+        t("editFormRefusedWithReason", "permission", "Edit refused for non-leader, closed or missing group", "GET edit for groups 2, 3 (closed), 99", "-", "'Only the group's leader can do that.'; 'This group is closed, so it can't be edited.' (from=mine kept); 'That group no longer exists.'"),
+        t("updateGroupRedirectsWithChangesSaved", "happy", "Save changes", "POST /groups/1/edit size 5, from=mine", "-", "Redirect /groups/1?from=mine; flash 'Changes saved.'"),
+        t("updateBelowMemberCountShowsErrorUnderSize", "boundary", "Size below the member count", "POST /groups/1/edit size 2 (3 members)", "2", "Form again; under size 'The group has 3 members, so the maximum size can't be below 3'; service not called"),
+        t("updateRefusedByServiceShowsItsMessage", "negative", "Service refuses the update", "Mock updateGroup throws IllegalArgumentException", "-", "Form again with the message; group read again"),
+        t("closeGroupSaysHowManyRequestsEnded", "side-effect", "Close messages", "closeGroup returns 0, 1, 2", "-", "'Group closed.'; '... 1 pending request ended without an answer.'; '... 2 pending requests ended without an answer.'"),
+        t("closeRefusedWithReason", "permission", "Close refused", "Mock throws NotGroupLeader, IllegalState, StudyGroupNotFound", "-", "'Only the group's leader can do that.'; 'This group is already closed.'; 'That group no longer exists.' (to /groups)"),
+        t("emailParameterIsIgnored", "permission", "An 'email' field can't act for another student", "Create, edit, close with email=ben@test.com", "-", "Service always gets alex@test.com"),
+        t("refusedRequestsNeverReachTheService", "permission", "Refused requests never reach the service", "8 routes anonymous and as ADMIN; 3 POSTs without CSRF", "-", "/login, 403, 403; no service call"),
+    ],
+    "GroupMembershipControllerTest": [
+        t("requestToJoinRedirectsWithSuccess", "happy", "Ask to join", "POST /groups/1/join (and with from=mine)", "-", "Redirect /groups/1 (/groups/1?from=mine); flash 'Request sent. The group's leader will review it.'"),
+        t("refusedJoinShowsTheGroupsMessage", "conflict", "Refused join", "Mock throws IllegalState, IllegalArgument, StudyGroupNotFound", "-", "'Group is full'; 'The leader is already in the group'; 'That group no longer exists.' (to /groups)"),
+        t("removeFromMyGroupsRedirectsWithSuccess", "happy", "Remove a closed group from My groups", "POST /groups/1/remove-from-my-groups", "-", "Redirect /groups/mine; flash 'Removed from My groups.'"),
+        t("removeFromMyGroupsRefusedWithReason", "conflict", "Remove from My groups refused", "Mock throws IllegalState; StudyGroupNotFound", "-", "'Only a closed group can be removed from My groups'; 'That group no longer exists.'"),
+        t("membersPageShowsRequestsAndMembers", "happy", "Manage members page", "GET /groups/1/members", "-", "View studygroup/members; group summary, requests [Farhan], members [Alex, Chloe]"),
+        t("membersPageRefusedForNonLeaderOrMissingGroup", "permission", "Manage members refused", "Mock throws NotGroupLeader (2), StudyGroupNotFound (99)", "-", "Redirect /groups/2 'Only the group's leader can do that.'; /groups 'That group no longer exists.'"),
+        t("acceptAndRejectNameTheStudent", "happy", "Accept and reject", "POST /members/13/accept, /reject", "-", "'Farhan Ismail is now a member of the group.'; 'Farhan Ismail's request was rejected.'"),
+        t("removeMemberNamesTheStudent", "happy", "Remove a member", "POST /members/12/remove", "-", "'Chloe Lim was removed from the group.'"),
+        t("manageActionsRefusedWithReason", "conflict", "Manage actions refused", "Not leader; missing group; missing membership; full group; leader removal", "-", "Each message and destination: /groups/2, /groups, 'That request or member no longer exists.', 'Group is full. Remove a member to accept new members.', 'The leader can't be removed from their own group'"),
+        t("emailParameterIsIgnored", "permission", "An 'email' field can't act for another student", "Join, remove from My groups, accept, remove with email=ben@test.com", "-", "Service always gets alex@test.com"),
+        t("refusedRequestsNeverReachTheService", "permission", "Refused requests never reach the service", "GET members and 5 POSTs anonymous, as ADMIN, without CSRF", "-", "/login, 403, 403; no service call"),
+    ],
 }
 
 # --------------------------------------------------------------------------------------
@@ -808,6 +963,26 @@ MANUAL = [
       "Ben Koh takes IS442, IS216, CS201 (no CS201 preference) and leads the CS201 group",
       "TODAY: Step 2: 'The course has been removed.' Step 3: 'CS201 DSA Problem Solvers' is still under 'Groups I lead'. Step 4: 'Request sent. The group's leader will review it.' although Ben doesn't take IS112. Step 5: 'Group created. Other students can now find it on Study groups and ask to join.' although Ben doesn't take ECON101.",
       "Pins current behaviour K8 (team decision, treatment (a)); matches SGS and GMS K8 tests.", BATCH_B),
+
+    # ================================ NEW (Batch C) ================================
+    m("MAN-39", "SEC-3, K15", "permission", "H2 console opens without logging in (dev only)", APP_PRE + " Logged out.",
+      numbered("Open http://localhost:8080/h2-console in the browser.",
+               login("student@studybuddy.com") + " Then open http://localhost:8080/h2-console again."),
+      "-",
+      "TODAY: both times the H2 Console's own login form opens (with a 'Connect' button); the browser is NOT sent to the Study Buddy login page and no 403 is shown. Don't click 'Connect': the case only checks that the page is open to anyone.",
+      "Pins current behaviour SEC-3 / K15 (development setting). Turn the console off before any real deployment; matches SCM (h2Console...).", BATCH_C),
+    m("MAN-40", "S1, PRF-1, K4", "negative", "Over-long profile name (known bug)", APP_PRE,
+      numbered(login("student@studybuddy.com"), "Open http://localhost:8080/student/profile.",
+               "Replace Name with 256 characters (e.g. paste 256 letter A) and click 'Save details'."),
+      "256-character name",
+      "DESIRED: back on the profile page with an error message, name unchanged. TODAY: an error page with status 500 (K4).",
+      "Known bug K4; matches StudentProfileControllerKnownBugTest.", BATCH_C),
+    m("MAN-41", "S7, S8, K12", "negative", "A message that is just 'no' disappears (known bug)", APP_PRE,
+      numbered(login("student@studybuddy.com"), "Open http://localhost:8080/matches, choose IS442, click 'Search'.",
+               "On the first card that is NOT Ben Koh, Chloe Lim or Daniel Ng, type no in 'Optional message' and click 'Send request'."),
+      "Message 'no'",
+      "DESIRED: under 'Sent' the new request shows the message 'no'. TODAY: 'Request sent.' and the request is listed as PENDING with no message line at all (K12). The same happens for 'false' and 'off'.",
+      "Known bug K12; matches MatchRequestControllerKnownBugTest. Compare MAN-08, where a normal message is shown.", BATCH_C),
 ]
 
 # --------------------------------------------------------------------------------------
@@ -824,13 +999,13 @@ GAPS = [
     ("K8", "Candidate bug (team decision)", "A student can drop a course while leading or in a group for it; creating or joining a group doesn't require taking the course. requirements.md L1 records 'Leader need not take the course' as current behaviour.", "StudentProfileService.java:113; StudyGroupService.java:68; StudyGroup.java:446", "(a) Pin all three (agreed 2026-10-24)", "SGS (createGroupDoesNotRequireTakingTheCourse, leaderCanDropTheCourseAndStillLeadTheGroup), GMS (joiningDoesNotRequireTakingTheCourse), SPS (addAndRemoveCourse), MAN-38", "Pinned. If the team decides it is a bug, add a StudyGroupServiceKnownBugTest."),
     ("K9", "Candidate bug", "Preference slots are looser than group slots (any times, no maximum).", "StudyPreferenceService.java:93", "(c) List only (Batch E)", "-", "Listed."),
     ("K10", "Candidate bug", "/register doesn't strip spaces from the contact number; profile update does.", "AuthController.java:57", "(a) Pin", "AUC (contactNumberIsPassedOnAsTyped)", "Pinned."),
-    ("K11", "Candidate bug", "A non-numeric year of study gives a raw 400.", "AuthController.java:53; StudentProfileController.java:54", "(a) Pin", "AUC (nonNumericYearOfStudyIsBadRequest)", "Pinned."),
-    ("K12", "Candidate bug", "An empty message is stored as ''; th:if hides messages 'no', 'false', 'off'.", "match-requests.html:26", "(c) List only (Batch E)", "-", "Listed."),
+    ("K11", "Candidate bug", "A non-numeric year of study gives a raw 400.", "AuthController.java:53; StudentProfileController.java:54", "(a) Pin", "AUC (nonNumericYearOfStudyIsBadRequest), SPC (nonNumericYearOfStudyIsBadRequest)", "Pinned (sign-up and profile)."),
+    ("K12", "Candidate bug (confirmed)", "th:if=\"${req.message}\" hides a message that is just 'no', 'false' or 'off' (Thymeleaf reads them as false). Separately, an empty message is stored as '' and shows as an empty paragraph.", "match-requests.html:26,52", "(b) Known-bug test for the hidden words; (c) list only for the empty message", "MRK-01, MAN-41", "Hidden words confirmed failing when enabled (2026-10-24): an ordinary message renders, the three words don't. Empty message listed."),
     ("K13", "Candidate bug", "The duplicate-request error shows internal student ids.", "DuplicateMatchRequestException.java:24", "(c) List only (Batch E)", "-", "Listed."),
     ("K14", "Candidate bug", "No database constraint for one pending request or one connection per pair (race).", "MatchRequestService.java:90-104; StudyBuddyConnectionService.java:46", "(c) List only (Batch E)", "-", "Listed."),
-    ("K15", "Candidate bug", "H2 console open to everyone with CSRF off.", "SecurityConfig.java:28; application.properties:15", "Batch C", "-", "Open."),
-    ("K16", "Candidate bug", "No @ControllerAdvice or custom error pages.", "-", "(c) List only", "MAN-26", "Listed."),
-    ("K17", "Candidate bug", "/matches still lists existing buddies.", "MatchingService.java:91", "Batch D", "-", "Open."),
+    ("K15", "Candidate bug", "H2 console open to everyone with CSRF off and frame options off (its own filter chain, permitAll).", "SecurityConfig.java:26-35; application.properties:15", "(a) Pin (SEC-3) + deployment note GAP-DEP1", "SCM (h2ConsoleIsOpenWithoutLoginOrCsrf, h2ConsoleRelaxesFrameOptionsOnlyForItself), MAN-39", "Pinned."),
+    ("K16", "Candidate bug", "No @ControllerAdvice or custom error pages: an exception a controller doesn't catch becomes a bare 404 (StudentNotFoundException has @ResponseStatus) or 500.", "-", "(a) Pin representative 404s; (c) list 'no custom pages'", "SPC, MTC (missingStudentAccountIsNotFound), MAN-26", "Pinned / listed."),
+    ("K17", "Candidate bug", "/matches still lists existing buddies.", "MatchingService.java:91", "(c) here; MatchingService is tested in Batch D", "-", "Open (Batch D)."),
     ("K18", "Test risk", "Open-session-in-view is relied on; non-transactional tests can hit LazyInitializationException.", "-", "Handled: every new service test is transactional (@DataJpaTest); entity, form and validator tests use no session", "SGS, GMS", "Mitigated (Batch A and B)."),
     ("K19", "Test risk", "StudyPreferenceServiceTest.newPreferenceShowsUpInMatching depends on seeded random data.", "StudyPreferenceServiceTest.java:160", "(c) List only (teammate file is read-only)", "SPF (newPreferenceShowsUpInMatching)", "Listed."),
     ("N1", "New finding", "Password limit is 72 BYTES, but the message says 'Passwords can be at most 72 characters.' 25 x '€' (25 characters) is refused.", "AccountCredentials.java:58-59", "(a) Byte behaviour tested; message mismatch listed", "CRD (multibytePasswordIsLimitedByBytes)", "Listed."),
@@ -844,7 +1019,7 @@ GAPS = [
     ("GAP-NR3", "Behaviour with no requirement", "/register works while logged in.", "SecurityConfig.java:50", "List only", "-", "Listed."),
     ("GAP-NR4", "Behaviour with no requirement", "'Groups led' in the usage figures includes closed groups.", "AccountStatus.java:49", "List only", "-", "Listed."),
     ("GAP-OPEN1", "Open question", "The match-message and profile-field parts of K4 aren't assigned to a batch yet.", "-", "Decided: PLAN-K4a (Batch C), PLAN-K4b (Batch E)", "-", "Closed (2026-10-24)."),
-    ("PLAN-K4a", "Planned test (Batch C)", "K4 on the profile fields: StudentProfileControllerKnownBugTest, @Disabled('KNOWN BUG K4: ...'). Profile values over 255 characters should show a message on the profile page, not a 500.", "StudentProfileController.java:52", "(b) Known-bug test, @Disabled", "-", "Planned, not built."),
+    ("PLAN-K4a", "Built (Batch C)", "K4 on the profile fields: StudentProfileControllerKnownBugTest, @Disabled('KNOWN BUG K4: ...'). Profile values over 255 characters should show a message on the profile page, not a 500.", "StudentProfileController.java:52-64", "(b) Known-bug test, @Disabled", "SPK-01, MAN-40", "Built; confirmed failing when enabled (2026-10-24)."),
     ("PLAN-K4b", "Planned test (Batch E)", "K4 on the match-request message: new MatchRequestControllerKnownBugTest, @Disabled('KNOWN BUG K4: ...'). A message over 255 characters should show an error, not a 500.", "MatchRequestController.java:63", "(b) Known-bug test, @Disabled", "-", "Planned, not built."),
     # ---- Batch B (study groups) ----
     ("N-B1", "New finding", "The service and entity accept a null study goal or study mode (saved as null); a null maximum size gives a NullPointerException and a null course id a Spring data exception. Only StudyGroupForm's @NotNull stops them (the service expects an already validated form).", "StudyGroupService.java:68-76; StudyGroup.java:413", "(c) List only (agreed: don't pin NPE or Spring data exceptions)", "SGF (courseGoalAndModeAreRequired, sizeIsRequiredAndAtLeastTwo) cover the form side", "Listed."),
@@ -862,6 +1037,15 @@ GAPS = [
     ("GAP-GRP4", "Ambiguous requirement", "GRP-4 says join needs a 'non-full' group, but requests sent before the group filled up stay pending as a waiting list and can be accepted once a place opens.", "StudyGroup.java:446-483", "Recorded (tested as built)", "SGE (fullGroupRefusesRequestsAndAccepts), MAN-36", "Open."),
     ("GAP-GRP6", "Ambiguous requirement", "No rule says closing is permanent; the code and the confirm box say it can't be reopened.", "StudyGroup.java:565; studygroup/details.html:41", "Recorded", "SGS (closedGroupCannotBeUpdatedOrClosedAgain), MAN-34", "Open."),
     ("GAP-NR5", "Behaviour with no requirement", "Browse sort options, 'only groups I can join', full groups listed last, viewer roles, GROUP_CLOSED status and 'Remove from My groups' have no requirement in the brief.", "GroupSort.java; StudyGroupService.java:145-183; ViewerRole.java", "Tested as built", "GSO, SGS (browse...), GMS (viewerRole..., removeFromMyGroups...)", "Listed."),
+    # ---- Batch C (security and controllers) ----
+    ("N-C1", "New finding", "Hand-edited values that can't be converted give a raw 400 instead of a message: /matches?studyGoal=BOGUS or courseId=abc, a slot time like 25:00 (and K11's year of study).", "MatchingController.java:81; StudyPreferenceController.java:230", "(a) Pin", "MTC (unknownFilterValueIsBadRequest), PFC (timeNotInHourMinuteFormatIsBadRequest)", "Pinned."),
+    ("N-C2", "New finding", "The bare address / isn't mapped: a logged-in user who types http://localhost:8080/ gets a 404 page (after login the app always goes to /home).", "HomeController.java:20,31", "(a) Pin", "RTI (rootAddressIsNotMapped)", "Pinned."),
+    ("N-C3", "New finding", "An anonymous POST without a CSRF token gets 403, not a redirect to /login: the CSRF filter runs before the login check. Consistent with SEC-2.", "SecurityConfig.java:46", "(a) Pin", "SCM (anonymousPostWithoutCsrfIsForbidden)", "Pinned."),
+    ("N-C4", "New finding", "SecurityConfig's Javadoc says only /matches and /groups are student-only; the rules also cover /match-requests, /connections and /student.", "SecurityConfig.java:37-43", "(c) List only", "-", "Listed."),
+    ("N-C5", "New finding", "/admin/matching has no @PreAuthorize: it relies on the URL rule only (as requirements.md MAT-1 says), unlike AccountManagementService and the course POSTs.", "AdminMatchingConfigController.java; MatchingConfigService.java", "(c) List only", "MCC (refusedRequestsNeverReachTheService), SCM", "Listed."),
+    ("N-C6", "Checked, no finding", "No template uses th:utext or an unescaped inline expression [(...)]; typed text (match messages, group name and description, profile name) is shown escaped.", "src/main/resources/templates", "Tested", "ESC-01..03", "OK (2026-10-24)."),
+    ("GAP-DEP1", "Deployment note", "SEC-3: the H2 console (spring.h2.console.enabled=true, permitAll, CSRF and frame options off) must be switched off before the app is deployed anywhere real.", "application.properties:15; SecurityConfig.java:26", "List only", "SCM, MAN-39", "Listed."),
+    ("GAP-TST1", "Test note", "ContactNumberVisibilityTest and HtmlEscapingTest check one concern across several controllers, so they aren't named after one class; MatchRequestControllerPrincipalTest adds to a teammate's test class without changing it.", "src/test/java/com/studybuddy/controller", "Recorded", "CNV, ESC, MRP", "Recorded."),
     ("GAP-NI1", "Not implemented (no requirement)", "A member can't leave a group, a student can't withdraw a pending join request, and a group can't be deleted.", "GroupMembershipService.java", "List only", "-", "Listed."),
 ]
 
@@ -877,8 +1061,9 @@ def parse_sources():
         lines = path.read_text(encoding="utf-8").splitlines()
         tests = []
         for i, line in enumerate(lines):
-            if line.strip() != "@Test":
+            if line.strip() != "@Test" and not line.strip().startswith("@ParameterizedTest"):
                 continue
+            parameterized = line.strip().startswith("@ParameterizedTest")
             # The method name: first "void name(" after @Test
             j = i + 1
             while "void " not in lines[j]:
@@ -899,16 +1084,29 @@ def parse_sources():
             first = comment[0] if comment else ""
             head = first.split(":")[0]
             ids = ", ".join(dict.fromkeys(ID_PATTERN.findall(head)))
-            tests.append({"method": method, "ids": ids, "comment": " ".join(comment), "disabled": disabled})
+            tests.append({"method": method, "ids": ids, "comment": " ".join(comment), "disabled": disabled,
+                          "parameterized": parameterized})
         if tests:
             found[path.stem] = tests
     return found
 
 
+class Reports(dict):
+    """{(ClassName, method): status} from the surefire XML reports, one entry per test method.
+    A parameterized method runs once per value and surefire reports each run ("method(Route)[3]"),
+    so its runs are merged: Fail if any run failed, Skipped if all were skipped, else Pass.
+    runs counts every surefire run (what ./mvnw test prints); invocations holds how many runs each
+    parameterized method had. Reports left behind by test classes that no longer exist are
+    ignored (surefire never deletes old reports)."""
+
+    def __init__(self):
+        super().__init__()
+        self.runs = Counter()
+        self.invocations = Counter()
+
+
 def parse_reports(sources):
-    """{(ClassName, method): status} from the surefire XML reports. Reports left behind by
-    test classes that no longer exist are ignored (surefire never deletes old reports)."""
-    results = {}
+    reports = Reports()
     for xml in REPORTS.glob("TEST-*.xml"):
         for case in ET.parse(xml).getroot().iter("testcase"):
             cls = case.get("classname").split(".")[-1]
@@ -920,12 +1118,21 @@ def parse_reports(sources):
                 status = "Skipped"
             else:
                 status = "Pass"
-            results[(cls, case.get("name"))] = status
-    return results
+            reports.runs[status] += 1
+            name = case.get("name")
+            key = (cls, name.split("(")[0])
+            if "(" in name:
+                reports.invocations[key] += 1
+            earlier = reports.get(key)
+            # A failed run wins; a skipped one only stands if nothing else ran
+            if earlier is None or earlier == "Skipped" or status == "Fail":
+                reports[key] = status
+    return reports
 
 
 MANUAL_STATUSES = ["Not run", "Pass", "Fail"]
-WRITTEN_BY = {"Existing": "Existing (teammates)", "New": "New (Batch A)", BATCH_B: "New (Batch B)"}
+WRITTEN_BY = {"Existing": "Existing (teammates)", "New": "New (Batch A)", BATCH_B: "New (Batch B)",
+              BATCH_C: "New (Batch C)"}
 RESULT_COLUMNS = {"status": "Status", "tester": "Tester", "date": "Date", "actual": "Actual result"}
 
 
@@ -971,7 +1178,7 @@ def build_rows(sources, reports, previous):
             case = described.get(test["method"])
             if case is None:
                 continue
-            ids = test["ids"] or case["ids"]
+            ids = test["ids"] or case["ids"] or ""
             if not ids:
                 problems.append(f"{cls}.{test['method']} has no requirement IDs")
             notes = [case["notes"]] if case["notes"] else []
@@ -981,6 +1188,10 @@ def build_rows(sources, reports, previous):
                 ks += [f for f in re.findall(r"\bN-[A-Z]?\d+\b", test["comment"]) if f not in ks]
                 notes.insert(0, f"Pins current behaviour (suspected bug {', '.join(ks)}): update if fixed.")
             status = reports.get((cls, test["method"]), "Not run")
+            runs = reports.invocations.get((cls, test["method"]), 0)
+            if test["parameterized"]:
+                notes.insert(0, f"Parameterized: {runs} runs in the last ./mvnw test (one per route or value); "
+                                f"Pass only if every run passed.")
             if test["disabled"]:
                 status = "Known bug (disabled)" if status in ("Skipped", "Not run") else status
                 notes.insert(0, f"@Disabled: {test['disabled']} Confirmed failing when enabled (2026-10-24).")
@@ -989,7 +1200,7 @@ def build_rows(sources, reports, previous):
                 "pre": pre, "steps": case["steps"], "data": case["data"], "expected": case["expected"],
                 "mode": "Automated", "where": f"{cls}#{test['method']}", "status": status,
                 "by": written_by, "notes": " ".join(notes), "cls": cls,
-                "tester": "", "date": "", "actual": "",
+                "tester": "", "date": "", "actual": "", "runs": runs,
             })
     manual_ids = Counter(case["id"] for case in MANUAL)
     problems += [f"Manual ID {mid} is used {n} times" for mid, n in manual_ids.items() if n > 1]
@@ -1135,11 +1346,14 @@ def write(rows, reports):
 
     ws.append(["Study Buddy Matcher: test case summary"])
     ws.cell(1, 1).font = Font(bold=True, size=14)
-    statuses = Counter(reports.values())
+    statuses = reports.runs
     after = [sum(statuses.values()), statuses["Pass"], statuses["Fail"], statuses["Skipped"]]
     block("./mvnw test results", ["Run", "Tests run", "Passed", "Failed or errors", "Skipped (known bugs)"],
           [[label, b["run"], b["passed"], b["failed"] + b["errors"], b["skipped"]] for label, b in BASELINES]
           + [["Last run (this workbook)"] + after])
+    parameterized = [r for r in rows if r.get("runs")]
+    ws.append([f"Of the last run, {sum(r['runs'] for r in parameterized)} runs come from {len(parameterized)} "
+               f"parameterized test methods (one workbook row each)."])
 
     automated = [r for r in rows if r["mode"] == "Automated"]
     manual_rows = [r for r in rows if r["mode"] == "Manual"]
@@ -1201,6 +1415,7 @@ def main():
     print(f"Manual results carried over: {kept} of {sum(r['mode'] == 'Manual' for r in rows)} manual cases have a result")
     print(f"Wrote {OUT}")
     print(f"Last run: {after[0]} run, {after[1]} passed, {after[2]} failed, {after[3]} skipped")
+    print(f"Parameterized: {sum(reports.invocations.values())} runs from {len(reports.invocations)} methods")
     print(f"Test cases: {len(rows)} ({dict(status_counts)})")
     print(f"Coverage: {dict(coverage)}")
 
