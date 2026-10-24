@@ -3,8 +3,12 @@ package com.studybuddy.controller;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.flash;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -14,6 +18,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -62,5 +67,19 @@ class MatchRequestControllerKnownBugTest {
                 .andExpect(content().string(allOf(containsString("<p>Study IS442 together?</p>"),
                         containsString("<p>no</p>"), containsString("<p>false</p>"),
                         containsString("<p>off</p>"))));
+    }
+
+    // S7, K4
+    @Test
+    @Disabled("KNOWN BUG K4: a match message the database refuses (over 255 characters, only possible with a "
+            + "hand-made POST because the page's box has maxlength 255) should come back as an error message, not a 500")
+    void messageTheDatabaseRefusesShowsAnError() throws Exception {
+        String longMessage = "M".repeat(256);
+        when(service.createRequest("alex@test.com", 2L, longMessage))
+                .thenThrow(new DataIntegrityViolationException("Value too long for column MESSAGE"));
+
+        mockMvc.perform(post("/match-requests").param("recipientId", "2").param("message", longMessage).with(csrf()))
+                .andExpect(redirectedUrl("/match-requests"))
+                .andExpect(flash().attributeExists("error"));
     }
 }

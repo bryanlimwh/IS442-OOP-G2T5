@@ -37,10 +37,12 @@ BASELINES = [
     ("Baseline before Batch B (2026-10-24)", {"run": 207, "passed": 204, "failed": 0, "errors": 0, "skipped": 3}),
     ("Baseline before Batch C (2026-10-24)", {"run": 294, "passed": 291, "failed": 0, "errors": 0, "skipped": 3}),
     ("Baseline before Batch D (2026-10-24)", {"run": 593, "passed": 588, "failed": 0, "errors": 0, "skipped": 5}),
+    ("Baseline before Batch E (2026-10-24)", {"run": 646, "passed": 639, "failed": 0, "errors": 0, "skipped": 7}),
 ]
 BATCH_B = "Batch B"
 BATCH_C = "Batch C"
 BATCH_D = "Batch D"
+BATCH_E = "Batch E"
 
 # Not after a letter, digit or "-", so finding ids such as N-D1 aren't read as requirement D1
 ID_PATTERN = re.compile(r"(?<![\w-])(?:[SLAD]\d+|ACC-\d+|CRS-\d+|PRF-\d+|PRE-\d+|REQ-\d+|GRP-\d+|MAT-\d+|SEC-\d+|K\d+)\b")
@@ -111,7 +113,6 @@ REQUIREMENTS = [
 # Where uncovered items are scheduled
 PLANNED = {
     "S6": "Gap K7 (no profile page)",
-    "PRF-1": "Batch E (boundaries)", "PRE-1": "Batch E", "PRE-2": "Batch E", "REQ-4": "Batch E (negative)",
     "ACC-8": "Fix K1, then remove @Disabled from AUK-01",
 }
 
@@ -174,6 +175,12 @@ CLASSES = {
     "MatchingServiceFixtureTest": ("MSF", BATCH_D, "@DataJpaTest, empty H2 (no seeders), own data, rolled back (unlike the teammate's seeded MatchingServiceTest). Settings Balanced, weights 20, 120 min. Alex (IS442, In person, Either, Exam, Mon 10-14) vs Amy (IS442, Mon 10-11: 90), Ben (CS201, Mon 10-14: 80), Cal (IS442, Online, Problem solving, Mon 10-13: 60)."),
     "MatchingServiceKnownBugTest": ("MSK", BATCH_D, "@DataJpaTest, empty H2 (no seeders), own data, rolled back. Alex searches; Ben, Chloe and Dan all have an IS442 preference like Alex's. @Disabled known-bug tests: describe the desired behaviour."),
     "DataSeedersTest": ("DSD", BATCH_D, "@SpringBootTest @Transactional on the SEEDED data: every seeder runs once at startup; each test is rolled back. Only rules that hold whatever the seed details are, plus one labelled pin of today's sizes."),
+    # New (Batch E)
+    "StudentProfileServiceGapTest": ("SPG", BATCH_E, "@DataJpaTest, empty H2 (no seeders), own data, rolled back; adds to the teammate's seeded StudentProfileServiceTest. Alex (alex@test.com) takes IS442: Alex Tan, SCIS, Information Systems, year 2, 91234567. BCrypt encoder."),
+    "StudyPreferenceServiceGapTest": ("PFG", BATCH_E, "@DataJpaTest, empty H2 (no seeders), own data, rolled back; adds to the teammate's seeded StudyPreferenceServiceTest. Alex and Ben take IS442 and CS201; Alex's IS442 preference (Online, One-to-one, Concept review) has one slot Mon 10:00-12:00."),
+    "MatchRequestServiceGapTest": ("MRG", BATCH_E, "@DataJpaTest, empty H2 (no seeders), own data, rolled back; adds to the teammate's MatchRequestServiceTest. Alex 91234567, Ben 92345678, Chloe 93456789; no requests at the start."),
+    "MatchRequestServiceKnownBugTest": ("MRQ", BATCH_E, "@DataJpaTest, empty H2 (no seeders), own data, rolled back. @Disabled known-bug test: describes the desired behaviour."),
+    "StudyBuddyConnectionServiceGapTest": ("SBG", BATCH_E, "@DataJpaTest, empty H2 (no seeders), own data, rolled back; adds to the teammate's StudyBuddyConnectionServiceTest. Alex 91234567, Ben 92345678, Chloe 93456789; no connections at the start."),
     "GroupMembershipServiceTest": ("GMS", BATCH_B, "@DataJpaTest + GroupMembershipService + StudyGroupService, empty H2. Course IS442 taken by Alex, Ben, Chloe, Emily (Daniel takes nothing). Alex leads 'IS442 Revision', maximum size 4. Own data, rolled back."),
 }
 
@@ -633,6 +640,7 @@ CASES = {
         t("refusedPostsNeverReachTheService", "permission", "Refused POSTs never reach the service", "3 POSTs anonymous and as ADMIN (with CSRF)", "-", "/login and 403; no service call"),
     ],
     "MatchRequestControllerKnownBugTest": [
+        t("messageTheDatabaseRefusesShowsAnError", "negative", "Over-long match message should show an error", "Mock createRequest throws DataIntegrityViolationException; POST /match-requests", "message 'M' x 256", "DESIRED: redirect /match-requests with a flash error. TODAY: uncaught exception, 500 (confirmed when enabled)", notes="Added in Batch E. Only a hand-made POST can send it: the page's message box has maxlength 255."),
         t("shortMessagesThatReadAsFalseAreShown", "negative", "Messages 'no', 'false', 'off' should be shown", "Mock: received 'no' and 'Study IS442 together?', sent 'false' and 'off'; GET /match-requests", "-", "DESIRED: <p>no</p>, <p>false</p>, <p>off</p> on the page. TODAY: only the ordinary message is shown (th:if reads the three words as false; confirmed when enabled)"),
     ],
     "ContactNumberVisibilityTest": [
@@ -751,6 +759,48 @@ CASES = {
         t("preferencesAreOnlyForCoursesTheStudentTakes", "happy", "Preferences only for taken courses", "Every student's preferences", "seeded", "Each preference's course is in the student's courses", notes="Uses the seeded data (DataSeedersTest checks the seeders)."),
         t("contactNumbersAreEightDigitsAndUnique", "happy", "Contact numbers valid and unique", "Every student's contact number", "seeded", "8 digits each; no duplicates", notes="Uses the seeded data (DataSeedersTest checks the seeders)."),
         t("runningEverySeederAgainChangesNothing", "side-effect", "Running every seeder again adds nothing", "Run all 7 CommandLineRunner seeders again", "seeded", "Users, courses, preferences, slots, configs, groups, memberships, requests, connections unchanged", notes="Uses the seeded data (DataSeedersTest checks the seeders)."),
+    ],
+    # ================================ NEW (Batch E) ================================
+    "StudentProfileServiceGapTest": [
+        t("yearOfStudyBoundariesOnSignUp", "boundary", "Year of study 0/1/5/6 on sign-up", "createProfile with each year", "1, 5; 0, 6, -1", "1 and 5 saved; others 'Year of study must be between 1 and 5'; nothing saved"),
+        t("yearOfStudyBoundariesOnUpdate", "boundary", "Year of study boundaries on update", "updateProfile with 5, 1, then 0, 6", "-", "5 and 1 saved; 0 and 6 refused; nothing else changed"),
+        t("contactNumberMustBeEightDigitsOnSignUp", "boundary", "Contact number on sign-up", "createProfile with each number", "81234567; 1234567, 123456789, 1234567a, 1234-567, '', null", "8 digits saved; every other refused 'Contact number must be 8 digits'"),
+        t("contactNumberMustBeEightDigitsOnUpdate", "boundary", "Contact number on update", "updateProfile with each number", "7 and 9 digits, letters, null", "Refused; profile unchanged"),
+        t("contactNumberWithSpacesIsRefusedByTheService", "negative", "Contact number with spaces (service)", "updateProfile ' 91234567 '; createProfile '9123 4567'", "-", "Refused: the service doesn't strip (only the profile controller does)"),
+        t("blankDetailsAreRefusedOnSignUp", "negative", "Blank name, school or programme on sign-up", "createProfile with null, '' and spaces in each field", "-", "'Name, school and programme are required'; nothing saved"),
+        t("blankDetailsAreRefusedOnUpdate", "negative", "Blank name, school or programme on update", "updateProfile with null, '' and spaces in each field", "-", "Refused; profile unchanged"),
+        t("detailsAreStripped", "happy", "Details saved without surrounding spaces", "createProfile and updateProfile with padded values", "'  New Student ', ' SCIS ', ...", "Stored stripped; contact number saved as given"),
+        t("publicProfileHasNoContactNumberOrEmail", "side-effect", "Public profile has no contact number or email", "getPublicProfile(Alex)", "91234567, alex@test.com", "Fields: studentId, name, school, programme, yearOfStudy, courseCodes; text has neither number nor email"),
+        t("unknownStudentOrCourseIsNotFound", "negative", "Unknown student or course", "getPublicProfile(999999), getProfile / updateProfile as ghost, add / remove course 999999", "-", "StudentNotFoundException x3; CourseNotFoundException x2; courses unchanged"),
+        t("profileValueOver255CharactersFailsInDatabase", "boundary", "Profile name 255 / 256 at the database", "updateProfile name 'N' x 255, then x 256; flush", "-", "255 saved; 256 DataIntegrityViolationException"),
+    ],
+    "StudyPreferenceServiceGapTest": [
+        t("createRefusesEachMissingChoice", "negative", "Missing choice on create", "createPreference with null mode, arrangement, goal", "CS201", "'Choose a study mode, group size and study goal' x3; still only the IS442 preference"),
+        t("updateRefusesEachMissingChoiceAndKeepsTheOldOnes", "negative", "Missing choice on update", "updatePreference with null mode, arrangement, goal", "-", "Refused x3; Online, One-to-one, Concept review kept"),
+        t("createForUnknownCourseIsNotFound", "negative", "Preference for a missing course", "createPreference course 999999", "-", "CourseNotFoundException"),
+        t("anotherStudentCannotUpdateOrRemoveSlots", "permission", "Another student can't update or remove slots", "As Ben: updatePreference, removeAvailabilitySlot on Alex's preference", "-", "StudyPreferenceNotFoundException x2; nothing changed; Alex still can"),
+        t("touchingSlotsAndSameTimesOnAnotherDayAreAllowed", "boundary", "Touching slots and another day", "Add Mon 12-14, Mon 8-10, Tue 10-12 next to Mon 10-12", "-", "All accepted (4 slots)"),
+        t("oneMinuteOverlapIsRefused", "boundary", "One-minute overlap", "Add Mon 11:59-13:00 and Mon 09:00-10:01", "-", "'This slot overlaps one you already have on MONDAY'; still 1 slot"),
+        t("incompleteOrEmptySlotIsRefused", "negative", "Slot without day, start or end, or start = end", "addAvailabilitySlot with each", "-", "'A slot needs a day and must end after it starts' x4; still 1 slot"),
+        t("removingAnUnknownSlotIsRefused", "negative", "Remove a slot the preference doesn't have", "removeAvailabilitySlot(999999)", "-", "'This preference has no slot 999999'; still 1 slot"),
+    ],
+    "MatchRequestServiceGapTest": [
+        t("recipientCanSendBackAfterRejecting", "boundary", "Recipient can send back after rejecting", "Alex -> Ben; Ben rejects; Ben -> Alex", "-", "New PENDING request from Ben"),
+        t("newRequestAfterRejectionCanBeAccepted", "happy", "Request after a rejection can be accepted", "Alex -> Ben rejected; Alex -> Ben again; Ben accepts", "-", "Connected; Alex's sent list REJECTED and ACCEPTED"),
+        t("deactivatedSenderCanStillSend", "negative", "Deactivated sender (open session) can still send", "Alex deactivated; createRequest Alex -> Chloe", "-", "PENDING request saved"),
+        t("requestWithoutMessageIsSaved", "boundary", "Message is optional", "createRequest with null message", "-", "Saved; message null"),
+        t("messageOver255CharactersFailsInDatabase", "boundary", "Message 255 / 256 at the database", "createRequest with 'M' x 255, then x 256", "-", "255 saved; 256 DataIntegrityViolationException"),
+        t("requestSummariesNeverCarryAContactNumber", "side-effect", "Request summaries never carry a contact number", "Create, accept, list both ways, view by id", "91234567, 92345678", "Fields: requestId, sender, recipient, message, status, createdAt; no number in any summary"),
+        t("acceptedRequestStaysAfterTheConnectionEnds", "side-effect", "Accepted request stays after the connection ends", "Accept, then Ben ends the connection", "-", "Not connected; both lists still show ACCEPTED"),
+    ],
+    "MatchRequestServiceKnownBugTest": [
+        t("requestToDeactivatedStudentIsRefused", "negative", "Request to a deactivated student should be refused", "Ben deactivated; createRequest Alex -> Ben", "-", "DESIRED: an exception and no request saved. TODAY: the request is saved, no exception (confirmed when enabled)"),
+    ],
+    "StudyBuddyConnectionServiceGapTest": [
+        t("connectionsAreListedNewestFirst", "happy", "Buddies newest first", "Connect Alex-Ben, then (clock ticks) Chloe-Alex", "-", "Chloe, then Ben", notes="Creation times tick once a millisecond on the test machine; the test waits for a tick (no fixed sleep)."),
+        t("summaryCarriesOnlyTheBuddysNumber", "side-effect", "Summary carries only the buddy's number", "Alex and Ben connected; each one's summary", "91234567, 92345678", "Alex sees 92345678 and never his own; Ben sees 91234567"),
+        t("endingHidesTheConnectionFromBoth", "side-effect", "Ending hides the connection from both", "Alex ends the Ben connection (Chloe stays)", "-", "Ben has none; Alex has only Chloe; not connected either way"),
+        t("endingTwiceFails", "negative", "Ending twice fails", "End, then end again as Alex and as Ben", "-", "ConnectionNotFoundException x2"),
     ],
 }
 
@@ -1080,6 +1130,16 @@ MANUAL = [
       "Weights 1/0/0/0/0, Course first",
       "Step 3: 'Settings saved. New searches use them straight away.' and the Same course row shows 100% under Current share. Step 4: the summary says 'ranked by Course first matching.'; every card for one of Alex's courses (IS111, IS112, IS442, CS201) shows 100 / 100 and comes before every card showing 0 / 100; Chloe Lim and Daniel Ng (no preference for Alex's courses) show 0 / 100.",
       "Restart afterwards (or set the settings back) before other matching cases: the settings stay until the app stops.", BATCH_D),
+
+    # ================================ NEW (Batch E) ================================
+    m("MAN-44", "S7, REQ-1, K13", "conflict", "Duplicate-request messages show internal ids",
+      APP_PRE + " Seeded: Alex -> Daniel Ng and Chloe Lim -> Alex are pending requests.",
+      numbered(login("student@studybuddy.com"), "Open http://localhost:8080/matches, choose 'All my courses' in Course and click 'Search'.",
+               "On Daniel Ng's card click 'Send request'.",
+               "Go back to http://localhost:8080/matches, choose 'All my courses', click 'Search', and on Chloe Lim's card click 'Send request'."),
+      "Seeded data",
+      "Step 3: the Match requests page shows the error 'Student <n> already has a pending request to student <m>', with two internal id numbers (on a fresh start Alex is 2 and Daniel 5). Step 4: 'Student <m> has already sent you a request. Accept it instead of sending a new one' (Chloe's id, 4 on a fresh start). No new request is listed under 'Sent'.",
+      "K13 (c): the ids mean nothing to the student. The ids depend on seeding order; compare the wording, not the numbers.", BATCH_E),
 ]
 
 # --------------------------------------------------------------------------------------
@@ -1089,17 +1149,17 @@ GAPS = [
     ("K1", "Candidate bug (confirmed)", "Login is case-sensitive, but sign-up and the admin page lower-case emails.", "AuthService.java:27", "(b) Known-bug test, @Disabled", "AUK-01, MAN-28", "Confirmed failing when enabled (2026-10-24)."),
     ("K2", "Candidate bug", "Changing a logged-in student's email breaks their session (404s); deactivation and password reset don't end open sessions.", "AccountManagementService.java:120", "(a) Pin + manual case", "AMS (oldEmailNoLongerFindsStudentAfterUpdate), MAN-29", "Pinned."),
     ("K3", "Candidate bug", "Any DataIntegrityViolationException shows 'Another account already uses that email', including over-long fields.", "AuthController.java:61; AccountManagementController.java:64,85", "(a) Pin current message", "AMC (createAdminDatabaseRefusal..., updateEmailDatabaseRefusal...), AUC (registerDatabaseRefusal...)", "Pinned."),
-    ("K4", "Candidate bug (confirmed)", "Inputs over 255 characters reach the database: course code and name give a 500. Also match message and profile fields (planned, see PLAN-K4a/b). Study groups are NOT affected in the app: StudyGroupForm's @Size refuses a name over 255 or a description over 1000 with a message; only the service and entity accept them, and the database refuses them.", "CourseController.java:53,66; MatchRequestController.java:63; StudentProfileController.java:52; StudyGroupForm.java:31,34", "(b) controller known-bug tests; (a) service pin (courses and groups)", "CRK-01, CRK-02, CRS (courseCodeOver255...), SGS (nameOver255..., descriptionOver1000...), SGF (name/description limits), MAN-30", "Course controller tests confirmed failing when enabled. Group service limits pinned (Batch B). Profile and match-message parts planned for Batch C and E."),
+    ("K4", "Candidate bug (confirmed)", "Inputs over 255 characters reach the database and give a 500: course code and name, profile fields, match message. Study groups are NOT affected in the app (StudyGroupForm's @Size refuses a name over 255 or a description over 1000 with a message); the group service and entity accept them and the database refuses them.", "CourseController.java:53,66; StudentProfileController.java:52-64; MatchRequestController.java:63-75; StudyGroupForm.java:31,34", "(b) controller known-bug tests; (a) service pins", "CRK-01, CRK-02, SPK-01, MRK-02, CRS (courseCodeOver255...), SGS (nameOver255..., descriptionOver1000...), SPG (profileValueOver255...), MRG (messageOver255...), MAN-30, MAN-40", "Controller tests confirmed failing when enabled (courses Batch A, profile Batch C, match message Batch E). Service limits pinned."),
     ("K5", "Candidate bug", "Duplicate course codes allowed; CourseService has no @Transactional.", "CourseService.java:20; Course.java:21", "(c) List only", "-", "Listed."),
-    ("K6", "Candidate bug", "A match request can be sent to a deactivated student by direct POST.", "MatchRequestService.java:79", "(b) Known-bug test in Batch E", "-", "Batch E."),
+    ("K6", "Candidate bug (confirmed)", "A match request can be sent to a deactivated student (the matches page hides inactive students, but a direct POST still sends one).", "MatchRequestService.java:77-110", "(b) Known-bug test, @Disabled", "MRQ-01", "Confirmed failing when enabled (2026-10-24): the request is saved."),
     ("K7", "Not implemented", "getPublicProfile and getRequestById have no route; no profile page (S6 partial).", "StudentProfileService.java:66; MatchRequestService.java:115", "Not decided (outside Batch A)", "MAN-07", "Open."),
     ("K8", "Candidate bug (team decision)", "A student can drop a course while leading or in a group for it; creating or joining a group doesn't require taking the course. requirements.md L1 records 'Leader need not take the course' as current behaviour.", "StudentProfileService.java:113; StudyGroupService.java:68; StudyGroup.java:446", "(a) Pin all three (agreed 2026-10-24)", "SGS (createGroupDoesNotRequireTakingTheCourse, leaderCanDropTheCourseAndStillLeadTheGroup), GMS (joiningDoesNotRequireTakingTheCourse), SPS (addAndRemoveCourse), MAN-38", "Pinned. If the team decides it is a bug, add a StudyGroupServiceKnownBugTest."),
-    ("K9", "Candidate bug", "Preference slots are looser than group slots (any times, no maximum).", "StudyPreferenceService.java:93", "(c) List only (Batch E)", "-", "Listed."),
-    ("K10", "Candidate bug", "/register doesn't strip spaces from the contact number; profile update does.", "AuthController.java:57", "(a) Pin", "AUC (contactNumberIsPassedOnAsTyped)", "Pinned."),
+    ("K9", "Candidate bug", "Preference slots are looser than group slots: any times (not just 08:00-23:00 in 15-minute steps; the page's dropdowns hide this) and any number of slots (groups: 1-3).", "StudyPreferenceService.java:93-104", "(c) List only (agreed 2026-10-24)", "-", "Listed."),
+    ("K10", "Candidate bug", "/register doesn't strip spaces from the contact number; profile update does (in the controller). The service itself never strips it, so ' 91234567 ' is refused there.", "AuthController.java:57; StudentProfileService.java:80,93", "(a) Pin", "AUC (contactNumberIsPassedOnAsTyped), SPG (contactNumberWithSpacesIsRefusedByTheService)", "Pinned (controller and service)."),
     ("K11", "Candidate bug", "A non-numeric year of study gives a raw 400.", "AuthController.java:53; StudentProfileController.java:54", "(a) Pin", "AUC (nonNumericYearOfStudyIsBadRequest), SPC (nonNumericYearOfStudyIsBadRequest)", "Pinned (sign-up and profile)."),
     ("K12", "Candidate bug (confirmed)", "th:if=\"${req.message}\" hides a message that is just 'no', 'false' or 'off' (Thymeleaf reads them as false). Separately, an empty message is stored as '' and shows as an empty paragraph.", "match-requests.html:26,52", "(b) Known-bug test for the hidden words; (c) list only for the empty message", "MRK-01, MAN-41", "Hidden words confirmed failing when enabled (2026-10-24): an ordinary message renders, the three words don't. Empty message listed."),
-    ("K13", "Candidate bug", "The duplicate-request error shows internal student ids.", "DuplicateMatchRequestException.java:24", "(c) List only (Batch E)", "-", "Listed."),
-    ("K14", "Candidate bug", "No database constraint for one pending request or one connection per pair (race).", "MatchRequestService.java:90-104; StudyBuddyConnectionService.java:46", "(c) List only (Batch E)", "-", "Listed."),
+    ("K13", "Candidate bug", "The duplicate-request errors show internal student ids: 'Student 2 already has a pending request to student 5', 'Student 4 has already sent you a request. Accept it instead of sending a new one'.", "DuplicateMatchRequestException.java:24-34", "(c) List only (agreed 2026-10-24)", "MAN-44", "Listed."),
+    ("K14", "Candidate bug", "No database constraint for one pending request or one connection per pair (two requests at the same moment could both pass the checks).", "MatchRequestService.java:90-104; StudyBuddyConnectionService.java:46-50; StudyBuddyConnection.java:15", "(c) List only (agreed 2026-10-24)", "-", "Listed."),
     ("K15", "Candidate bug", "H2 console open to everyone with CSRF off and frame options off (its own filter chain, permitAll).", "SecurityConfig.java:26-35; application.properties:15", "(a) Pin (SEC-3) + deployment note GAP-DEP1", "SCM (h2ConsoleIsOpenWithoutLoginOrCsrf, h2ConsoleRelaxesFrameOptionsOnlyForItself), MAN-39", "Pinned."),
     ("K16", "Candidate bug", "No @ControllerAdvice or custom error pages: an exception a controller doesn't catch becomes a bare 404 (StudentNotFoundException has @ResponseStatus) or 500.", "-", "(a) Pin representative 404s; (c) list 'no custom pages'", "SPC, MTC (missingStudentAccountIsNotFound), MAN-26", "Pinned / listed."),
     ("K17", "Candidate bug (confirmed)", "/matches lists students who are already study buddies (Send request then only gives 'You're already study buddies...'), and students with a pending request either way. Belongs to MatchingService.findMatches, which builds the list (docs/decisions.md 'Not done yet' plans the check there).", "MatchingService.java:81-107", "(b) Two known-bug tests", "MSK-01, MSK-02, MAN-42", "Both confirmed failing when enabled (2026-10-24): Ben (buddy) and Ben/Chloe (pending) are listed."),
@@ -1117,7 +1177,7 @@ GAPS = [
     ("GAP-NR4", "Behaviour with no requirement", "'Groups led' in the usage figures includes closed groups.", "AccountStatus.java:49", "List only", "-", "Listed."),
     ("GAP-OPEN1", "Open question", "The match-message and profile-field parts of K4 aren't assigned to a batch yet.", "-", "Decided: PLAN-K4a (Batch C), PLAN-K4b (Batch E)", "-", "Closed (2026-10-24)."),
     ("PLAN-K4a", "Built (Batch C)", "K4 on the profile fields: StudentProfileControllerKnownBugTest, @Disabled('KNOWN BUG K4: ...'). Profile values over 255 characters should show a message on the profile page, not a 500.", "StudentProfileController.java:52-64", "(b) Known-bug test, @Disabled", "SPK-01, MAN-40", "Built; confirmed failing when enabled (2026-10-24)."),
-    ("PLAN-K4b", "Planned test (Batch E)", "K4 on the match-request message: new MatchRequestControllerKnownBugTest, @Disabled('KNOWN BUG K4: ...'). A message over 255 characters should show an error, not a 500.", "MatchRequestController.java:63", "(b) Known-bug test, @Disabled", "-", "Planned, not built."),
+    ("PLAN-K4b", "Built (Batch E)", "K4 on the match-request message: MatchRequestControllerKnownBugTest.messageTheDatabaseRefusesShowsAnError, @Disabled('KNOWN BUG K4: ...'). A message over 255 characters should show an error, not a 500.", "MatchRequestController.java:63-75", "(b) Known-bug test, @Disabled; (a) service pin", "MRK-02, MRG (messageOver255CharactersFailsInDatabase)", "Built; confirmed failing when enabled (2026-10-24)."),
     # ---- Batch B (study groups) ----
     ("N-B1", "New finding", "The service and entity accept a null study goal or study mode (saved as null); a null maximum size gives a NullPointerException and a null course id a Spring data exception. Only StudyGroupForm's @NotNull stops them (the service expects an already validated form).", "StudyGroupService.java:68-76; StudyGroup.java:413", "(c) List only (agreed: don't pin NPE or Spring data exceptions)", "SGF (courseGoalAndModeAreRequired, sizeIsRequiredAndAtLeastTwo) cover the form side", "Listed."),
     ("N-B2", "New finding", "Check order: the leader asking to join their own FULL group gets 'Group is full' (not 'The leader is already in the group'); accepting an already accepted member of a full group says 'Group is full...' (not 'already answered').", "StudyGroup.java:447-453, 477-483", "(c) List only", "-", "Listed."),
@@ -1151,6 +1211,11 @@ GAPS = [
     ("N-D4", "New finding", "Searching a course the student has no preference for returns no matches and no hint why (the course list only offers courses with a preference, so only by editing the address).", "MatchingService.java:83-85,111-116", "(a) Pin", "MSF (courseWithoutOwnPreferenceFindsNobody)", "Pinned."),
     ("N-D5", "New finding", "Every search loads every study preference in the database (findAll) and scores it.", "MatchingService.java:91", "(c) List only", "-", "Listed."),
     ("N-D6", "New finding", "Every seeded account shares one password, kept in plain text in application.properties (studybuddy.seed.password); development only.", "application.properties:24; AdminDataSeeder.java; StudentDataSeeder.java", "(c) List only", "DSD (seededPasswordsAreBcryptHashesOfTheSeedPassword)", "Listed."),
+    # ---- Batch E (profile, preferences, requests, connections) ----
+    ("N-E1", "New finding", "A deactivated student who is still logged in (open sessions aren't ended, ACC-6 / K2) can still send match requests, and accept them.", "MatchRequestService.java:77-110,162", "(a) Pin the send case", "MRG (deactivatedSenderCanStillSend)", "Pinned."),
+    ("N-E2", "New finding", "Match messages aren't trimmed; a message of only spaces is stored and shows as an empty line.", "MatchRequestService.java:106; match-requests.html:26", "(c) List only", "-", "Listed."),
+    ("N-E3", "New finding", "Accepting a request from a sender who was deactivated in the meantime still connects the two students.", "MatchRequestService.java:162-186", "(c) List only", "-", "Listed."),
+    ("N-E4", "New finding", "The matches page limits the match message to 255 characters (maxlength), so K4 there needs a hand-made POST; the profile fields have no limit, so K4 on the profile happens in a normal browser (MAN-40).", "matches.html:116; profile.html:28-32", "(c) List only", "MRK-02, SPK-01", "Listed."),
     ("GAP-NI1", "Not implemented (no requirement)", "A member can't leave a group, a student can't withdraw a pending join request, and a group can't be deleted.", "GroupMembershipService.java", "List only", "-", "Listed."),
 ]
 
@@ -1237,7 +1302,8 @@ def parse_reports(sources):
 
 MANUAL_STATUSES = ["Not run", "Pass", "Fail"]
 WRITTEN_BY = {"Existing": "Existing (teammates)", "New": "New (Batch A)", BATCH_B: "New (Batch B)",
-              BATCH_C: "New (Batch C)", BATCH_D: "New (Batch D)"}
+              BATCH_C: "New (Batch C)", BATCH_D: "New (Batch D)",
+              BATCH_E: "New (Batch E)"}
 RESULT_COLUMNS = {"status": "Status", "tester": "Tester", "date": "Date", "actual": "Actual result"}
 
 
