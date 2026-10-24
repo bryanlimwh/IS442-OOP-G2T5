@@ -36,11 +36,14 @@ BASELINES = [
     ("Baseline before Batch A (2026-10-23)", {"run": 99, "passed": 99, "failed": 0, "errors": 0, "skipped": 0}),
     ("Baseline before Batch B (2026-10-24)", {"run": 207, "passed": 204, "failed": 0, "errors": 0, "skipped": 3}),
     ("Baseline before Batch C (2026-10-24)", {"run": 294, "passed": 291, "failed": 0, "errors": 0, "skipped": 3}),
+    ("Baseline before Batch D (2026-10-24)", {"run": 593, "passed": 588, "failed": 0, "errors": 0, "skipped": 5}),
 ]
 BATCH_B = "Batch B"
 BATCH_C = "Batch C"
+BATCH_D = "Batch D"
 
-ID_PATTERN = re.compile(r"\b(?:[SLAD]\d+|ACC-\d+|CRS-\d+|PRF-\d+|PRE-\d+|REQ-\d+|GRP-\d+|MAT-\d+|SEC-\d+|K\d+)\b")
+# Not after a letter, digit or "-", so finding ids such as N-D1 aren't read as requirement D1
+ID_PATTERN = re.compile(r"(?<![\w-])(?:[SLAD]\d+|ACC-\d+|CRS-\d+|PRF-\d+|PRE-\d+|REQ-\d+|GRP-\d+|MAT-\d+|SEC-\d+|K\d+)\b")
 TYPES = ["happy", "negative", "boundary", "permission", "conflict", "side-effect"]
 
 # --------------------------------------------------------------------------------------
@@ -107,10 +110,8 @@ REQUIREMENTS = [
 
 # Where uncovered items are scheduled
 PLANNED = {
-    "D1": "Batch D",
-    "S6": "Gap K7 (no profile page)", "MAT-4": "Batch D (more bounds)", "S5": "Batch D (mode, group size)",
+    "S6": "Gap K7 (no profile page)",
     "PRF-1": "Batch E (boundaries)", "PRE-1": "Batch E", "PRE-2": "Batch E", "REQ-4": "Batch E (negative)",
-    "A3": "Batch D (MatchingConfigService)", "MAT-1": "Batch D (MatchingConfigService)",
     "ACC-8": "Fix K1, then remove @Disabled from AUK-01",
 }
 
@@ -164,6 +165,15 @@ CLASSES = {
     "HtmlEscapingTest": ("ESC", BATCH_C, "@WebMvcTest with the real SecurityConfig and real templates (Thymeleaf renders the page) for /match-requests, /groups/{id} and /student/profile; services mocked. Typed text contains <script>alert(1)</script>."),
     "StudyGroupControllerTest": ("SGC", BATCH_C, "@WebMvcTest with the real SecurityConfig and real templates (Thymeleaf renders the page); StudyGroupService, GroupMembershipService, CourseService mocked; real StudyGroupFormValidator and settings (3 slots, 08:00-23:00, NEWEST). STUDENT alex@test.com leads group 1 'IS442 Revision' (size 4; Alex, Ben, Chloe)."),
     "GroupMembershipControllerTest": ("GMC", BATCH_C, "@WebMvcTest with the real SecurityConfig and real templates (Thymeleaf renders the page); GroupMembershipService and StudyGroupService mocked. STUDENT alex@test.com leads group 1 (size 4): Chloe Lim member (membership 12), Farhan Ismail waiting (13)."),
+    # New (Batch D)
+    "MatchSearchTest": ("MSE", BATCH_D, "Plain unit test. Theirs: IS442, In person, One-to-one, Exam preparation; the breakdown only matters for shared time."),
+    "ScoreBreakdownTest": ("SBD", BATCH_D, "Plain unit test. Breakdown: course 1, availability 0.5, mode 0.8, goal 0, group size 1."),
+    "CompatibilityCalculatorBoundaryTest": ("CCB", BATCH_D, "Plain unit test; adds boundaries to the teammate's CompatibilityCalculatorTest. IS442, Exam preparation, One-to-one unless stated; target 120 minutes."),
+    "MatchingStrategyComponentsTest": ("MSC", BATCH_D, "Plain unit test, no database and no Spring context: strategy classes found by scanning com.studybuddy; MatchingService built by hand with mocked repositories."),
+    "MatchingConfigServiceTest": ("MCS", BATCH_D, "@DataJpaTest, empty H2 (no seeders), own data, rolled back. Saved settings: Balanced, every weight 20, 120 minutes (no row unless the test saves one)."),
+    "MatchingServiceFixtureTest": ("MSF", BATCH_D, "@DataJpaTest, empty H2 (no seeders), own data, rolled back (unlike the teammate's seeded MatchingServiceTest). Settings Balanced, weights 20, 120 min. Alex (IS442, In person, Either, Exam, Mon 10-14) vs Amy (IS442, Mon 10-11: 90), Ben (CS201, Mon 10-14: 80), Cal (IS442, Online, Problem solving, Mon 10-13: 60)."),
+    "MatchingServiceKnownBugTest": ("MSK", BATCH_D, "@DataJpaTest, empty H2 (no seeders), own data, rolled back. Alex searches; Ben, Chloe and Dan all have an IS442 preference like Alex's. @Disabled known-bug tests: describe the desired behaviour."),
+    "DataSeedersTest": ("DSD", BATCH_D, "@SpringBootTest @Transactional on the SEEDED data: every seeder runs once at startup; each test is rolled back. Only rules that hold whatever the seed details are, plus one labelled pin of today's sizes."),
     "GroupMembershipServiceTest": ("GMS", BATCH_B, "@DataJpaTest + GroupMembershipService + StudyGroupService, empty H2. Course IS442 taken by Alex, Ben, Chloe, Emily (Daniel takes nothing). Alex leads 'IS442 Revision', maximum size 4. Own data, rolled back."),
 }
 
@@ -672,6 +682,76 @@ CASES = {
         t("emailParameterIsIgnored", "permission", "An 'email' field can't act for another student", "Join, remove from My groups, accept, remove with email=ben@test.com", "-", "Service always gets alex@test.com"),
         t("refusedRequestsNeverReachTheService", "permission", "Refused requests never reach the service", "GET members and 5 POSTs anonymous, as ADMIN, without CSRF", "-", "/login, 403, 403; no service call"),
     ],
+    # ================================ NEW (Batch D) ================================
+    "MatchSearchTest": [
+        t("emptySearchAcceptsEveryone", "happy", "Empty search keeps everyone", "MatchSearch(null x5)", "-", "sharedTimeOnly false; accepts with 0 shared minutes; includesMine any course"),
+        t("courseFilterKeepsThatCourseOnly", "happy", "Course filter", "accepts with courseId 1 / 2", "theirs IS442 (id 1)", "1 accepted; 2 refused"),
+        t("courseFilterPicksTheSearchersPreferenceForIt", "happy", "Course filter picks the searcher's own preference", "includesMine with courseId 1", "IS442, CS201", "IS442 included; CS201 not"),
+        t("goalFilterKeepsThatGoalOnly", "happy", "Goal filter", "accepts with EXAM_PREPARATION / CONCEPT_REVIEW", "-", "Same goal accepted; other refused"),
+        t("studyModeFilterKeepsThatModeAndEither", "boundary", "Study mode filter and EITHER", "IN_PERSON / ONLINE filters on IN_PERSON and EITHER students", "-", "Same mode accepted; other refused; an EITHER student passes both"),
+        t("groupSizeFilterKeepsThatSizeAndEither", "boundary", "Group size filter and EITHER", "ONE_TO_ONE / SMALL_GROUP filters", "-", "Same size accepted; other refused; an EITHER student passes"),
+        t("eitherFilterKeepsEveryone", "boundary", "An EITHER filter keeps everyone", "studyMode EITHER, groupSize EITHER", "-", "Everyone accepted"),
+        t("sharedTimeFilterNeedsAtLeastOneMinute", "boundary", "Shared time 0 / 1 minute", "sharedTimeOnly true and false", "0, 1 shared minutes", "true: 0 refused, 1 accepted; false: 0 accepted"),
+        t("combinedFiltersMustAllPass", "negative", "All filters must pass", "All five filters set", "-", "Matching student accepted; no shared time, other goal, other course each refused"),
+    ],
+    "ScoreBreakdownTest": [
+        t("equalWeightsGiveTheAverage", "happy", "Equal weights give the average", "weightedScore with all weights 20", "1, .5, .8, 0, 1", "66"),
+        t("onlyOneWeightOnMeansOnlyThatCriterionCounts", "boundary", "One weight above 0", "weights 0/1/0/0/0, 0/0/0/7/0, 5/0/0/0/0", "-", "50, 0, 100"),
+        t("weightsAreRelative", "happy", "Weights are relative", "weights 3/1/0/0/0 and 30/10/0/0/0", "-", "Both 87.5"),
+        t("sharedTimeLabelReadsAsHoursAndMinutes", "boundary", "Shared time label", "sharedTimeLabel()", "0, 45, 60, 90, 240 minutes", "None, 45m, 1h, 1h 30m, 4h"),
+    ],
+    "CompatibilityCalculatorBoundaryTest": [
+        t("eitherScoreBelowZeroIsRefused", "negative", "Either score -0.1 refused", "new CompatibilityCalculator(-0.1)", "-0.1", "IllegalArgumentException 'studybuddy.matching.either-preference-score must be between 0 and 1, was -0.1'"),
+        t("eitherScoreOfZeroOrOneIsAllowedAndUsed", "boundary", "Either score 0 and 1", "Score IN_PERSON/ONE_TO_ONE vs EITHER/EITHER with 0 and with 1", "0, 1", "Mode and group size 0, then 1.0"),
+        t("availabilityAroundTheTargetSession", "boundary", "Shared time 119 / 120 / 121 minutes", "Mon 10:00-11:59 / 12:00 / 12:01 vs Mon 10:00-14:00", "target 120", "119/120; 1.0; 1.0 (capped)"),
+        t("oneMinuteTargetGivesFullMarksForAnyOverlap", "boundary", "One-minute target", "1 shared minute, target 1", "-", "sharedMinutes 1, availability 1.0"),
+        t("noSlotsShareNoTime", "boundary", "No slots", "No slots on one side, the other, both", "-", "sharedMinutes 0, availability 0; course and goal still 1.0"),
+        t("eitherOnBothSidesIsAFullMatchEvenWithZeroEitherScore", "boundary", "EITHER vs EITHER is a full match", "Either score 0; EITHER vs EITHER", "-", "Mode and group size 1.0"),
+    ],
+    "MatchingStrategyComponentsTest": [
+        t("everyStrategyTypeHasExactlyOneComponent", "happy", "Each strategy type has exactly one component", "Scan com.studybuddy for MatchingStrategy @Components", "-", "BALANCED, AVAILABILITY_FIRST, COURSE_FIRST each map to exactly one class"),
+        t("matchingServiceStartsWithAllStrategies", "happy", "MatchingService starts with all strategies", "new MatchingService(..., the scanned strategies)", "-", "No error"),
+        t("matchingServiceRefusesToStartWithAMissingStrategy", "negative", "A missing strategy stops startup", "new MatchingService without CourseFirst", "-", "IllegalStateException 'No MatchingStrategy implementation for COURSE_FIRST'"),
+    ],
+    "MatchingConfigServiceTest": [
+        t("getCurrentReturnsTheSavedSettings", "happy", "Current settings", "Save defaults; getCurrent", "-", "The saved row: Balanced, total weight 100, 120 minutes"),
+        t("getCurrentWithoutSettingsFails", "negative", "No settings row", "getCurrent on an empty table", "-", "IllegalStateException 'No matching config found; MatchingConfigDataSeeder should create it at startup'"),
+        t("severalRowsUseTheFirstOne", "boundary", "Two rows: the first is used", "Save defaults, then a Course first row", "-", "getCurrent returns the first (Balanced)"),
+        t("updateSavesTheNewSettings", "happy", "Update the settings", "update(AVAILABILITY_FIRST, 0/3/1/0/2, 90); flushAndClear", "-", "Every value saved; still one row"),
+        t("refusedUpdatesChangeNothing", "negative", "Each refusal leaves the settings unchanged", "update with null strategy, weight -1, all 0, session 0 and -30", "-", "InvalidMatchingConfigException: 'Choose a matching strategy.', 'Weights can't be negative.', 'At least one criterion needs a weight above 0.', 'The study session length must be at least 1 minute.' x2; saved row still Balanced / 20s / 120"),
+        t("smallestValidSettingsAreAccepted", "boundary", "Smallest valid settings", "update with one weight 1 and 1 minute", "0/0/0/1/0, 1", "Saved: total weight 1, 1 minute"),
+        t("updateWithoutSettingsFails", "negative", "Update with no settings row", "update on an empty table", "-", "IllegalStateException; still no row"),
+    ],
+    "MatchingServiceFixtureTest": [
+        t("balancedRanksByScore", "happy", "Balanced ranks by score", "findMatches(Alex, no filters)", "-", "Amy 90, Ben 80, Cal 60; Ben course 0, 240 shared minutes"),
+        t("eachStrategyOrdersTheSameResultsDifferently", "happy", "The admin's strategy decides the order on the next search", "Set Availability first, search; set Course first, search", "-", "Ben, Cal, Amy; then Amy, Cal, Ben; scores unchanged"),
+        t("weightsChangeTheScoresOnTheNextSearch", "happy", "Weights change the scores on the next search", "Only availability weight; only course weight", "0/1/0/0/0, 1/0/0/0/0", "Ben 100, Cal 100, Amy 50; then Ben 0, Amy 100"),
+        t("courseSearchLeavesOutOtherCourses", "happy", "Course search leaves out other courses", "Search IS442", "-", "Amy, Cal; all IS442"),
+        t("courseWithoutOwnPreferenceFindsNobody", "boundary", "Course the searcher has no preference for", "Search CS201 (Alex has none)", "-", "Empty, although Ben wants CS201"),
+        t("filtersNarrowTheResults", "happy", "Filters through the service", "Dan (Mon 18-20) added; goal, shared time, mode filters", "-", "Exam goal: Amy, Ben, Dan; shared time: Amy, Ben, Cal; Online: Cal"),
+        t("studentWithSeveralPreferencesIsListedOnceThroughTheBest", "side-effect", "Several preferences: listed once, through the best", "Dana: weak IS442 (40) and strong CS201 (80)", "-", "Dana once, through CS201, 80"),
+        t("bestResultFollowsTheActiveStrategy", "boundary", "'Best' follows the active strategy", "Erin: IS442 (90, 60 min) and CS201 (40, 240 min); Balanced, then Availability first", "-", "Balanced: IS442; Availability first: CS201 (40)"),
+        t("searcherAndInactiveStudentsAreLeftOut", "side-effect", "Searcher and inactive students left out", "Deactivate Amy; search", "-", "Ben, Cal; never Alex"),
+        t("studentWithNoPreferencesGetsNoMatches", "boundary", "Student with no preferences", "Zoe (no preferences) searches", "-", "No matches; no own preferences"),
+        t("unknownEmailOrAdminIsNotFound", "negative", "Unknown email or an admin", "findMatches / getPreferences as ghost@test.com; findMatches as an admin", "-", "StudentNotFoundException each time"),
+        t("ownPreferencesAreListedByCourseCode", "happy", "Own preferences by course code", "Alex adds a CS201 preference; getPreferences", "-", "CS201, IS442"),
+        t("newPreferenceIsMatchedOnTheNextSearch", "happy", "A new preference is matched on the next search", "Fay (no preference) not listed; she adds an IS442 preference and slot like Alex's", "-", "Fay first with 100", notes="Own-data replacement for the teammate's seeded StudyPreferenceServiceTest.newPreferenceShowsUpInMatching (K19)."),
+    ],
+    "MatchingServiceKnownBugTest": [
+        t("connectedBuddyIsNotListed", "negative", "A connected buddy should not be listed", "Alex and Ben connected; Alex searches", "-", "DESIRED: Chloe and Dan, not Ben. TODAY: Ben, Chloe and Dan (confirmed when enabled)"),
+        t("studentWithPendingRequestEitherWayIsNotListed", "negative", "A student with a pending request either way should not be listed", "Alex -> Ben and Chloe -> Alex pending; Alex searches", "-", "DESIRED: Dan only. TODAY: Ben, Chloe and Dan (confirmed when enabled)", notes="Planned in docs/decisions.md ('Not done yet')."),
+    ],
+    "DataSeedersTest": [
+        t("atLeastTenCoursesAndFiftyStudentsAreSeeded", "happy", "At least 10 courses and 50 students", "Count after startup", "seeded", ">= 10 courses, >= 50 students", notes="Uses the seeded data (DataSeedersTest checks the seeders)."),
+        t("exactSeedSizes", "boundary", "Today's seed sizes (pin)", "Count after startup", "seeded", "Exactly 10 courses, 50 students, 1 admin", notes="Uses the seeded data (DataSeedersTest checks the seeders). A pin of today's seed data, not a rule: update the numbers if the seed data changes."),
+        t("emailsAndCourseCodesAreUnique", "happy", "Emails and course codes unique", "All users and courses", "seeded", "No duplicates", notes="Uses the seeded data (DataSeedersTest checks the seeders)."),
+        t("seededPasswordsAreBcryptHashesOfTheSeedPassword", "side-effect", "Seeded passwords are BCrypt hashes", "Every user's passwordHash", "studybuddy.seed.password", "Never the password itself; BCrypt format; each distinct hash matches the seed password", notes="Uses the seeded data (DataSeedersTest checks the seeders)."),
+        t("oneActiveAdminIsSeeded", "happy", "One active admin", "All admins", "seeded", "Exactly admin@studybuddy.com, active", notes="Uses the seeded data (DataSeedersTest checks the seeders)."),
+        t("matchingConfigRowEqualsTheDefaults", "happy", "Matching settings equal the defaults", "All MatchingConfig rows vs the MatchingDefaults bean", "application.properties", "One row; strategy, five weights and minutes equal the defaults", notes="Uses the seeded data (DataSeedersTest checks the seeders)."),
+        t("preferencesAreOnlyForCoursesTheStudentTakes", "happy", "Preferences only for taken courses", "Every student's preferences", "seeded", "Each preference's course is in the student's courses", notes="Uses the seeded data (DataSeedersTest checks the seeders)."),
+        t("contactNumbersAreEightDigitsAndUnique", "happy", "Contact numbers valid and unique", "Every student's contact number", "seeded", "8 digits each; no duplicates", notes="Uses the seeded data (DataSeedersTest checks the seeders)."),
+        t("runningEverySeederAgainChangesNothing", "side-effect", "Running every seeder again adds nothing", "Run all 7 CommandLineRunner seeders again", "seeded", "Users, courses, preferences, slots, configs, groups, memberships, requests, connections unchanged", notes="Uses the seeded data (DataSeedersTest checks the seeders)."),
+    ],
 }
 
 # --------------------------------------------------------------------------------------
@@ -983,6 +1063,23 @@ MANUAL = [
       "Message 'no'",
       "DESIRED: under 'Sent' the new request shows the message 'no'. TODAY: 'Request sent.' and the request is listed as PENDING with no message line at all (K12). The same happens for 'false' and 'off'.",
       "Known bug K12; matches MatchRequestControllerKnownBugTest. Compare MAN-08, where a normal message is shown.", BATCH_C),
+
+    # ================================ NEW (Batch D) ================================
+    m("MAN-42", "S3, S7, K17", "negative", "Matches still list buddies and pending requests (known bug)",
+      APP_PRE + " Seeded: Ben Koh is already Alex's study buddy; Chloe Lim -> Alex and Alex -> Daniel Ng are pending requests.",
+      numbered(login("student@studybuddy.com"), "Open http://localhost:8080/matches, choose IS442 in Course and click 'Search'.",
+               "On Ben Koh's card click 'Send request'.",
+               "Open http://localhost:8080/matches, choose 'All my courses' in Course and click 'Search'. Press Ctrl+F and search for Chloe Lim, then Daniel Ng."),
+      "Seeded data",
+      "DESIRED: Ben Koh, Chloe Lim and Daniel Ng are not listed. TODAY: step 2 lists Ben Koh first (92 / 100); step 3 shows the error 'You're already study buddies. Find them under Study buddies.'; step 4 finds cards for Chloe Lim and Daniel Ng (K17).",
+      "Known bug K17; matches MatchingServiceKnownBugTest (connected buddy; pending request either way, planned in docs/decisions.md).", BATCH_D),
+    m("MAN-43", "A3, A4, D2, MAT-2", "happy", "Course first with only the course weight", APP_PRE,
+      numbered(login("admin@studybuddy.com"), "Open http://localhost:8080/admin/matching.",
+               "Choose 'Course first'. Set Same course 1, Shared free time 0, Study mode (in person / online) 0, Study goal 0, Group size (one-to-one / small group) 0. Click 'Save settings'.",
+               LOGOUT + " " + login("student@studybuddy.com") + " Open http://localhost:8080/matches, choose 'All my courses' in Course and click 'Search'."),
+      "Weights 1/0/0/0/0, Course first",
+      "Step 3: 'Settings saved. New searches use them straight away.' and the Same course row shows 100% under Current share. Step 4: the summary says 'ranked by Course first matching.'; every card for one of Alex's courses (IS111, IS112, IS442, CS201) shows 100 / 100 and comes before every card showing 0 / 100; Chloe Lim and Daniel Ng (no preference for Alex's courses) show 0 / 100.",
+      "Restart afterwards (or set the settings back) before other matching cases: the settings stay until the app stops.", BATCH_D),
 ]
 
 # --------------------------------------------------------------------------------------
@@ -1005,9 +1102,9 @@ GAPS = [
     ("K14", "Candidate bug", "No database constraint for one pending request or one connection per pair (race).", "MatchRequestService.java:90-104; StudyBuddyConnectionService.java:46", "(c) List only (Batch E)", "-", "Listed."),
     ("K15", "Candidate bug", "H2 console open to everyone with CSRF off and frame options off (its own filter chain, permitAll).", "SecurityConfig.java:26-35; application.properties:15", "(a) Pin (SEC-3) + deployment note GAP-DEP1", "SCM (h2ConsoleIsOpenWithoutLoginOrCsrf, h2ConsoleRelaxesFrameOptionsOnlyForItself), MAN-39", "Pinned."),
     ("K16", "Candidate bug", "No @ControllerAdvice or custom error pages: an exception a controller doesn't catch becomes a bare 404 (StudentNotFoundException has @ResponseStatus) or 500.", "-", "(a) Pin representative 404s; (c) list 'no custom pages'", "SPC, MTC (missingStudentAccountIsNotFound), MAN-26", "Pinned / listed."),
-    ("K17", "Candidate bug", "/matches still lists existing buddies.", "MatchingService.java:91", "(c) here; MatchingService is tested in Batch D", "-", "Open (Batch D)."),
+    ("K17", "Candidate bug (confirmed)", "/matches lists students who are already study buddies (Send request then only gives 'You're already study buddies...'), and students with a pending request either way. Belongs to MatchingService.findMatches, which builds the list (docs/decisions.md 'Not done yet' plans the check there).", "MatchingService.java:81-107", "(b) Two known-bug tests", "MSK-01, MSK-02, MAN-42", "Both confirmed failing when enabled (2026-10-24): Ben (buddy) and Ben/Chloe (pending) are listed."),
     ("K18", "Test risk", "Open-session-in-view is relied on; non-transactional tests can hit LazyInitializationException.", "-", "Handled: every new service test is transactional (@DataJpaTest); entity, form and validator tests use no session", "SGS, GMS", "Mitigated (Batch A and B)."),
-    ("K19", "Test risk", "StudyPreferenceServiceTest.newPreferenceShowsUpInMatching depends on seeded random data.", "StudyPreferenceServiceTest.java:160", "(c) List only (teammate file is read-only)", "SPF (newPreferenceShowsUpInMatching)", "Listed."),
+    ("K19", "Test risk", "StudyPreferenceServiceTest.newPreferenceShowsUpInMatching depends on seeded random data (Ben must come first among random CS201 students).", "StudyPreferenceServiceTest.java:150-161", "(c) List only (teammate file is read-only) + own-data replacement test", "SPF (newPreferenceShowsUpInMatching), MSF (newPreferenceIsMatchedOnTheNextSearch)", "Listed; behaviour now also covered without seeded data."),
     ("N1", "New finding", "Password limit is 72 BYTES, but the message says 'Passwords can be at most 72 characters.' 25 x '€' (25 characters) is refused.", "AccountCredentials.java:58-59", "(a) Byte behaviour tested; message mismatch listed", "CRD (multibytePasswordIsLimitedByBytes)", "Listed."),
     ("N2", "New finding", "The 8-character minimum counts UTF-16 units: 4 emoji pass.", "AccountCredentials.java:51", "(c) List only", "-", "Listed."),
     ("N3", "New finding", "The email check accepts loose shapes such as a@.b.c, a@b.c. and a@b..c.", "AccountCredentials.java:28", "(c) List only", "-", "Listed."),
@@ -1046,6 +1143,14 @@ GAPS = [
     ("N-C6", "Checked, no finding", "No template uses th:utext or an unescaped inline expression [(...)]; typed text (match messages, group name and description, profile name) is shown escaped.", "src/main/resources/templates", "Tested", "ESC-01..03", "OK (2026-10-24)."),
     ("GAP-DEP1", "Deployment note", "SEC-3: the H2 console (spring.h2.console.enabled=true, permitAll, CSRF and frame options off) must be switched off before the app is deployed anywhere real.", "application.properties:15; SecurityConfig.java:26", "List only", "SCM, MAN-39", "Listed."),
     ("GAP-TST1", "Test note", "ContactNumberVisibilityTest and HtmlEscapingTest check one concern across several controllers, so they aren't named after one class; MatchRequestControllerPrincipalTest adds to a teammate's test class without changing it.", "src/test/java/com/studybuddy/controller", "Recorded", "CNV, ESC, MRP", "Recorded."),
+    # ---- Batch D (matching and seeders) ----
+    ("N-D1", "New finding", "A student matched through several preferences is listed through the one the ACTIVE STRATEGY ranks best, not the one with the best score: under Availability first the card shows the preference with the most shared time even if it scores lower.", "MatchingService.java:101-102", "(a) Pin", "MSF (bestResultFollowsTheActiveStrategy)", "Pinned."),
+    ("GAP-MAT3", "Ambiguous requirement", "MAT-3 says each student appears once 'with their best result' without saying best by what: score, or the active strategy's order (today: the strategy's order, see N-D1).", "docs/requirements.md MAT-3", "Ask the team", "MSF (studentWithSeveralPreferencesIsListedOnceThroughTheBest, bestResultFollowsTheActiveStrategy)", "Open."),
+    ("N-D2", "New finding", "Two strategy components with the same type would silently replace each other (last one wins); the startup check only catches a missing type.", "MatchingService.java:56-62", "(c) List only", "MSC (everyStrategyTypeHasExactlyOneComponent fails on a duplicate)", "Listed."),
+    ("N-D3", "New finding", "A study mode or group size filter of EITHER (not offered on the page, only by editing the address) keeps everyone.", "MatchSearch.java:49-52", "(a) Pin", "MSE (eitherFilterKeepsEveryone)", "Pinned."),
+    ("N-D4", "New finding", "Searching a course the student has no preference for returns no matches and no hint why (the course list only offers courses with a preference, so only by editing the address).", "MatchingService.java:83-85,111-116", "(a) Pin", "MSF (courseWithoutOwnPreferenceFindsNobody)", "Pinned."),
+    ("N-D5", "New finding", "Every search loads every study preference in the database (findAll) and scores it.", "MatchingService.java:91", "(c) List only", "-", "Listed."),
+    ("N-D6", "New finding", "Every seeded account shares one password, kept in plain text in application.properties (studybuddy.seed.password); development only.", "application.properties:24; AdminDataSeeder.java; StudentDataSeeder.java", "(c) List only", "DSD (seededPasswordsAreBcryptHashesOfTheSeedPassword)", "Listed."),
     ("GAP-NI1", "Not implemented (no requirement)", "A member can't leave a group, a student can't withdraw a pending join request, and a group can't be deleted.", "GroupMembershipService.java", "List only", "-", "Listed."),
 ]
 
@@ -1132,7 +1237,7 @@ def parse_reports(sources):
 
 MANUAL_STATUSES = ["Not run", "Pass", "Fail"]
 WRITTEN_BY = {"Existing": "Existing (teammates)", "New": "New (Batch A)", BATCH_B: "New (Batch B)",
-              BATCH_C: "New (Batch C)"}
+              BATCH_C: "New (Batch C)", BATCH_D: "New (Batch D)"}
 RESULT_COLUMNS = {"status": "Status", "tester": "Tester", "date": "Date", "actual": "Actual result"}
 
 
