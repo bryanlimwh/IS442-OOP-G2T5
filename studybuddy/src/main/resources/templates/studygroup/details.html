@@ -59,6 +59,10 @@
             </div>
             <p th:if="${role == 'MEMBER'}"><strong>You're a member of this group.</strong></p>
             <p th:if="${role == 'PENDING'}"><strong>Request sent.</strong> Waiting for the group's leader to respond.</p>
+            <!-- A full group keeps requests pending (a waiting list); same wording as the My groups page -->
+            <p class="muted group-card-note" th:if="${role == 'PENDING' and group.active and group.full()}">
+                The group is full right now. The leader can still accept you if a place opens up.
+            </p>
             <p th:if="${role == 'GROUP_CLOSED'}">The group was closed before the leader answered your request.</p>
 
             <th:block th:if="${group.active and (role == 'NONE' or role == 'REJECTED' or role == 'REMOVED')}">

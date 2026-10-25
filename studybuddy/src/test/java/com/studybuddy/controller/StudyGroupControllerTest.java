@@ -1,9 +1,11 @@
 package com.studybuddy.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasProperty;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -18,6 +20,7 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.flash;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.model;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
@@ -196,6 +199,32 @@ class StudyGroupControllerTest {
                 .andExpect(model().attribute("group", StudyGroupSummary.from(alexsGroup)))
                 .andExpect(model().attribute("viewerRole", ViewerRole.LEADER))
                 .andExpect(model().attribute("fromMyGroups", true));
+    }
+
+    // A full group keeps pending requests as a waiting list, so a waiting student is told why
+    @Test
+    void pendingStudentOnFullGroupIsToldTheyAreWaiting() throws Exception {
+        StudyGroup fullGroup = group(5L, "Full Group", ben, 2, chloe);
+        when(studyGroupService.getGroup(5L)).thenReturn(fullGroup);
+        when(groupMembershipService.getViewerRole(5L, ALEX)).thenReturn(ViewerRole.PENDING);
+
+        mockMvc.perform(get(BASE + "/5"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString(
+                        "The group is full right now. The leader can still accept you if a place opens up.")));
+    }
+
+    // ...but not while there's still room
+    @Test
+    void pendingStudentOnOpenGroupSeesNoFullNote() throws Exception {
+        StudyGroup openGroup = group(6L, "Open Group", ben, 4, chloe);
+        when(studyGroupService.getGroup(6L)).thenReturn(openGroup);
+        when(groupMembershipService.getViewerRole(6L, ALEX)).thenReturn(ViewerRole.PENDING);
+
+        mockMvc.perform(get(BASE + "/6"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Waiting for the group's leader to respond.")))
+                .andExpect(content().string(not(containsString("The group is full right now."))));
     }
 
     // L1
