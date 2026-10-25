@@ -9,6 +9,9 @@
         <h1>Find study buddies</h1>
         <p class="lead">Students ranked by how well their study preferences match yours.</p>
 
+        <!-- Set by PublicProfileController when a profile link points at a deleted account -->
+        <p class="message error" role="alert" th:if="${error}" th:text="${error}">Error</p>
+
         <p class="message info" role="status" th:if="${#lists.isEmpty(myPreferences)}">
             You haven't set any study preferences yet, so there's nothing to match on.
             <a th:href="@{/student/profile}">Add your study preferences</a> to see matches.
@@ -73,7 +76,7 @@
                     <div class="match-header">
                         <span class="match-rank" th:text="${row.count}">1</span>
                         <div class="match-who">
-                            <h2 class="match-name" th:text="${result.student.name}">Ben Koh</h2>
+                            <h2 class="match-name"><a th:href="@{/students/{id}(id=${result.student.studentId})}" th:text="${result.student.name}">Ben Koh</a></h2>
                             <p class="muted"
                                th:text="|${result.student.programme}, Year ${result.student.yearOfStudy} · ${result.student.school}|">
                                 Information Systems, Year 3 · School of Computing and Information Systems

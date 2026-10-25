@@ -37,7 +37,7 @@
                 <li class="group-card" th:each="request : ${requests}">
                     <div class="group-card-header">
                         <div>
-                            <h3 class="group-name" th:text="${request.student.name}">Farhan Ali</h3>
+                            <h3 class="group-name"><a th:href="@{/students/{id}(id=${request.student.studentId})}" th:text="${request.student.name}">Farhan Ali</a></h3>
                             <p class="muted" th:text="${request.studiesLine()}">Information Systems, Year 2 · School of Computing and Information Systems</p>
                             <p class="muted" th:if="${!#lists.isEmpty(request.student.courseCodes)}" th:text="${request.coursesLine()}">Takes IS442, IS111</p>
                         </div>
@@ -83,7 +83,7 @@
                 <li class="group-card" th:each="member : ${members}">
                     <div class="group-card-header">
                         <div>
-                            <h3 class="group-name" th:text="${member.student.name}">Jasmine Teo</h3>
+                            <h3 class="group-name"><a th:href="@{/students/{id}(id=${member.student.studentId})}" th:text="${member.student.name}">Jasmine Teo</a></h3>
                             <p class="muted" th:text="${member.studiesLine()}">Computer Science, Year 3 · School of Computing and Information Systems</p>
                             <p class="muted" th:if="${!#lists.isEmpty(member.student.courseCodes)}" th:text="${member.coursesLine()}">Takes IS442, CS201</p>
                         </div>

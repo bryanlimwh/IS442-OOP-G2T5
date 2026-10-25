@@ -93,6 +93,7 @@ class SecurityConfigTest {
             // StudyBuddyConnectionController
             new Route("GET", "/connections", Access.STUDENT),
             new Route("POST", "/connections/{connectionId}/end", "/connections/3/end", Access.STUDENT),
+            new Route("GET", "/students/{studentId}", "/students/3", Access.STUDENT),
             // StudentProfileController
             new Route("GET", "/student/profile", Access.STUDENT),
             new Route("POST", "/student/profile", Access.STUDENT),

@@ -62,6 +62,8 @@ public class SecurityConfig {
             .requestMatchers("/match-requests/**").hasRole(Role.STUDENT.name())
             // Declares that the study buddies page can only be accessed by students
             .requestMatchers("/connections/**").hasRole(Role.STUDENT.name())
+            // Declares that other students' public profiles can only be viewed by students
+            .requestMatchers("/students/**").hasRole(Role.STUDENT.name())
             // Declares that the profile and study preference pages can only be accessed by students
             // (an admin has no student profile or study preferences)
             .requestMatchers("/student/**").hasRole(Role.STUDENT.name())

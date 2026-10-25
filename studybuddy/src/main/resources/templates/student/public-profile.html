@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/head :: head(${profile.name})}"></head>
+<body>
+    <header th:replace="~{fragments/header :: header}"></header>
+
+    <main class="page">
+        <p><a th:href="@{/matches}">&larr; Find study buddies</a></p>
+        <h1 th:text="${profile.name}">Ben Koh</h1>
+        <p class="lead" th:text="|${profile.programme}, Year ${profile.yearOfStudy} · ${profile.school}|">
+            Information Systems, Year 3 · School of Computing and Information Systems
+        </p>
+
+        <!-- The contact number is never sent to this page; this explains where it can be seen -->
+        <p class="message info">
+            Contact numbers are only shared between study buddies, once a match request is accepted.
+            See yours under <a th:href="@{/connections}">Study buddies</a>.
+        </p>
+
+        <h2>Courses</h2>
+        <p class="message info" th:if="${#lists.isEmpty(profile.courseCodes)}">Not taking any courses yet.</p>
+        <p th:unless="${#lists.isEmpty(profile.courseCodes)}" th:text="${#strings.listJoin(profile.courseCodes, ', ')}">IS442, IS216, CS201</p>
+
+        <h2>Study preferences</h2>
+        <p class="message info" th:if="${#lists.isEmpty(preferences)}">No study preferences set yet.</p>
+
+        <ul class="match-list request-list" th:unless="${#lists.isEmpty(preferences)}">
+            <li class="match-card" th:each="pref : ${preferences}">
+                <dl class="their-preference">
+                    <dt>Course</dt>
+                    <dd th:text="|${pref.courseCode} ${pref.courseName}|">IS442 Object Oriented Programming</dd>
+                    <dt>Goal</dt>
+                    <dd th:text="${pref.studyGoal.label}">Exam preparation</dd>
+                    <dt>Study mode</dt>
+                    <dd th:text="${pref.studyMode.label}">In person or online</dd>
+                    <dt>Group size</dt>
+                    <dd th:text="${pref.arrangement.label}">One-to-one</dd>
+                    <dt>Free</dt>
+                    <dd th:text="${#lists.isEmpty(pref.availability)} ? 'No times added' : ${#strings.listJoin(pref.availability, ', ')}">Wed 19:00-21:00, Thu 18:00-20:00</dd>
+                </dl>
+            </li>
+        </ul>
+    </main>
+</body>
+</html>

@@ -32,7 +32,7 @@
                 </thead>
                 <tbody>
                     <tr th:each="connection : ${connections}">
-                        <td class="cell-nowrap" th:text="${connection.buddy.name}">Ben Koh</td>
+                        <td class="cell-nowrap"><a th:href="@{/students/{id}(id=${connection.buddy.studentId})}" th:text="${connection.buddy.name}">Ben Koh</a></td>
                         <td th:text="|${connection.buddy.programme}, Year ${connection.buddy.yearOfStudy}|">Information Systems, Year 3</td>
                         <td th:text="${#strings.listJoin(connection.buddy.courseCodes, ', ')}">IS442, IS216, CS201</td>
                         <td th:text="${connection.buddyContactNumber}">92345678</td>

@@ -13,6 +13,7 @@ import com.studybuddy.entity.Course;
 import com.studybuddy.entity.Student;
 import com.studybuddy.exception.DuplicateEmailException;
 import com.studybuddy.exception.InvalidAccountDetailsException;
+import com.studybuddy.matching.PreferenceSummary;
 import com.studybuddy.matching.StudentPublicProfile;
 import com.studybuddy.repository.CourseRepository;
 import com.studybuddy.repository.StudentRepository;
@@ -97,6 +98,14 @@ class StudentProfileServiceTest {
 
         assertThat(profile.name()).isEqualTo("Ben Koh");
         assertThat(profile.toString()).doesNotContain("92345678", BEN);
+    }
+
+    @Test
+    void publicPreferencesListTheStudentsPreferences() {
+        Long benId = studentRepository.findByEmail(BEN).orElseThrow().getUserId();
+
+        // Ben has a seeded IS442 study preference
+        assertThat(service.getPublicPreferences(benId)).extracting(PreferenceSummary::courseCode).contains("IS442");
     }
 
     @Test

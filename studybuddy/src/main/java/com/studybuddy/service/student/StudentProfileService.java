@@ -10,6 +10,7 @@ import com.studybuddy.entity.Course;
 import com.studybuddy.entity.Student;
 import com.studybuddy.exception.CourseNotFoundException;
 import com.studybuddy.exception.StudentNotFoundException;
+import com.studybuddy.matching.PreferenceSummary;
 import com.studybuddy.matching.StudentPublicProfile;
 import com.studybuddy.repository.CourseRepository;
 import com.studybuddy.repository.StudentRepository;
@@ -67,6 +68,16 @@ public class StudentProfileService {
         Student student = studentRepository.findById(studentId)
                 .orElseThrow(() -> new StudentNotFoundException(studentId));
         return StudentPublicProfile.from(student);
+    }
+
+    // The study preferences shown on another student's public profile, copied out of the
+    // entities so the page never holds a Student (and its contact number).
+    public List<PreferenceSummary> getPublicPreferences(Long studentId) {
+        Student student = studentRepository.findById(studentId)
+                .orElseThrow(() -> new StudentNotFoundException(studentId));
+        return student.getPreferences().stream()
+                .map(PreferenceSummary::from)
+                .toList();
     }
 
     public Student updateProfile(String email, String name, String school, String programme,
