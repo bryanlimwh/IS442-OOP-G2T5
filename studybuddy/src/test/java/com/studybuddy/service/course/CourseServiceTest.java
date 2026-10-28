@@ -119,8 +119,8 @@ class CourseServiceTest {
         assertThat(courseRepository.findById(id).orElseThrow().getCourseCode()).isEmpty();
     }
 
-    // CRS-1, K4: pins current behaviour, update if fixed. Nothing limits the length before the
-    // database does, so a code over 255 characters reaches it and is refused there.
+    // CRS-1, K4: the database is the service's limit; the controller checks first (K4 fixed 2026-10-28).
+    // A code over 255 characters that reaches the service is refused by the database.
     @Test
     void courseCodeOver255CharactersFailsInDatabase() {
         // 255 is the column size and still fits

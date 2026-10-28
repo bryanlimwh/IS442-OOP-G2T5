@@ -27,6 +27,8 @@ public class StudentProfileController {
 
     private static final String VIEW = "student/profile";
     private static final String REDIRECT_TO_PROFILE = "redirect:/student/profile";
+    // The database column size: checked here so a longer value gets a message instead of an error page
+    private static final int MAX_LENGTH = 255;
 
     private final StudentProfileService studentProfileService;
     private final CourseService courseService;
@@ -53,6 +55,12 @@ public class StudentProfileController {
             @RequestParam(defaultValue = "") String school, @RequestParam(defaultValue = "") String programme,
             @RequestParam(defaultValue = "0") int yearOfStudy, @RequestParam(defaultValue = "") String contactNumber,
             Principal principal, RedirectAttributes redirectAttributes) {
+        if (name.strip().length() > MAX_LENGTH || school.strip().length() > MAX_LENGTH
+                || programme.strip().length() > MAX_LENGTH) {
+            redirectAttributes.addFlashAttribute("error",
+                    "Name, school and programme can be at most " + MAX_LENGTH + " characters.");
+            return REDIRECT_TO_PROFILE;
+        }
         try {
             studentProfileService.updateProfile(principal.getName(), name.strip(), school.strip(),
                     programme.strip(), yearOfStudy, contactNumber.strip());

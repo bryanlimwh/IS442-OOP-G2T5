@@ -1,6 +1,6 @@
 # Study Buddy Matcher: Requirements and Rules
 
-Source: the project brief plus a code scan of main (Oct 2026; updated 2026-10-28 for the public profile page, the full-group note and the team decisions). "Current:" lines say what the code does today. If a test would contradict a "Current:" line, treat it as a Gap to raise, never guess.
+Source: the project brief plus a code scan of main (Oct 2026; updated 2026-10-28 for the public profile page, the full-group note, the team decisions and the fixes to K1, K4, K6 and K12). "Current:" lines say what the code does today. If a test would contradict a "Current:" line, treat it as a Gap to raise, never guess.
 
 ## Brief requirements
 
@@ -49,7 +49,7 @@ Source: the project brief plus a code scan of main (Oct 2026; updated 2026-10-28
 - ACC-5 Deleting a student with requests, groups or connections fails on foreign keys; the admin is told to deactivate instead.
 - ACC-6 Deactivated accounts cannot log in (AuthService sets disabled). Open sessions are not ended.
 - ACC-7 AccountManagementService is admin-only (class-level @PreAuthorize). passwordHash is never exposed (AccountStatus).
-- ACC-8 AuthService looks up the email exactly as typed (no normalising).
+- ACC-8 Login looks up the email trimmed and lower-cased, the same form sign-up and the admin page store (AuthService; K1 fixed 2026-10-28).
 
 ### Courses
 - CRS-1 Any logged-in user can list courses. Create, update and delete are admin-only (@PreAuthorize on the controller POSTs). CourseService itself has no checks and throws CourseNotFoundException for a missing id. The controller rejects blank code or name.
@@ -96,19 +96,26 @@ Decided by the team; these are intended behaviour, not bugs.
 - TD-3 (GRP-4) A full group keeps pending requests as a waiting list on purpose. A place reopens when the leader removes a member or raises the maximum size. While pending, the student sees "The group is full right now. The leader can still accept you if a place opens up." (The decision as written also mentions members leaving; that isn't implemented and the brief doesn't require it, see the workbook Gaps sheet.)
 - TD-4 (GRP-6) Closing a group is permanent. The brief only says "close the group when it is no longer active".
 
+## Fixed (2026-10-28)
+Fixed in the code; their former known-bug tests now run as regression tests.
+- K1 Login was case-sensitive although sign-up lower-cases the email. AuthService now looks up the trimmed, lower-cased email.
+- K4 Inputs over 255 characters gave a 500 for the course code and name, the profile's name, school and programme, and the match message. CourseController, StudentProfileController and MatchRequestController now check the length first and show "Course code and course name can be at most 255 characters." / "Name, school and programme can be at most 255 characters." / "Messages can be at most 255 characters." The services still rely on the database limit. Not covered: sign-up (/register) with over-long fields still reaches the database and shows K3's message.
+- K6 A match request could be sent to a deactivated student by direct POST. MatchRequestService now treats a deactivated recipient as not found ("That student no longer exists."), and nothing is saved.
+- K12 (display part) th:if hid messages like "no", "false", "off". The template now shows any non-blank message (and no longer an empty line for an empty one). Messages are still stored as typed, so an empty message is stored as "".
+
 ## Candidate bugs from the scan (not confirmed by tests; list in Gaps, do not assume)
-- K1 Login is case-sensitive, but sign-up lower-cases the email.
+- K1 Fixed 2026-10-28, see Fixed.
 - K2 Changing a logged-in student's email breaks their session (404s); deactivation and password reset do not end open sessions.
 - K3 Any DataIntegrityViolationException shows "Another account already uses that email" (AuthController, AccountManagementController), including over-long fields.
-- K4 Inputs over 255 characters give a 500: match message, profile fields, course code and name (limit is an HTML maxlength only).
+- K4 Fixed 2026-10-28 for course, profile and match message, see Fixed (sign-up still shows K3's message).
 - K5 Duplicate course codes allowed; CourseService has no @Transactional.
-- K6 A match request can be sent to a deactivated student by direct POST.
+- K6 Fixed 2026-10-28, see Fixed.
 - K7 getRequestById has no route. (getPublicProfile has one since 2026-10-25: GET /students/{id}, see S6.)
 - K8 Moved to Team decisions as TD-1 (intended, not a bug).
 - K9 Preference slots are looser than group slots (any times, no maximum).
 - K10 /register does not strip spaces from the contact number; profile update does.
 - K11 A non-numeric yearOfStudy gives a raw 400.
-- K12 An empty message is stored as ""; th:if hides messages like "no", "false", "off".
+- K12 Display fixed 2026-10-28, see Fixed. An empty message is still stored as "".
 - K13 The duplicate-request error shows internal student ids.
 - K14 No DB constraint for one pending request or one connection per pair (race).
 - K15 H2 console open to everyone.

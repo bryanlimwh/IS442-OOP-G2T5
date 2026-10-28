@@ -76,7 +76,9 @@ public class MatchRequestService {
     // so the controller can turn it into the correct HTTP error status.
     public MatchRequestSummary createRequest(String senderEmail, Long recipientId, String message) {
         Student sender = findStudentByEmail(senderEmail);
+        // A deactivated student is treated as not found, so nobody can send them a request
         Student recipient = studentRepository.findById(recipientId)
+                .filter(Student::isActive)
                 .orElseThrow(() -> new StudentNotFoundException(recipientId));
 
         // Checks if the sender and recipient are the same student

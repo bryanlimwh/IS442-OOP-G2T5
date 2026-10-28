@@ -3,20 +3,20 @@ package com.studybuddy.service.studybuddymatching;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.context.annotation.Import;
 
 import com.studybuddy.entity.Student;
+import com.studybuddy.exception.StudentNotFoundException;
 import com.studybuddy.repository.MatchRequestRepository;
 import com.studybuddy.repository.StudentRepository;
 
 /**
- * Known bugs in MatchRequestService. Each test describes what SHOULD happen and fails on today's
- * code, so it is @Disabled to keep the main suite green. Remove @Disabled to check a fix.
- * Empty in-memory H2 with own data.
+ * Regression tests for bugs fixed in MatchRequestService (they were @Disabled known-bug tests until
+ * the fix; the class keeps its name so the workbook Test IDs stay the same). Empty in-memory H2
+ * with own data.
  */
 @DataJpaTest
 @Import({ MatchRequestService.class, StudyBuddyConnectionService.class })
@@ -29,16 +29,16 @@ class MatchRequestServiceKnownBugTest {
     @Autowired
     private StudentRepository studentRepository;
 
-    // S7, REQ-1, K6
+    // S7, REQ-1, K6: fixed 2026-10-28. A deactivated student is treated as not found, so a request to
+    // them is refused and nothing is saved (the page then shows "That student no longer exists.")
     @Test
-    @Disabled("KNOWN BUG K6: a request to a deactivated student should be refused and nothing saved; today it "
-            + "is saved (the matches page hides inactive students, but a direct POST still sends one)")
     void requestToDeactivatedStudentIsRefused() {
         saveStudent("alex@test.com", "Alex Tan");
         Student ben = saveStudent("ben@test.com", "Ben Koh");
         ben.setActive(false);
 
-        assertThatThrownBy(() -> service.createRequest("alex@test.com", ben.getUserId(), "Study?"));
+        assertThatThrownBy(() -> service.createRequest("alex@test.com", ben.getUserId(), "Study?"))
+                .isInstanceOf(StudentNotFoundException.class);
         assertThat(matchRequestRepository.count()).isZero();
     }
 

@@ -6,7 +6,6 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.flash;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
 
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -21,8 +20,8 @@ import com.studybuddy.service.course.CourseService;
 import com.studybuddy.service.student.StudentProfileService;
 
 /**
- * Known bugs in StudentProfileController. Each test describes what SHOULD happen and fails on
- * today's code, so it is @Disabled to keep the main suite green. Remove @Disabled to check a fix.
+ * Regression tests for bugs fixed in StudentProfileController (they were @Disabled known-bug tests
+ * until the fix; the class keeps its name so the workbook Test IDs stay the same).
  */
 @WebMvcTest(StudentProfileController.class)
 @Import(SecurityConfig.class)
@@ -37,10 +36,9 @@ class StudentProfileControllerKnownBugTest {
     @MockitoBean
     private CourseService courseService;
 
-    // S1, PRF-1, K4
+    // S1, PRF-1, K4: fixed 2026-10-28. A name, school or programme over 255 characters brings the student
+    // back to the profile page with a message, not a 500 error page; the service isn't called
     @Test
-    @Disabled("KNOWN BUG K4: a profile value the database refuses (e.g. a name over 255 characters) should "
-            + "bring the student back to the profile page with an error message, not a 500 error page")
     void profileValueTheDatabaseRefusesShowsAnError() throws Exception {
         String longName = "A".repeat(256);
         when(studentProfileService.updateProfile("alex@test.com", longName, "SCIS", "IS", 2, "91234567"))
@@ -50,6 +48,6 @@ class StudentProfileControllerKnownBugTest {
                         .param("programme", "IS").param("yearOfStudy", "2").param("contactNumber", "91234567")
                         .with(csrf()))
                 .andExpect(redirectedUrl("/student/profile"))
-                .andExpect(flash().attributeExists("error"));
+                .andExpect(flash().attribute("error", "Name, school and programme can be at most 255 characters."));
     }
 }

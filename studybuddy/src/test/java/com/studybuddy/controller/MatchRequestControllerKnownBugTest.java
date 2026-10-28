@@ -13,7 +13,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import java.time.LocalDateTime;
 import java.util.List;
 
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -30,9 +29,9 @@ import com.studybuddy.service.studybuddymatching.MatchRequestService;
 import com.studybuddy.service.studybuddymatching.MatchRequestSummary;
 
 /**
- * Known bugs in the match requests page (MatchRequestController and its template). Each test
- * describes what SHOULD happen and fails on today's code, so it is @Disabled to keep the main
- * suite green. Remove @Disabled to check a fix. The service is mocked; logged in as alex@test.com.
+ * Regression tests for bugs fixed in the match requests page (MatchRequestController and its
+ * template). They were @Disabled known-bug tests until the fix; the class keeps its name so the
+ * workbook Test IDs stay the same. The service is mocked; logged in as alex@test.com.
  */
 @WebMvcTest(MatchRequestController.class)
 @Import(SecurityConfig.class)
@@ -45,10 +44,9 @@ class MatchRequestControllerKnownBugTest {
     @MockitoBean
     private MatchRequestService service;
 
-    // S7, S8, K12
+    // S7, S8, K12: fixed 2026-10-28. A message that is just 'no', 'false' or 'off' is shown like any other
+    // (a plain th:if on the text read those words as false and hid them)
     @Test
-    @Disabled("KNOWN BUG K12: a message that is just 'no', 'false' or 'off' should be shown like any other; "
-            + "th:if treats those words as false and hides them")
     void shortMessagesThatReadAsFalseAreShown() throws Exception {
         StudentPublicProfile alex = new StudentPublicProfile(1L, "Alex Tan", "SCIS", "Information Systems", 2,
                 List.of("IS442"));
@@ -69,10 +67,9 @@ class MatchRequestControllerKnownBugTest {
                         containsString("<p>off</p>"))));
     }
 
-    // S7, K4
+    // S7, K4: fixed 2026-10-28. A message over 255 characters (only possible with a hand-made POST: the
+    // page's box has maxlength 255) comes back as an error message, not a 500; the service isn't called
     @Test
-    @Disabled("KNOWN BUG K4: a match message the database refuses (over 255 characters, only possible with a "
-            + "hand-made POST because the page's box has maxlength 255) should come back as an error message, not a 500")
     void messageTheDatabaseRefusesShowsAnError() throws Exception {
         String longMessage = "M".repeat(256);
         when(service.createRequest("alex@test.com", 2L, longMessage))
@@ -80,6 +77,6 @@ class MatchRequestControllerKnownBugTest {
 
         mockMvc.perform(post("/match-requests").param("recipientId", "2").param("message", longMessage).with(csrf()))
                 .andExpect(redirectedUrl("/match-requests"))
-                .andExpect(flash().attributeExists("error"));
+                .andExpect(flash().attribute("error", "Messages can be at most 255 characters."));
     }
 }

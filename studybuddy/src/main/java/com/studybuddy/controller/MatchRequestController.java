@@ -36,6 +36,8 @@ public class MatchRequestController {
     private static final String VIEW = "student/match-requests";
     // Where every action sends the browser afterwards
     private static final String REDIRECT_TO_LIST = "redirect:/match-requests";
+    // The database column size. The page's box stops at it too, but a hand-made POST doesn't
+    private static final int MAX_MESSAGE_LENGTH = 255;
 
     // Stores the reference to a MatchRequestService object
     // to allow for system functionality related to match requests
@@ -63,6 +65,11 @@ public class MatchRequestController {
     @PostMapping
     public String createRequest(@RequestParam Long recipientId, @RequestParam(required = false) String message,
             Principal principal, RedirectAttributes redirectAttributes) {
+        if (message != null && message.length() > MAX_MESSAGE_LENGTH) {
+            redirectAttributes.addFlashAttribute("error",
+                    "Messages can be at most " + MAX_MESSAGE_LENGTH + " characters.");
+            return REDIRECT_TO_LIST;
+        }
         try {
             service.createRequest(principal.getName(), recipientId, message);
             redirectAttributes.addFlashAttribute("success", "Request sent.");

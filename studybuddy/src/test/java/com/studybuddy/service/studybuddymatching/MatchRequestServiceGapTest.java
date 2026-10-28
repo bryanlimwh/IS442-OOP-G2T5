@@ -102,8 +102,8 @@ class MatchRequestServiceGapTest {
         assertThat(service.getRequestById(BEN, id).message()).isNull();
     }
 
-    // S7, K4: pins current behaviour, update if fixed. Nothing limits the message before the database
-    // does: 255 characters fit, 256 are refused (the page's box has maxlength 255; a hand-made POST doesn't)
+    // S7, K4: the database is the service's limit; the controller checks first (K4 fixed 2026-10-28).
+    // At the service, 255 characters fit and 256 are refused
     @Test
     void messageOver255CharactersFailsInDatabase() {
         Long id = service.createRequest(ALEX, ben.getUserId(), "M".repeat(255)).requestId();

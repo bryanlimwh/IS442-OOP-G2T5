@@ -29,6 +29,9 @@ public class CourseController {
 
     private static final String VIEW = "courses";
     private static final String REDIRECT_TO_LIST = "redirect:/courses";
+    // The database column size: checked here so a longer value gets a message instead of an error page
+    private static final int MAX_LENGTH = 255;
+    private static final String TOO_LONG = "Course code and course name can be at most " + MAX_LENGTH + " characters.";
 
     private final CourseService courseService;
 
@@ -56,6 +59,10 @@ public class CourseController {
             redirectAttributes.addFlashAttribute("error", "Enter both a course code and a course name.");
             return REDIRECT_TO_LIST;
         }
+        if (tooLong(courseCode, courseName)) {
+            redirectAttributes.addFlashAttribute("error", TOO_LONG);
+            return REDIRECT_TO_LIST;
+        }
         Course course = courseService.createCourse(courseCode.strip(), courseName.strip());
         redirectAttributes.addFlashAttribute("success", course.getCourseCode() + " has been added.");
         return REDIRECT_TO_LIST;
@@ -68,6 +75,10 @@ public class CourseController {
         if (courseCode.isBlank() || courseName.isBlank()) {
             redirectAttributes.addFlashAttribute("error", "Enter both a course code and a course name.");
             // Back to the same edit form, so the admin can try again
+            return REDIRECT_TO_LIST + "?edit=" + courseId;
+        }
+        if (tooLong(courseCode, courseName)) {
+            redirectAttributes.addFlashAttribute("error", TOO_LONG);
             return REDIRECT_TO_LIST + "?edit=" + courseId;
         }
         try {
@@ -94,5 +105,10 @@ public class CourseController {
                     "Students, study preferences or study groups still use this course, so it can't be deleted.");
         }
         return REDIRECT_TO_LIST;
+    }
+
+    // Compared after stripping, as that's what is saved
+    private static boolean tooLong(String courseCode, String courseName) {
+        return courseCode.strip().length() > MAX_LENGTH || courseName.strip().length() > MAX_LENGTH;
     }
 }

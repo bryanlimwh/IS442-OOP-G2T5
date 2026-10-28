@@ -6,7 +6,6 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.flash;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
 
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -20,11 +19,12 @@ import com.studybuddy.config.SecurityConfig;
 import com.studybuddy.service.course.CourseService;
 
 /**
- * Known bugs in CourseController. Each test describes what SHOULD happen and fails on today's
- * code, so it is @Disabled to keep the main suite green. Remove @Disabled to check a fix.
+ * Regression tests for bugs fixed in CourseController (they were @Disabled known-bug tests until
+ * the fix; the class keeps its name so the workbook Test IDs stay the same).
  * <p>
  * The mocked service throws what the real one does for a code over 255 characters
- * (see CourseServiceTest.courseCodeOver255CharactersFailsInDatabase).
+ * (see CourseServiceTest.courseCodeOver255CharactersFailsInDatabase), so the tests also show the
+ * controller now stops the value before the service is called.
  */
 @WebMvcTest(CourseController.class)
 @Import(SecurityConfig.class)
@@ -39,29 +39,26 @@ class CourseControllerKnownBugTest {
     @MockitoBean
     private CourseService courseService;
 
-    // CRS-1, K4
+    // CRS-1, K4: fixed 2026-10-28. A code or name over 255 characters gets a message, not a server error
     @Test
-    @Disabled("KNOWN BUG K4: adding a course the database can't store (code or name over 255 characters) "
-            + "should redirect to /courses with an error message, not end in a server error")
     void addCourseTheDatabaseRefusesShowsAnError() throws Exception {
         when(courseService.createCourse(TOO_LONG, "Test Course"))
                 .thenThrow(new DataIntegrityViolationException("value too long"));
 
         mockMvc.perform(post("/courses").param("courseCode", TOO_LONG).param("courseName", "Test Course").with(csrf()))
                 .andExpect(redirectedUrl("/courses"))
-                .andExpect(flash().attributeExists("error"));
+                .andExpect(flash().attribute("error", "Course code and course name can be at most 255 characters."));
     }
 
-    // CRS-1, K4
+    // CRS-1, K4: fixed 2026-10-28. Renaming to over 255 characters returns to the edit form with a message
     @Test
-    @Disabled("KNOWN BUG K4: renaming a course to a value the database can't store (over 255 characters) "
-            + "should redirect with an error message, not end in a server error")
     void updateCourseTheDatabaseRefusesShowsAnError() throws Exception {
         when(courseService.updateCourse(5L, TOO_LONG, "Test Course"))
                 .thenThrow(new DataIntegrityViolationException("value too long"));
 
         mockMvc.perform(post("/courses/5/update").param("courseCode", TOO_LONG).param("courseName", "Test Course")
                 .with(csrf()))
-                .andExpect(flash().attributeExists("error"));
+                .andExpect(redirectedUrl("/courses?edit=5"))
+                .andExpect(flash().attribute("error", "Course code and course name can be at most 255 characters."));
     }
 }

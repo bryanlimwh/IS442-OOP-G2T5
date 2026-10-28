@@ -224,8 +224,8 @@ class StudentProfileServiceGapTest {
         assertThat(service.getCoursesTaken(ALEX)).extracting(Course::getCourseCode).containsExactly("IS442");
     }
 
-    // S1, PRF-1, K4: pins current behaviour, update if fixed. Nothing limits the length before the
-    // database does: 255 characters fit, 256 are refused when the change is written
+    // S1, PRF-1, K4: the database is the service's limit; the controller checks first (K4 fixed 2026-10-28).
+    // At the service, 255 characters fit and 256 are refused when the change is written
     @Test
     void profileValueOver255CharactersFailsInDatabase() {
         service.updateProfile(ALEX, "N".repeat(255), "SCIS", "IS", 2, "91234567");

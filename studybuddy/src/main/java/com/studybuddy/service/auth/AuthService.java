@@ -1,5 +1,7 @@
 package com.studybuddy.service.auth;
 
+import java.util.Locale;
+
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -24,7 +26,9 @@ public class AuthService implements UserDetailsService {
 
     @Override
     public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
-        User user = userRepository.findByEmail(email);
+        // Emails are stored trimmed and lower-cased (AccountCredentials.normaliseEmail), so look up the same form
+        String normalised = email == null ? "" : email.strip().toLowerCase(Locale.ROOT);
+        User user = userRepository.findByEmail(normalised);
         if (user == null) {
             throw new UsernameNotFoundException("No account for " + email);
         }

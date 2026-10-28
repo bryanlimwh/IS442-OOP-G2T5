@@ -43,6 +43,7 @@ BASELINES = [
     ("Baseline before Batch E (2026-10-24)", {"run": 646, "passed": 639, "failed": 0, "errors": 0, "skipped": 7}),
     ("Before the 2026-10-28 sync (after the teammate's public profile and full-group commits)",
      {"run": 687, "passed": 678, "failed": 0, "errors": 0, "skipped": 9}),
+    ("Before the 2026-10-28 fixes of K1, K4, K6, K12", {"run": 699, "passed": 690, "failed": 0, "errors": 0, "skipped": 9}),
 ]
 BATCH_B = "Batch B"
 BATCH_C = "Batch C"
@@ -87,7 +88,7 @@ REQUIREMENTS = [
     ("ACC-5", "Accounts", "Deleting a student with requests, groups or connections fails; admin told to deactivate."),
     ("ACC-6", "Accounts", "Deactivated accounts cannot log in. Open sessions are not ended."),
     ("ACC-7", "Accounts", "AccountManagementService is admin-only; passwordHash never exposed."),
-    ("ACC-8", "Accounts", "AuthService looks up the email exactly as typed (see K1)."),
+    ("ACC-8", "Accounts", "Login looks up the email trimmed and lower-cased, like sign-up stores it (K1 fixed 2026-10-28)."),
     ("CRS-1", "Courses", "Anyone logged in lists courses; create/update/delete admin-only; blank code/name refused by the controller."),
     ("PRF-1", "Profile", "Name, school, programme required; year 1 to 5; contact number exactly 8 digits."),
     ("PRF-2", "Profile", "Can't add a course already taken; can't remove one not taken or with a preference."),
@@ -122,7 +123,6 @@ REQUIREMENTS = [
 
 # Where uncovered items are scheduled
 PLANNED = {
-    "ACC-8": "Fix K1, then remove @Disabled from AUK-01",
 }
 
 # --------------------------------------------------------------------------------------
@@ -410,7 +410,7 @@ CASES = {
         t("unknownEmailIsNotFound", "negative", "Unknown email", "loadUserByUsername", "ghost@test.com", "UsernameNotFoundException"),
     ],
     "AuthServiceKnownBugTest": [
-        t("emailInAnotherLetterCaseFindsTheAccount", "negative", "Login email in another letter case should find the account", "Save alex@test.com; loadUserByUsername", "'Alex@Test.COM'", "DESIRED: account alex@test.com found. TODAY: UsernameNotFoundException (confirmed when enabled)"),
+        t("emailInAnotherLetterCaseFindsTheAccount", "boundary", "Login email in another letter case or with spaces finds the account", "Save alex@test.com; loadUserByUsername", "'Alex@Test.COM', '  ALEX@test.com '", "Account alex@test.com found both times", notes="Fixed 2026-10-28; was a @Disabled known-bug test, now a regression test (same Test ID)."),
     ],
     "AuthControllerTest": [
         t("loginAndRegisterPagesArePublic", "permission", "Login and sign-up pages are public", "Anonymous GET /login, /register", "-", "200 with views auth/login and auth/register"),
@@ -437,7 +437,7 @@ CASES = {
         t("deleteCourseRemovesIt", "happy", "Delete a course", "deleteCourse", "-", "Course gone"),
         t("deletingCourseInUseFails", "conflict", "Delete blocked while a student takes it", "Student takes IS442; deleteCourse; flush", "-", "DataIntegrityViolationException", notes="In the app the refusal happens at commit."),
         t("serviceSavesBlankValues", "boundary", "Service itself doesn't check blanks", "createCourse('', ' ')", "'' / ' '", "Saved (the controller is the only check)"),
-        t("courseCodeOver255CharactersFailsInDatabase", "boundary", "Code length 255 / 256", "createCourse", "'C' x 255, 'C' x 256", "255 saved; 256 DataIntegrityViolationException"),
+        t("courseCodeOver255CharactersFailsInDatabase", "boundary", "Code length 255 / 256", "createCourse", "'C' x 255, 'C' x 256", "255 saved; 256 DataIntegrityViolationException", notes="The database is the service's limit; the controller checks the length first (K4 fixed 2026-10-28)."),
     ],
     "CourseControllerTest": [
         t("anonymousIsRedirectedToLogin", "permission", "Anonymous sent to login", "GET /courses; POST /courses with CSRF", "-", "302 to /login; service not called"),
@@ -455,8 +455,8 @@ CASES = {
         t("deleteCourseInUseShowsMessage", "conflict", "Delete a course in use", "Service throws DataIntegrityViolationException", "-", "Flash 'Students, study preferences or study groups still use this course, so it can't be deleted.'"),
     ],
     "CourseControllerKnownBugTest": [
-        t("addCourseTheDatabaseRefusesShowsAnError", "negative", "Adding an over-long course should show an error", "Service throws DataIntegrityViolationException; POST /courses", "code 'C' x 256", "DESIRED: redirect /courses with a flash error. TODAY: uncaught exception, 500 (confirmed when enabled)"),
-        t("updateCourseTheDatabaseRefusesShowsAnError", "negative", "Renaming to an over-long value should show an error", "Service throws DataIntegrityViolationException; POST /courses/5/update", "code 'C' x 256", "DESIRED: flash error. TODAY: uncaught exception, 500 (confirmed when enabled)"),
+        t("addCourseTheDatabaseRefusesShowsAnError", "boundary", "Adding an over-long course shows a message", "POST /courses (the mocked service would throw DataIntegrityViolationException)", "code 'C' x 256", "Redirect /courses; flash 'Course code and course name can be at most 255 characters.'; the service isn't reached", notes="Fixed 2026-10-28; was a @Disabled known-bug test, now a regression test (same Test ID)."),
+        t("updateCourseTheDatabaseRefusesShowsAnError", "boundary", "Renaming to an over-long value shows a message", "POST /courses/5/update (the mocked service would throw)", "code 'C' x 256", "Redirect /courses?edit=5; flash 'Course code and course name can be at most 255 characters.'", notes="Fixed 2026-10-28; was a @Disabled known-bug test, now a regression test (same Test ID)."),
     ],
 
     # ================================ NEW (Batch B) ================================
@@ -605,7 +605,7 @@ CASES = {
         t("refusedRequestsNeverReachTheService", "permission", "Refused requests never reach the service", "4 routes anonymous and as ADMIN; 3 POSTs without CSRF", "-", "/login, 403, 403; no service call"),
     ],
     "StudentProfileControllerKnownBugTest": [
-        t("profileValueTheDatabaseRefusesShowsAnError", "negative", "Over-long profile value should show an error", "Mock throws DataIntegrityViolationException; POST /student/profile", "name 'A' x 256", "DESIRED: redirect /student/profile with a flash error. TODAY: uncaught exception, 500 (confirmed when enabled)"),
+        t("profileValueTheDatabaseRefusesShowsAnError", "boundary", "Over-long profile value shows a message", "POST /student/profile (the mocked service would throw DataIntegrityViolationException)", "name 'A' x 256", "Redirect /student/profile; flash 'Name, school and programme can be at most 255 characters.'; the service isn't reached", notes="Fixed 2026-10-28; was a @Disabled known-bug test, now a regression test (same Test ID)."),
     ],
     "StudyPreferenceControllerTest": [
         t("pageShowsPreferencesAndOnlyCoursesWithoutOne", "happy", "Preferences page", "Mock: preference 4 (IS442); Alex takes IS442, CS201; GET ?edit=4", "-", "View student/preferences; preferences, coursesWithoutPreference [CS201], editingId 4, 61 time options"),
@@ -655,8 +655,8 @@ CASES = {
         t("refusedPostsNeverReachTheService", "permission", "Refused POSTs never reach the service", "3 POSTs anonymous and as ADMIN (with CSRF)", "-", "/login and 403; no service call"),
     ],
     "MatchRequestControllerKnownBugTest": [
-        t("messageTheDatabaseRefusesShowsAnError", "negative", "Over-long match message should show an error", "Mock createRequest throws DataIntegrityViolationException; POST /match-requests", "message 'M' x 256", "DESIRED: redirect /match-requests with a flash error. TODAY: uncaught exception, 500 (confirmed when enabled)", notes="Added in Batch E. Only a hand-made POST can send it: the page's message box has maxlength 255."),
-        t("shortMessagesThatReadAsFalseAreShown", "negative", "Messages 'no', 'false', 'off' should be shown", "Mock: received 'no' and 'Study IS442 together?', sent 'false' and 'off'; GET /match-requests", "-", "DESIRED: <p>no</p>, <p>false</p>, <p>off</p> on the page. TODAY: only the ordinary message is shown (th:if reads the three words as false; confirmed when enabled)"),
+        t("messageTheDatabaseRefusesShowsAnError", "boundary", "Over-long match message shows a message", "POST /match-requests (the mocked service would throw DataIntegrityViolationException)", "message 'M' x 256", "Redirect /match-requests; flash 'Messages can be at most 255 characters.'; the service isn't reached", notes="Fixed 2026-10-28; was a @Disabled known-bug test, now a regression test (same Test ID). Only a hand-made POST can send it: the page's message box has maxlength 255."),
+        t("shortMessagesThatReadAsFalseAreShown", "boundary", "Messages 'no', 'false', 'off' are shown", "Mock: received 'no' and 'Study IS442 together?', sent 'false' and 'off'; GET /match-requests", "-", "<p>no</p>, <p>false</p>, <p>off</p> and the ordinary message all on the page", notes="Fixed 2026-10-28; was a @Disabled known-bug test, now a regression test (same Test ID)."),
     ],
     "ContactNumberVisibilityTest": [
         t("matchesPageNeverShowsContactNumbers", "side-effect", "Matches page never shows a contact number", "Mock: results for Ben and Chloe built with from(); GET /matches", "91110001, 92220002, 93330003", "Names shown; none of the three numbers in the HTML"),
@@ -794,7 +794,7 @@ CASES = {
         t("publicPreferencesListOnlyThatStudentsPreferences", "side-effect", "Public preferences: only that student's, no contact", "Alex IS442 and Ben CS201 preferences; getPublicPreferences(Alex)", "91234567, alex@test.com", "Only IS442 (Wed 19:00-21:00); PreferenceSummary fields have no contact or email; neither appears"),
         t("studentWithoutPreferencesHasNoPublicPreferences", "boundary", "No preferences gives an empty list", "getPublicPreferences(Alex) with none", "-", "Empty list"),
         t("unknownOrAdminIdHasNoPublicProfile", "negative", "Unknown or admin id has no public profile", "getPublicProfile / getPublicPreferences for 999999 and an admin's id", "-", "StudentNotFoundException x4"),
-        t("profileValueOver255CharactersFailsInDatabase", "boundary", "Profile name 255 / 256 at the database", "updateProfile name 'N' x 255, then x 256; flush", "-", "255 saved; 256 DataIntegrityViolationException"),
+        t("profileValueOver255CharactersFailsInDatabase", "boundary", "Profile name 255 / 256 at the database", "updateProfile name 'N' x 255, then x 256; flush", "-", "255 saved; 256 DataIntegrityViolationException", notes="The database is the service's limit; the controller checks the length first (K4 fixed 2026-10-28)."),
     ],
     "StudyPreferenceServiceGapTest": [
         t("createRefusesEachMissingChoice", "negative", "Missing choice on create", "createPreference with null mode, arrangement, goal", "CS201", "'Choose a study mode, group size and study goal' x3; still only the IS442 preference"),
@@ -811,12 +811,12 @@ CASES = {
         t("newRequestAfterRejectionCanBeAccepted", "happy", "Request after a rejection can be accepted", "Alex -> Ben rejected; Alex -> Ben again; Ben accepts", "-", "Connected; Alex's sent list REJECTED and ACCEPTED"),
         t("deactivatedSenderCanStillSend", "negative", "Deactivated sender (open session) can still send", "Alex deactivated; createRequest Alex -> Chloe", "-", "PENDING request saved"),
         t("requestWithoutMessageIsSaved", "boundary", "Message is optional", "createRequest with null message", "-", "Saved; message null"),
-        t("messageOver255CharactersFailsInDatabase", "boundary", "Message 255 / 256 at the database", "createRequest with 'M' x 255, then x 256", "-", "255 saved; 256 DataIntegrityViolationException"),
+        t("messageOver255CharactersFailsInDatabase", "boundary", "Message 255 / 256 at the database", "createRequest with 'M' x 255, then x 256", "-", "255 saved; 256 DataIntegrityViolationException", notes="The database is the service's limit; the controller checks the length first (K4 fixed 2026-10-28)."),
         t("requestSummariesNeverCarryAContactNumber", "side-effect", "Request summaries never carry a contact number", "Create, accept, list both ways, view by id", "91234567, 92345678", "Fields: requestId, sender, recipient, message, status, createdAt; no number in any summary"),
         t("acceptedRequestStaysAfterTheConnectionEnds", "side-effect", "Accepted request stays after the connection ends", "Accept, then Ben ends the connection", "-", "Not connected; both lists still show ACCEPTED"),
     ],
     "MatchRequestServiceKnownBugTest": [
-        t("requestToDeactivatedStudentIsRefused", "negative", "Request to a deactivated student should be refused", "Ben deactivated; createRequest Alex -> Ben", "-", "DESIRED: an exception and no request saved. TODAY: the request is saved, no exception (confirmed when enabled)"),
+        t("requestToDeactivatedStudentIsRefused", "negative", "Request to a deactivated student is refused", "Ben deactivated; createRequest Alex -> Ben", "-", "StudentNotFoundException (the page shows 'That student no longer exists.'); no request saved", notes="Fixed 2026-10-28; was a @Disabled known-bug test, now a regression test (same Test ID)."),
     ],
     "StudyBuddyConnectionServiceGapTest": [
         t("connectionsAreListedNewestFirst", "happy", "Buddies newest first", "Connect Alex-Ben, then (clock ticks) Chloe-Alex", "-", "Chloe, then Ben", notes="Creation times tick once a millisecond on the test machine; the test waits for a tick (no fixed sleep)."),
@@ -1046,11 +1046,11 @@ MANUAL = [
                "Open http://localhost:8080/admin/accounts and count the rows."),
       "-",
       "10 courses. 51 accounts: 50 students and 1 admin."),
-    m("MAN-28", "ACC-8, K1", "negative", "Login email in another letter case (known bug)", APP_PRE,
+    m("MAN-28", "ACC-8, K1", "boundary", "Login email in another letter case", APP_PRE,
       numbered("Open http://localhost:8080/login, type STUDENT@StudyBuddy.com and password123, click 'Log in'."),
       "STUDENT@StudyBuddy.com",
-      "DESIRED: logged in as Alex Tan. TODAY: 'That email and password don't match an active account...' (K1).",
-      "Known bug K1; matches AuthServiceKnownBugTest."),
+      "The Home page shows 'Welcome back' and 'Logged in as student@studybuddy.com' (the stored, lower-case email).",
+      "K1 fixed 2026-10-28; matches AuthServiceKnownBugTest (now a regression test)."),
     m("MAN-29", "A1, K2, ACC-6", "side-effect", "Changing a logged-in student's email", APP_PRE + " Two browsers (or a normal and a private window).",
       numbered("Browser 1: " + login("chloe.lim@studybuddy.com") + " Open http://localhost:8080/student/profile.",
                "Browser 2: " + login("admin@studybuddy.com") + " On chloe.lim@studybuddy.com click 'Edit', set New email chloe.new@studybuddy.com, click 'Save email'.",
@@ -1058,12 +1058,12 @@ MANUAL = [
       "chloe.new@studybuddy.com",
       "TODAY: step 3 shows an error page (404, 'No student account for chloe.lim@studybuddy.com') until Chloe logs out and back in with the new email.",
       "Pins current behaviour K2 (suspected bug)."),
-    m("MAN-30", "CRS-1, K4", "negative", "Over-long course code (known bug)", APP_PRE,
+    m("MAN-30", "CRS-1, K4", "boundary", "Over-long course code", APP_PRE,
       numbered(login("admin@studybuddy.com"), "Open http://localhost:8080/courses.",
                "Paste 256 characters (e.g. 256 letter C) into Course code, type 'Too long' in Course name, click 'Add course'."),
       "256-character code",
-      "DESIRED: back on /courses with an error message. TODAY: an error page with status 500 (K4).",
-      "Known bug K4; matches CourseControllerKnownBugTest."),
+      "Back on /courses with the error 'Course code and course name can be at most 255 characters.'; no new course is listed.",
+      "K4 fixed 2026-10-28; matches CourseControllerKnownBugTest (now regression tests)."),
     m("MAN-31", "L4, GRP-4", "happy", "Student asks to join a group; full groups can't be joined", APP_PRE,
       numbered(login("student@studybuddy.com"), "Open http://localhost:8080/groups and open 'IS112 SQL Practice'.",
                "Click 'Request to join'.",
@@ -1140,18 +1140,18 @@ MANUAL = [
       "-",
       "TODAY: both times the H2 Console's own login form opens (with a 'Connect' button); the browser is NOT sent to the Study Buddy login page and no 403 is shown. Don't click 'Connect': the case only checks that the page is open to anyone.",
       "Pins current behaviour SEC-3 / K15 (development setting). Turn the console off before any real deployment; matches SCM (h2Console...).", BATCH_C),
-    m("MAN-40", "S1, PRF-1, K4", "negative", "Over-long profile name (known bug)", APP_PRE,
+    m("MAN-40", "S1, PRF-1, K4", "boundary", "Over-long profile name", APP_PRE,
       numbered(login("student@studybuddy.com"), "Open http://localhost:8080/student/profile.",
                "Replace Name with 256 characters (e.g. paste 256 letter A) and click 'Save details'."),
       "256-character name",
-      "DESIRED: back on the profile page with an error message, name unchanged. TODAY: an error page with status 500 (K4).",
-      "Known bug K4; matches StudentProfileControllerKnownBugTest.", BATCH_C),
-    m("MAN-41", "S7, S8, K12", "negative", "A message that is just 'no' disappears (known bug)", APP_PRE,
+      "Back on the profile page with the error 'Name, school and programme can be at most 255 characters.'; the name is unchanged.",
+      "K4 fixed 2026-10-28; matches StudentProfileControllerKnownBugTest (now a regression test).", BATCH_C),
+    m("MAN-41", "S7, S8, K12", "boundary", "A message that is just 'no' is shown", APP_PRE,
       numbered(login("student@studybuddy.com"), "Open http://localhost:8080/matches, choose IS442, click 'Search'.",
                "On the first card that is NOT Ben Koh, Chloe Lim or Daniel Ng, type no in 'Optional message' and click 'Send request'."),
       "Message 'no'",
-      "DESIRED: under 'Sent' the new request shows the message 'no'. TODAY: 'Request sent.' and the request is listed as PENDING with no message line at all (K12). The same happens for 'false' and 'off'.",
-      "Known bug K12; matches MatchRequestControllerKnownBugTest. Compare MAN-08, where a normal message is shown.", BATCH_C),
+      "'Request sent.' and, under 'Sent', the new request is PENDING and shows the message 'no'. The same holds for 'false' and 'off'.",
+      "K12 fixed 2026-10-28; matches MatchRequestControllerKnownBugTest (now a regression test). Compare MAN-08.", BATCH_C),
 
     # ================================ NEW (Batch D) ================================
     m("MAN-42", "S3, S7, K17", "negative", "Matches still list buddies and pending requests (known bug)",
@@ -1195,18 +1195,18 @@ MANUAL = [
 # Gaps and bugs
 # --------------------------------------------------------------------------------------
 GAPS = [
-    ("K1", "Candidate bug (confirmed)", "Login is case-sensitive, but sign-up and the admin page lower-case emails.", "AuthService.java:27", "(b) Known-bug test, @Disabled", "AUK-01, MAN-28", "Confirmed failing when enabled (2026-10-24)."),
+    ("K1", "Fixed (2026-10-28)", "Login was case-sensitive although sign-up and the admin page store emails lower-cased. AuthService now looks up the trimmed, lower-cased email (the same rule as AccountCredentials.normaliseEmail, without its format check).", "AuthService.java:28-31", "Fixed; known-bug test kept as a regression test", "AUK-01, MAN-28", "Fixed (2026-10-28)."),
     ("K2", "Candidate bug", "Changing a logged-in student's email breaks their session (404s); deactivation and password reset don't end open sessions.", "AccountManagementService.java:120", "(a) Pin + manual case", "AMS (oldEmailNoLongerFindsStudentAfterUpdate), MAN-29", "Pinned."),
     ("K3", "Candidate bug", "Any DataIntegrityViolationException shows 'Another account already uses that email', including over-long fields.", "AuthController.java:61; AccountManagementController.java:64,85", "(a) Pin current message", "AMC (createAdminDatabaseRefusal..., updateEmailDatabaseRefusal...), AUC (registerDatabaseRefusal...)", "Pinned."),
-    ("K4", "Candidate bug (confirmed)", "Inputs over 255 characters reach the database and give a 500: course code and name, profile fields, match message. Study groups are NOT affected in the app (StudyGroupForm's @Size refuses a name over 255 or a description over 1000 with a message); the group service and entity accept them and the database refuses them.", "CourseController.java:53,66; StudentProfileController.java:52-64; MatchRequestController.java:63-75; StudyGroupForm.java:31,34", "(b) controller known-bug tests; (a) service pins", "CRK-01, CRK-02, SPK-01, MRK-02, CRS (courseCodeOver255...), SGS (nameOver255..., descriptionOver1000...), SPG (profileValueOver255...), MRG (messageOver255...), MAN-30, MAN-40", "Controller tests confirmed failing when enabled (courses Batch A, profile Batch C, match message Batch E). Service limits pinned."),
+    ("K4", "Fixed (2026-10-28)", "Inputs over 255 characters reached the database and gave a 500 (course code and name, profile name / school / programme, match message). The three controllers now check the length first and show 'Course code and course name can be at most 255 characters.', 'Name, school and programme can be at most 255 characters.' and 'Messages can be at most 255 characters.' No database error is caught. The services still rely on the database limit. Study groups were never affected (StudyGroupForm's @Size). Sign-up is not covered: see GAP-K3REG.", "CourseController.java; StudentProfileController.java; MatchRequestController.java", "Fixed in the controllers; known-bug tests kept as regression tests; service tests note the database limit", "CRK-01, CRK-02, SPK-01, MRK-02, CRS (courseCodeOver255...), SPG (profileValueOver255...), MRG (messageOver255...), SGS (nameOver255..., descriptionOver1000...), MAN-30, MAN-40", "Fixed (2026-10-28)."),
     ("K5", "Candidate bug", "Duplicate course codes allowed; CourseService has no @Transactional.", "CourseService.java:20; Course.java:21", "(c) List only", "-", "Listed."),
-    ("K6", "Candidate bug (confirmed)", "A match request can be sent to a deactivated student (the matches page hides inactive students, but a direct POST still sends one).", "MatchRequestService.java:77-110", "(b) Known-bug test, @Disabled", "MRQ-01", "Confirmed failing when enabled (2026-10-24): the request is saved."),
+    ("K6", "Fixed (2026-10-28)", "A match request could be sent to a deactivated student by direct POST. MatchRequestService now treats a deactivated recipient as not found, so nothing is saved and the page shows 'That student no longer exists.'", "MatchRequestService.java:79-82", "Fixed; known-bug test kept as a regression test", "MRQ-01", "Fixed (2026-10-28)."),
     ("K7", "Partly resolved (2026-10-25)", "getPublicProfile now has a page: GET /students/{id} (S6). getRequestById still has no route.", "PublicProfileController.java; MatchRequestService.java:115", "Recorded", "PPC, PPG, PPL, CNV (publicProfilePageNeverShowsContactNumbers), MAN-45", "S6 done; getRequestById open."),
     ("K8", "Resolved: team decision (2026-10-28)", "Now TD-1: a leader or member need not take the group's course (a senior who already took it may lead a group to help juniors). Creating or joining a group without the course, and dropping the course while leading, are intended.", "StudentProfileService.java:113; StudyGroupService.java:68; StudyGroup.java:446", "Intended; the tests now say so (TD-1)", "SGS (createGroupDoesNotRequireTakingTheCourse, leaderCanDropTheCourseAndStillLeadTheGroup), GMS (joiningDoesNotRequireTakingTheCourse), MAN-38", "Resolved: team decision (2026-10-28)."),
     ("K9", "Candidate bug", "Preference slots are looser than group slots: any times (not just 08:00-23:00 in 15-minute steps; the page's dropdowns hide this) and any number of slots (groups: 1-3).", "StudyPreferenceService.java:93-104", "(c) List only (agreed 2026-10-24)", "-", "Listed."),
     ("K10", "Candidate bug", "/register doesn't strip spaces from the contact number; profile update does (in the controller). The service itself never strips it, so ' 91234567 ' is refused there.", "AuthController.java:57; StudentProfileService.java:80,93", "(a) Pin", "AUC (contactNumberIsPassedOnAsTyped), SPG (contactNumberWithSpacesIsRefusedByTheService)", "Pinned (controller and service)."),
     ("K11", "Candidate bug", "A non-numeric year of study gives a raw 400.", "AuthController.java:53; StudentProfileController.java:54", "(a) Pin", "AUC (nonNumericYearOfStudyIsBadRequest), SPC (nonNumericYearOfStudyIsBadRequest)", "Pinned (sign-up and profile)."),
-    ("K12", "Candidate bug (confirmed)", "th:if=\"${req.message}\" hides a message that is just 'no', 'false' or 'off' (Thymeleaf reads them as false). Separately, an empty message is stored as '' and shows as an empty paragraph.", "match-requests.html:26,52", "(b) Known-bug test for the hidden words; (c) list only for the empty message", "MRK-01, MAN-41", "Hidden words confirmed failing when enabled (2026-10-24): an ordinary message renders, the three words don't. Empty message listed."),
+    ("K12", "Fixed (2026-10-28), display", "th:if=\"${req.message}\" hid a message that was just 'no', 'false' or 'off'. The template now shows any non-blank message (th:if checks not null and not blank), so an empty or spaces-only message no longer shows as an empty line. Storage is unchanged: an empty message is still stored as '' (list only).", "match-requests.html:27,53", "Fixed (display); known-bug test kept as a regression test; empty-message storage (c)", "MRK-01, MAN-41", "Fixed (2026-10-28); empty-message storage listed."),
     ("K13", "Candidate bug", "The duplicate-request errors show internal student ids: 'Student 2 already has a pending request to student 5', 'Student 4 has already sent you a request. Accept it instead of sending a new one'.", "DuplicateMatchRequestException.java:24-34", "(c) List only (agreed 2026-10-24)", "MAN-44", "Listed."),
     ("K14", "Candidate bug", "No database constraint for one pending request or one connection per pair (two requests at the same moment could both pass the checks).", "MatchRequestService.java:90-104; StudyBuddyConnectionService.java:46-50; StudyBuddyConnection.java:15", "(c) List only (agreed 2026-10-24)", "-", "Listed."),
     ("K15", "Candidate bug", "H2 console open to everyone with CSRF off and frame options off (its own filter chain, permitAll).", "SecurityConfig.java:26-35; application.properties:15", "(a) Pin (SEC-3) + deployment note GAP-DEP1", "SCM (h2ConsoleIsOpenWithoutLoginOrCsrf, h2ConsoleRelaxesFrameOptionsOnlyForItself), MAN-39", "Pinned."),
@@ -1267,10 +1267,11 @@ GAPS = [
     ("N-E4", "New finding", "The matches page limits the match message to 255 characters (maxlength), so K4 there needs a hand-made POST; the profile fields have no limit, so K4 on the profile happens in a normal browser (MAN-40).", "matches.html:116; profile.html:28-32", "(c) List only", "MRK-02, SPK-01", "Listed."),
     # ---- Sync (2026-10-28) ----
     ("GAP-TD3", "Open question", "The team's decision TD-3 says places reopen when 'members leave or are removed', but members can't leave a group (GAP-NI1) and the brief doesn't require it. requirements.md says 'removes a member or raises the maximum size'. Is leaving planned?", "GroupMembershipService.java", "Ask the team", "-", "Open."),
-    ("N-S1", "New finding", "A deactivated student's public profile is still shown at /students/{id} (getPublicProfile doesn't check active), while /matches hides inactive students.", "StudentProfileService.java:66-81", "(c) List only (agreed 2026-10-28)", "-", "Listed."),
+    ("N-S1", "New finding", "A deactivated student's public profile is still shown at /students/{id} (getPublicProfile doesn't check active), while /matches hides inactive students. A fix is ready to make (treat inactive like an unknown id: same redirect and message) once the team agrees.", "StudentProfileService.java:66-81", "(c) List only, awaiting the team", "-", "Listed; awaiting team decision."),
     ("N-S2", "New finding", "The public profile lists study preferences in no fixed order (getPublicPreferences doesn't sort; the matches page sorts its own by course code).", "StudentProfileService.java:73-81", "(c) List only", "-", "Listed."),
     ("N-S3", "New finding", "The public profile's back link always says '← Find study buddies', even when it was opened from Match requests, Study buddies or Manage members.", "student/public-profile.html:8", "(c) List only", "-", "Listed."),
     ("GAP-IDS", "Test note", "Automated Test IDs are now stable: docs/test-cases/test-ids.json maps Class#method to its ID (seeded 2026-10-28 from the Batch E workbook). Inserting or reordering tests no longer renumbers; a new test gets the next free number; a removed test's number is retired, never reused.", "docs/test-cases/test-ids.json", "Recorded", "-", "In place."),
+    ("GAP-K3REG", "Open (out of scope)", "Sign-up (/register) with a name, school or programme over 255 characters still reaches the database; AuthController then shows 'Another account already uses that email.' (K3), which is wrong for this case. The 2026-10-28 K4 fix covered only the course, profile and match-message forms.", "AuthController.java:61", "List only (out of scope of the K4 fix)", "AUC (registerDatabaseRefusalShowsDuplicateEmailMessage)", "Open."),
     ("GAP-NI1", "Not implemented (no requirement)", "A member can't leave a group, a student can't withdraw a pending join request, and a group can't be deleted.", "GroupMembershipService.java", "List only", "-", "Listed."),
 ]
 
