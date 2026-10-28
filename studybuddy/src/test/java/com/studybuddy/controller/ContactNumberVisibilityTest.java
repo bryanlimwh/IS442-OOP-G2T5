@@ -42,6 +42,7 @@ import com.studybuddy.matching.ScoreBreakdown;
 import com.studybuddy.matching.StudentPublicProfile;
 import com.studybuddy.service.matching.MatchingConfigService;
 import com.studybuddy.service.matching.MatchingService;
+import com.studybuddy.service.student.StudentProfileService;
 import com.studybuddy.service.studybuddymatching.ConnectionSummary;
 import com.studybuddy.service.studybuddymatching.MatchRequestService;
 import com.studybuddy.service.studybuddymatching.MatchRequestSummary;
@@ -49,12 +50,13 @@ import com.studybuddy.service.studybuddymatching.StudyBuddyConnectionService;
 
 /**
  * Where a contact number may appear in the rendered HTML: never on the matches or match requests
- * pages, only on Study buddies, and there only the buddy's own. The services are mocked, but what
+ * pages or another student's public profile, only on Study buddies, and there only the buddy's own. The services are mocked, but what
  * they return is built from real Student entities through the same from() methods the services
  * use, so a summary that started carrying the number would show up here. Each student has a
  * distinctive number: Alex (logged in) 91110001, Ben (Alex's buddy) 92220002, Chloe 93330003.
  */
-@WebMvcTest({ MatchingController.class, MatchRequestController.class, StudyBuddyConnectionController.class })
+@WebMvcTest({ MatchingController.class, MatchRequestController.class, StudyBuddyConnectionController.class,
+        PublicProfileController.class })
 @Import(SecurityConfig.class)
 @WithMockUser(username = "alex@test.com", roles = "STUDENT")
 class ContactNumberVisibilityTest {
@@ -74,6 +76,8 @@ class ContactNumberVisibilityTest {
     private MatchRequestService matchRequestService;
     @MockitoBean
     private StudyBuddyConnectionService connectionService;
+    @MockitoBean
+    private StudentProfileService studentProfileService;
 
     private final Course is442 = course(1L, "IS442", "Object Oriented Programming");
     private Student alex;
@@ -133,6 +137,19 @@ class ContactNumberVisibilityTest {
                 .andExpect(status().isOk())
                 .andExpect(content().string(allOf(containsString("Ben Koh"), containsString(BEN_CONTACT),
                         not(containsString(ALEX_CONTACT)), not(containsString(CHLOE_CONTACT)))));
+    }
+
+    // S6, PRF-3, REQ-4: another student's public profile page never shows their number (nor anyone's)
+    @Test
+    void publicProfilePageNeverShowsContactNumbers() throws Exception {
+        when(studentProfileService.getPublicProfile(2L)).thenReturn(StudentPublicProfile.from(ben));
+        when(studentProfileService.getPublicPreferences(2L)).thenReturn(List.of(PreferenceSummary.from(preference(ben))));
+
+        mockMvc.perform(get("/students/2"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(allOf(containsString("Ben Koh"), containsString("Wed 19:00-21:00"),
+                        not(containsString(BEN_CONTACT)), not(containsString(ALEX_CONTACT)),
+                        not(containsString("ben@test.com")))));
     }
 
     private MatchResult result(Student student, double score) {

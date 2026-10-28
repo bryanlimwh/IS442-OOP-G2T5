@@ -43,7 +43,8 @@ import com.studybuddy.service.studygroup.ViewerRole;
  * render the real templates with a script tag in each kind of typed text and check the page
  * holds only the escaped form. The services are mocked. Logged in as student alex@test.com.
  */
-@WebMvcTest({ MatchRequestController.class, StudyGroupController.class, StudentProfileController.class })
+@WebMvcTest({ MatchRequestController.class, StudyGroupController.class, StudentProfileController.class,
+        PublicProfileController.class })
 @Import({ SecurityConfig.class, StudyGroupFormValidator.class })
 @WithMockUser(username = "alex@test.com", roles = "STUDENT")
 class HtmlEscapingTest {
@@ -109,5 +110,18 @@ class HtmlEscapingTest {
         mockMvc.perform(get("/student/profile"))
                 .andExpect(status().isOk())
                 .andExpect(content().string(allOf(containsString("Alex " + ESCAPED), not(containsString(SCRIPT)))));
+    }
+
+    // S6: another student's name and programme on their public profile page
+    @Test
+    void publicProfileNameAndProgrammeAreEscaped() throws Exception {
+        when(studentProfileService.getPublicProfile(2L)).thenReturn(new StudentPublicProfile(2L, "Ben " + SCRIPT,
+                "SCIS", "IS " + SCRIPT, 3, List.of("IS442")));
+        when(studentProfileService.getPublicPreferences(2L)).thenReturn(List.of());
+
+        mockMvc.perform(get("/students/2"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(allOf(containsString("Ben " + ESCAPED), containsString("IS " + ESCAPED),
+                        not(containsString(SCRIPT)))));
     }
 }

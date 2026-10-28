@@ -29,7 +29,7 @@ class StudyGroupTest {
 
     private final StudyGroup group = newGroup(4);
 
-    // L1, L2, GRP-1
+    // L1, L2, GRP-1, TD-2
     @Test
     void newGroupIsActiveWithLeaderAsOnlyMember() {
         assertThat(group.getStatus()).isEqualTo(GroupStatus.ACTIVE);
@@ -336,7 +336,7 @@ class StudyGroupTest {
         assertThat(group.getMemberCount()).isEqualTo(2);
     }
 
-    // GRP-6, GRP-3, GRP-4, GRP-5: reject on a closed group is refused as "already answered", not
+    // GRP-6, GRP-3, GRP-4, GRP-5, TD-4: reject on a closed group is refused as "already answered", not
     // "Group is closed" (N-B3), pins current behaviour, update if fixed
     @Test
     void closedGroupIsFrozen() {

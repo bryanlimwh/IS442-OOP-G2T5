@@ -157,4 +157,12 @@ class MatchingControllerTest {
 
         verifyNoInteractions(matchingService, matchingConfigService);
     }
+
+    // S6, S3: the matches page shows a one-time error, e.g. after a link to a deleted student's profile
+    @Test
+    void oneTimeErrorIsShownOnThePage() throws Exception {
+        mockMvc.perform(get(BASE).flashAttr("error", "That student's profile no longer exists."))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("That student&#39;s profile no longer exists.")));
+    }
 }

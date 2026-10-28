@@ -15,6 +15,7 @@ first and carried over by Test ID, so rebuilding never loses them. A manual ID t
 workbook but no longer described here is reported with a WARNING (its results are dropped).
 Needs openpyxl (pip install openpyxl). Nothing here touches pom.xml or src/.
 """
+import json
 import re
 import sys
 import xml.etree.ElementTree as ET
@@ -30,6 +31,8 @@ ROOT = Path(__file__).resolve().parents[2]
 TEST_SRC = ROOT / "studybuddy" / "src" / "test" / "java"
 REPORTS = ROOT / "studybuddy" / "target" / "surefire-reports"
 OUT = Path(__file__).resolve().parent / "study-buddy-test-cases.xlsx"
+# Class#method -> Test ID, kept in git so IDs never change when tests are inserted, reordered or removed
+TEST_IDS = Path(__file__).resolve().parent / "test-ids.json"
 
 # Full-suite results before each batch (recorded by hand from the baseline runs)
 BASELINES = [
@@ -38,14 +41,17 @@ BASELINES = [
     ("Baseline before Batch C (2026-10-24)", {"run": 294, "passed": 291, "failed": 0, "errors": 0, "skipped": 3}),
     ("Baseline before Batch D (2026-10-24)", {"run": 593, "passed": 588, "failed": 0, "errors": 0, "skipped": 5}),
     ("Baseline before Batch E (2026-10-24)", {"run": 646, "passed": 639, "failed": 0, "errors": 0, "skipped": 7}),
+    ("Before the 2026-10-28 sync (after the teammate's public profile and full-group commits)",
+     {"run": 687, "passed": 678, "failed": 0, "errors": 0, "skipped": 9}),
 ]
 BATCH_B = "Batch B"
 BATCH_C = "Batch C"
 BATCH_D = "Batch D"
 BATCH_E = "Batch E"
+SYNC = "Sync 2026-10-28"
 
 # Not after a letter, digit or "-", so finding ids such as N-D1 aren't read as requirement D1
-ID_PATTERN = re.compile(r"(?<![\w-])(?:[SLAD]\d+|ACC-\d+|CRS-\d+|PRF-\d+|PRE-\d+|REQ-\d+|GRP-\d+|MAT-\d+|SEC-\d+|K\d+)\b")
+ID_PATTERN = re.compile(r"(?<![\w-])(?:[SLAD]\d+|ACC-\d+|CRS-\d+|PRF-\d+|PRE-\d+|REQ-\d+|GRP-\d+|MAT-\d+|SEC-\d+|TD-\d+|K\d+)\b")
 TYPES = ["happy", "negative", "boundary", "permission", "conflict", "side-effect"]
 
 # --------------------------------------------------------------------------------------
@@ -108,11 +114,14 @@ REQUIREMENTS = [
     ("SEC-1", "Security", "URL rules: public, ADMIN and STUDENT paths."),
     ("SEC-2", "Security", "Anonymous -> /login; wrong role -> 403; POST without CSRF -> 403."),
     ("SEC-3", "Security", "H2 console open with CSRF off (development only)."),
+    ("TD-1", "Team decisions", "A leader or member need not take the group's course (was K8; decided 2026-10-28)."),
+    ("TD-2", "Team decisions", "A group has exactly one study goal from the shared list; extra goals go in the description (L2)."),
+    ("TD-3", "Team decisions", "A full group keeps pending requests as a waiting list; a place reopens when the leader removes a member or raises the maximum size (GRP-4)."),
+    ("TD-4", "Team decisions", "Closing a group is permanent (GRP-6)."),
 ]
 
 # Where uncovered items are scheduled
 PLANNED = {
-    "S6": "Gap K7 (no profile page)",
     "ACC-8": "Fix K1, then remove @Disabled from AUK-01",
 }
 
@@ -181,6 +190,10 @@ CLASSES = {
     "MatchRequestServiceGapTest": ("MRG", BATCH_E, "@DataJpaTest, empty H2 (no seeders), own data, rolled back; adds to the teammate's MatchRequestServiceTest. Alex 91234567, Ben 92345678, Chloe 93456789; no requests at the start."),
     "MatchRequestServiceKnownBugTest": ("MRQ", BATCH_E, "@DataJpaTest, empty H2 (no seeders), own data, rolled back. @Disabled known-bug test: describes the desired behaviour."),
     "StudyBuddyConnectionServiceGapTest": ("SBG", BATCH_E, "@DataJpaTest, empty H2 (no seeders), own data, rolled back; adds to the teammate's StudyBuddyConnectionServiceTest. Alex 91234567, Ben 92345678, Chloe 93456789; no connections at the start."),
+    # Teammate (2026-10-25) and sync (2026-10-28)
+    "PublicProfileControllerTest": ("PPC", "Existing", "@WebMvcTest with the real SecurityConfig and real templates (Thymeleaf renders the page); StudentProfileService mocked. Logged in as STUDENT alex@test.com, viewing Ben Koh (student 2)."),
+    "PublicProfileControllerGapTest": ("PPG", SYNC, "@WebMvcTest with the real SecurityConfig and real templates (Thymeleaf renders the page); StudentProfileService mocked; STUDENT alex@test.com. Adds to the teammate's PublicProfileControllerTest (unchanged)."),
+    "PublicProfileLinksTest": ("PPL", SYNC, "@WebMvcTest with the real SecurityConfig and real templates (Thymeleaf renders the page) for /matches, /match-requests, /connections and /groups/{id}/members; services mocked. STUDENT alex@test.com; the other student is Ben Koh, student 2."),
     "GroupMembershipServiceTest": ("GMS", BATCH_B, "@DataJpaTest + GroupMembershipService + StudyGroupService, empty H2. Course IS442 taken by Alex, Ben, Chloe, Emily (Daniel takes nothing). Alex leads 'IS442 Revision', maximum size 4. Own data, rolled back."),
 }
 
@@ -300,6 +313,7 @@ CASES = {
         t("signUpRejectsTakenEmailAndBadDetails", "negative", "Sign-up refuses taken email, short password, bad contact", "createProfile three times", "Alex's email; 'short'; '123'", "DuplicateEmailException; InvalidAccountDetailsException; IllegalArgumentException", "S1, ACC-2, ACC-3, PRF-1", SEEDED),
         t("invalidProfileIsRejected", "negative", "Invalid profile values refused", "updateProfile with blank name, year 0, contact 1234", "-", "IllegalArgumentException each time", "PRF-1", SEEDED),
         t("publicProfileHidesContactDetails", "side-effect", "Public profile has no contact or email", "getPublicProfile(Ben)", "-", "Name present; no 92345678 or email", "S6, PRF-3", SEEDED),
+        t("publicPreferencesListTheStudentsPreferences", "happy", "Public preferences list the student's preferences", "getPublicPreferences(Ben)", "seeded", "Includes IS442", "S6", SEEDED + " Written by a teammate (commit 971c1a0); its requirement IDs come from this workbook."),
         t("addAndRemoveCourse", "happy", "Add and remove a course", "addCourse IS111, removeCourse CS201 (Ben)", "-", "Courses IS442, IS216, IS111", "S1, PRF-2", SEEDED + " Note: removes CS201 while Ben leads the seeded CS201 group (K8)."),
         t("courseRulesAreEnforced", "negative", "Course rules", "add IS442 again; remove IS111; remove IS442", "-", "IllegalStateException each time", "PRF-2", SEEDED),
     ],
@@ -551,11 +565,11 @@ CASES = {
     ],
     # ================================ NEW (Batch C) ================================
     "SecurityConfigTest": [
-        t("anonymousIsSentToLogin", "permission", "Anonymous user sent to login on every protected route", "Each protected route in ROUTES, with a CSRF token, not logged in", "45 routes", "302 to /login"),
+        t("anonymousIsSentToLogin", "permission", "Anonymous user sent to login on every protected route", "Each protected route in ROUTES, with a CSRF token, not logged in", "46 routes", "302 to /login"),
         t("anonymousPostWithoutCsrfIsForbidden", "permission", "Anonymous POST without CSRF refused", "Each protected POST, no token, not logged in", "30 POST routes", "403 (the CSRF check runs before the login check, N-C3)"),
         t("studentIsForbiddenFromAdminRoutes", "permission", "Student refused on every admin route", "Each /admin route as STUDENT with CSRF", "9 routes", "403"),
-        t("adminIsForbiddenFromStudentRoutes", "permission", "Admin refused on every student route", "Each student route as ADMIN with CSRF", "31 routes", "403"),
-        t("rightRoleGetsPastSecurity", "happy", "The right role gets past security on every route", "Each protected route as its role (ADMIN for /admin, otherwise STUDENT) with CSRF", "45 routes", "Neither 403 nor a redirect to /login (404 here: no controller loaded)"),
+        t("adminIsForbiddenFromStudentRoutes", "permission", "Admin refused on every student route", "Each student route as ADMIN with CSRF", "32 routes", "403"),
+        t("rightRoleGetsPastSecurity", "happy", "The right role gets past security on every route", "Each protected route as its role (ADMIN for /admin, otherwise STUDENT) with CSRF", "46 routes", "Neither 403 nor a redirect to /login (404 here: no controller loaded)"),
         t("anyLoggedInUserGetsPastSecurity", "happy", "/home and /courses open to both roles", "Each any-user route as STUDENT and as ADMIN", "5 routes", "Neither 403 nor /login", notes="The /courses POSTs are admin-only through @PreAuthorize, not the URL rules; CourseControllerTest checks the refusal."),
         t("loggedInPostWithoutCsrfIsForbidden", "permission", "Every POST needs a CSRF token, even for the right role", "Each protected POST as its role, no token", "30 POST routes", "403"),
         t("publicRoutesNeedNoLogin", "happy", "Login and sign-up need no login; sign-up POST still needs CSRF", "GET /login, GET /register, POST /register anonymous", "-", "Not refused or redirected; POST /register without token 403"),
@@ -565,7 +579,7 @@ CASES = {
         t("h2ConsoleRelaxesFrameOptionsOnlyForItself", "side-effect", "Only the console may be framed", "GET /h2-console/, /login, /home", "-", "Console: no X-Frame-Options; /login and /home: X-Frame-Options DENY"),
     ],
     "RouteInventoryTest": [
-        t("securityMatrixListsEveryControllerRoute", "boundary", "Security matrix lists every controller route", "Read every request mapping of com.studybuddy.controller; compare with SecurityConfigTest.ROUTES", "48 mappings", "Same set both ways; otherwise 'Route table out of date: add <method path> to the SecurityConfigTest matrix and say which role may call it' (or remove ...)"),
+        t("securityMatrixListsEveryControllerRoute", "boundary", "Security matrix lists every controller route", "Read every request mapping of com.studybuddy.controller; compare with SecurityConfigTest.ROUTES", "49 mappings", "Same set both ways; otherwise 'Route table out of date: add <method path> to the SecurityConfigTest matrix and say which role may call it' (or remove ...)"),
         t("rootAddressIsNotMapped", "negative", "Bare address / is not mapped", "GET / anonymous, as STUDENT, as ADMIN", "-", "Anonymous: /login; logged in: 404"),
     ],
     "HomeControllerTest": [
@@ -619,6 +633,7 @@ CASES = {
         t("unknownFilterValueIsBadRequest", "negative", "Hand-edited filter value", "GET ?studyGoal=BOGUS; ?courseId=abc", "-", "400 each; service not called"),
         t("missingStudentAccountIsNotFound", "negative", "Logged-in email with no student account", "Mock throws StudentNotFoundException", "-", "404"),
         t("refusedRequestsNeverReachTheService", "permission", "Refused requests never reach the service", "GET anonymous and as ADMIN", "-", "/login, 403; no service call"),
+        t("oneTimeErrorIsShownOnThePage", "happy", "One-time error shown on the matches page", "GET /matches with flash error", "'That student's profile no longer exists.'", "The message is on the page"),
     ],
     "StudyBuddyConnectionControllerTest": [
         t("pageListsLoggedInStudentsBuddies", "happy", "Study buddies page", "GET /connections", "Ben Koh, 92345678, 13 Oct 2026", "View student/connections; page shows name, number and date"),
@@ -646,11 +661,13 @@ CASES = {
     "ContactNumberVisibilityTest": [
         t("matchesPageNeverShowsContactNumbers", "side-effect", "Matches page never shows a contact number", "Mock: results for Ben and Chloe built with from(); GET /matches", "91110001, 92220002, 93330003", "Names shown; none of the three numbers in the HTML"),
         t("matchRequestsPageNeverShowsContactNumbers", "side-effect", "Match requests never show a contact number, even accepted", "Mock: accepted request from Ben, pending to Chloe (from()); GET /match-requests", "same numbers", "Names shown; no number in the HTML"),
+        t("publicProfilePageNeverShowsContactNumbers", "side-effect", "Public profile page never shows a contact number", "Mock Ben's profile and preference built with from(); GET /students/2", "92220002, 91110001", "Name and times shown; no number and no email in the HTML"),
         t("connectionsPageShowsOnlyTheBuddysNumber", "happy", "Study buddies shows only the buddy's number", "Mock: Alex-Ben connection via ConnectionSummary.from(); GET /connections", "same numbers", "Ben's 92220002 shown; Alex's own and Chloe's not"),
     ],
     "HtmlEscapingTest": [
         t("matchRequestMessageIsEscaped", "negative", "Match request message is escaped", "Mock: received message 'Hi <script>alert(1)</script>'; GET /match-requests", "<script>alert(1)</script>", "HTML has '&lt;script&gt;alert(1)&lt;/script&gt;' and never the raw tag"),
         t("groupNameAndDescriptionAreEscaped", "negative", "Group name and description are escaped", "Mock group 1 with the script in name and description; GET /groups/1", "<script>alert(1)</script>", "Both escaped; raw tag absent"),
+        t("publicProfileNameAndProgrammeAreEscaped", "negative", "Public profile name and programme are escaped", "Mock profile with the script in name and programme; GET /students/2", "<script>alert(1)</script>", "Escaped; raw tag absent"),
         t("profileNameIsEscaped", "negative", "Profile name is escaped (inside an input value)", "Mock profile name 'Alex <script>alert(1)</script>'; GET /student/profile", "<script>alert(1)</script>", "Escaped; raw tag absent"),
     ],
     "StudyGroupControllerTest": [
@@ -660,6 +677,8 @@ CASES = {
         t("joinableOnlyKeepsGroupsTheStudentCanJoin", "boundary", "Only groups I can join", "Roles NONE, MEMBER, REJECTED, NONE-but-full; GET ?joinableOnly=true", "-", "Only the NONE and REJECTED groups with room"),
         t("myGroupsShowsTheStudentsFourLists", "happy", "My groups", "GET /groups/mine", "-", "View studygroup/my-groups; groupsLed, groupsJoined, pendingRequests, pastRequests for alex@test.com"),
         t("groupPageShowsGroupAndViewerRole", "happy", "Group page", "GET /groups/1?from=mine", "-", "View studygroup/details; group summary, viewerRole LEADER, fromMyGroups true"),
+        t("pendingStudentOnFullGroupIsToldTheyAreWaiting", "boundary", "Waiting student on a full group is told why", "Mock: full group (2 of 2), viewer PENDING; GET /groups/5", "-", "Page shows 'The group is full right now. The leader can still accept you if a place opens up.'", "GRP-4, TD-3, L4", notes="Written by a teammate (commit 0385418); its requirement IDs come from this workbook."),
+        t("pendingStudentOnOpenGroupSeesNoFullNote", "boundary", "No full-group note while there's room", "Mock: open group (2 of 4), viewer PENDING; GET /groups/6", "-", "'Waiting for the group's leader to respond.' shown; the full-group note isn't", "GRP-4, TD-3", notes="Written by a teammate (commit 0385418); its requirement IDs come from this workbook."),
         t("unknownGroupPageGoesBackToBrowse", "negative", "Missing group page", "Mock throws StudyGroupNotFoundException", "99", "Redirect /groups; flash 'That group no longer exists.'"),
         t("createFormStartsBlank", "happy", "Create form", "GET /groups/new", "-", "View studygroup/form; 1 slot row; minSize 2; maxSlots 3; 61 time options"),
         t("createGroupRedirectsToItsPage", "happy", "Create a group", "POST /groups (valid form)", "New Group, IS442, size 3, Mon 10:00-12:00", "Redirect /groups/7?from=mine; flash 'Group created. Other students can now find it on Study groups and ask to join.'; service gets the form for alex@test.com"),
@@ -772,6 +791,9 @@ CASES = {
         t("detailsAreStripped", "happy", "Details saved without surrounding spaces", "createProfile and updateProfile with padded values", "'  New Student ', ' SCIS ', ...", "Stored stripped; contact number saved as given"),
         t("publicProfileHasNoContactNumberOrEmail", "side-effect", "Public profile has no contact number or email", "getPublicProfile(Alex)", "91234567, alex@test.com", "Fields: studentId, name, school, programme, yearOfStudy, courseCodes; text has neither number nor email"),
         t("unknownStudentOrCourseIsNotFound", "negative", "Unknown student or course", "getPublicProfile(999999), getProfile / updateProfile as ghost, add / remove course 999999", "-", "StudentNotFoundException x3; CourseNotFoundException x2; courses unchanged"),
+        t("publicPreferencesListOnlyThatStudentsPreferences", "side-effect", "Public preferences: only that student's, no contact", "Alex IS442 and Ben CS201 preferences; getPublicPreferences(Alex)", "91234567, alex@test.com", "Only IS442 (Wed 19:00-21:00); PreferenceSummary fields have no contact or email; neither appears"),
+        t("studentWithoutPreferencesHasNoPublicPreferences", "boundary", "No preferences gives an empty list", "getPublicPreferences(Alex) with none", "-", "Empty list"),
+        t("unknownOrAdminIdHasNoPublicProfile", "negative", "Unknown or admin id has no public profile", "getPublicProfile / getPublicPreferences for 999999 and an admin's id", "-", "StudentNotFoundException x4"),
         t("profileValueOver255CharactersFailsInDatabase", "boundary", "Profile name 255 / 256 at the database", "updateProfile name 'N' x 255, then x 256; flush", "-", "255 saved; 256 DataIntegrityViolationException"),
     ],
     "StudyPreferenceServiceGapTest": [
@@ -801,6 +823,22 @@ CASES = {
         t("summaryCarriesOnlyTheBuddysNumber", "side-effect", "Summary carries only the buddy's number", "Alex and Ben connected; each one's summary", "91234567, 92345678", "Alex sees 92345678 and never his own; Ben sees 91234567"),
         t("endingHidesTheConnectionFromBoth", "side-effect", "Ending hides the connection from both", "Alex ends the Ben connection (Chloe stays)", "-", "Ben has none; Alex has only Chloe; not connected either way"),
         t("endingTwiceFails", "negative", "Ending twice fails", "End, then end again as Alex and as Ben", "-", "ConnectionNotFoundException x2"),
+    ],
+    # ================================ Teammate (2026-10-25) and sync (2026-10-28) ================================
+    "PublicProfileControllerTest": [
+        t("showsProfileAndPreferencesButNoContactDetails", "happy", "Public profile page", "Mock Ben's public profile and IS442 preference; GET /students/2", "-", "View student/public-profile; name, 'Information Systems, Year 3', courses, preference and times shown; 92345678 absent", "S6, PRF-3"),
+        t("unknownStudentRedirectsToMatchesWithMessage", "negative", "Unknown student", "Mock throws StudentNotFoundException; GET /students/99", "-", "Redirect /matches; flash 'That student's profile no longer exists.'", "S6"),
+        t("onlyStudentsCanViewProfiles", "permission", "Only students view profiles", "GET /students/2 as ADMIN and anonymous", "-", "403; redirect", "D3, SEC-1, S6"),
+    ],
+    "PublicProfileControllerGapTest": [
+        t("refusedRequestsNeverReachTheService", "permission", "Refused requests never reach the service", "GET /students/2 anonymous and as ADMIN", "-", "/login, 403; no service call"),
+        t("nonNumericIdIsBadRequest", "negative", "Non-numeric id", "GET /students/abc", "-", "400; service not called"),
+    ],
+    "PublicProfileLinksTest": [
+        t("matchCardNameLinksToTheProfile", "happy", "Match card name links to the profile", "Mock one result (Ben); GET /matches", "-", "<a href=\"/students/2\">Ben Koh</a>"),
+        t("requestNamesLinkToTheProfile", "happy", "Request names link to the profile", "Mock received from Ben, sent to Chloe; GET /match-requests", "-", "Links to /students/2 (Ben) and /students/3 (Chloe)"),
+        t("buddyNameLinksToTheProfile", "happy", "Buddy name links to the profile", "Mock connection with Ben; GET /connections", "-", "<a href=\"/students/2\">Ben Koh</a>"),
+        t("memberAndRequestNamesLinkToTheProfile", "happy", "Member and request names link to the profile", "Mock group with Ben a member and Chloe waiting; GET /groups/1/members", "-", "Links to /students/2 and /students/3"),
     ],
 }
 
@@ -886,7 +924,7 @@ MANUAL = [
                "Read Ben Koh's card. Press Ctrl+F and search for 92345678."),
       "Ben Koh's number 92345678",
       "The card shows name, programme, year and school only. 92345678 is not found on the page.",
-      "K7: there is no separate profile page; this is the only place another student's details appear."),
+      "Ben Koh's name is a link to his public profile page (see MAN-45), which doesn't show the number either."),
     m("MAN-08", "S7, REQ-1", "happy", "Send a buddy request with a message", APP_PRE,
       numbered(login("student@studybuddy.com"), "Open http://localhost:8080/matches, choose IS442, click 'Search'.",
                "On the first card that is NOT Ben Koh, Chloe Lim or Daniel Ng, type 'Want to study IS442 together?' in 'Optional message' and click 'Send request'.",
@@ -910,7 +948,7 @@ MANUAL = [
                "On Ben Koh's row click 'End'; in the box click 'End connection'."),
       "Ben Koh (92345678)",
       "Before step 3 Ben Koh is listed with 92345678. After: 'Connection ended. You can no longer see each other's contact numbers.' and Ben Koh is no longer listed."),
-    m("MAN-12", "L1, L2, GRP-1, GRP-7", "happy", "Create a study group", APP_PRE,
+    m("MAN-12", "L1, L2, GRP-1, GRP-7, TD-2", "happy", "Create a study group", APP_PRE,
       numbered(login("student@studybuddy.com"), "Open http://localhost:8080/groups and click '+ Create a group'.",
                "Group name 'Manual Test Group'; Course IS442; Description 'Practice questions'; Study goal Exam preparation; Study mode Online; Maximum group size 4.",
                "Slot 1: Day Monday, From 10:00, To 12:00. Click '+ Add slot'; Slot 2: Day Wednesday, From 14:00, To 16:00.",
@@ -1055,7 +1093,7 @@ MANUAL = [
                "Type http://localhost:8080/groups/2/edit and press Enter."),
       "Alex Tan, a member of Ben Koh's CS201 group (group 2)",
       "Step 2: 'You're a member of this group.'; no 'Edit group', 'Manage members' or 'Close group' buttons. Step 3 and step 4: back on the CS201 DSA Problem Solvers page with the error 'Only the group's leader can do that.'", batch=BATCH_B),
-    m("MAN-34", "L3, GRP-6", "side-effect", "Closing a group ends its pending requests", APP_PRE + " Needs the seeded pending requests of Farhan Ismail and Jasmine Teo.",
+    m("MAN-34", "L3, GRP-6, TD-4", "side-effect", "Closing a group ends its pending requests", APP_PRE + " Needs the seeded pending requests of Farhan Ismail and Jasmine Teo.",
       numbered(login("student@studybuddy.com"), "Open http://localhost:8080/groups/mine. Under 'Groups I lead', the 'IS442 OOP Exam Prep' card shows '2 requests waiting'. Click 'View'.",
                "Click 'Close group' and read the box, then click 'Close group' in the box.",
                "Open http://localhost:8080/groups/mine.",
@@ -1070,29 +1108,30 @@ MANUAL = [
                LOGOUT + " " + login("student@studybuddy.com") + " Open http://localhost:8080/groups/mine, on 'IS442 OOP Exam Prep' click 'View', then 'Manage members'."),
       "Chloe Lim, removed in MAN-15",
       "Step 2: the card says 'Removed from the group'. The group page says 'You were removed from this group before.' Step 3: the box says 'You were removed from this group before. Do you want to request to join again?'; then 'Request sent. The group's leader will review it.' and 'Request sent. Waiting for the group's leader to respond.' Step 4: Chloe Lim is listed under 'Join requests' (with Farhan Ismail and Jasmine Teo unless MAN-14 ran first).", batch=BATCH_B),
-    m("MAN-36", "L5, GRP-4, GRP-5", "boundary", "A full group keeps requests waiting until a place opens", APP_PRE,
+    m("MAN-36", "L5, GRP-4, GRP-5, TD-3", "boundary", "A full group keeps requests waiting until a place opens", APP_PRE,
       numbered(login("student@studybuddy.com"), "Open http://localhost:8080/groups/mine, on 'IS442 OOP Exam Prep' click 'View', then 'Manage members'.",
                "Under 'Join requests' click 'Accept' for Farhan Ismail.",
                LOGOUT + " " + login("jasmine.teo@studybuddy.com") + " Open http://localhost:8080/groups/mine.",
+               "Under 'Pending group join requests', on 'IS442 OOP Exam Prep' click 'View'.",
                LOGOUT + " " + login("student@studybuddy.com") + " Open the IS442 OOP Exam Prep 'Manage members' page again (as in step 2). Under 'Members' click 'Remove' for Ben Koh, then 'Remove member' in the box.",
                "Click 'Accept' for Jasmine Teo."),
       "Seeded IS442 OOP Exam Prep, 3/4 with Farhan and Jasmine pending",
-      "Step 3: 'Farhan Ismail is now a member of the group.', the count shows '4/4 members', the warning 'Group is full. Remove a member to accept new members.' appears and Jasmine Teo's 'Accept' is greyed out (can't be clicked). Step 4: under 'Pending group join requests' the IS442 OOP Exam Prep card shows 'Full' and 'The group is full right now. The leader can still accept you if a place opens up.' Step 5: 'Ben Koh was removed from the group.', '3/4 members', Jasmine's 'Accept' works again. Step 6: 'Jasmine Teo is now a member of the group.' and '4/4 members'.", batch=BATCH_B),
-    m("MAN-37", "L3, GRP-6", "conflict", "A closed group can't be edited or changed, only removed from My groups", APP_PRE,
+      "Step 3: 'Farhan Ismail is now a member of the group.', the count shows '4/4 members', the warning 'Group is full. Remove a member to accept new members.' appears and Jasmine Teo's 'Accept' is greyed out (can't be clicked). Step 4: under 'Pending group join requests' the IS442 OOP Exam Prep card shows 'Full' and 'The group is full right now. The leader can still accept you if a place opens up.' Step 5: the group page says 'Request sent. Waiting for the group's leader to respond.' and, under it, 'The group is full right now. The leader can still accept you if a place opens up.' Step 6: 'Ben Koh was removed from the group.', '3/4 members', Jasmine's 'Accept' works again. Step 7: 'Jasmine Teo is now a member of the group.' and '4/4 members'.", "Step 5 added on 2026-10-28 (teammate commit 0385418); TD-3.", BATCH_B),
+    m("MAN-37", "L3, GRP-6, TD-4", "conflict", "A closed group can't be edited or changed, only removed from My groups", APP_PRE,
       numbered(login("emily.wong@studybuddy.com"), "Open http://localhost:8080/groups/mine. Under 'Groups I lead', on 'ECON101 Midterm Revision' click 'View'. Note the number after /groups/ in the address bar (6 on a fresh start).",
                "Type http://localhost:8080/groups/6/edit and press Enter.",
                "Type http://localhost:8080/groups/6/members and press Enter.",
                "Open http://localhost:8080/groups/mine and click 'Remove' on 'ECON101 Midterm Revision'."),
       "Emily Wong, leader of the seeded closed ECON101 group (group 6)",
       "Step 2: 'This group is closed, so it isn't taking new members.' and 'You lead this group.'; no Edit group, Manage members or Close group buttons. Step 3: back on the group page with the error 'This group is closed, so it can't be edited.' Step 4: Manage members shows 'This group is closed, so its members can't be changed.', no 'Join requests' section, and Emily Wong, Grace Lee, Isaac Chua with no Remove buttons. Step 5: 'Removed from My groups.' and ECON101 Midterm Revision is gone from 'Groups I lead'; 'CS201 DSA Problem Solvers' is still under 'Joined groups'.", batch=BATCH_B),
-    m("MAN-38", "L1, GRP-4, K8", "side-effect", "Groups don't need the course (known gap K8)", APP_PRE,
+    m("MAN-38", "L1, GRP-4, TD-1", "side-effect", "Groups don't need the course (team decision TD-1)", APP_PRE,
       numbered(login("ben.koh@studybuddy.com"), "Open http://localhost:8080/student/profile. Under 'Your courses' click 'Remove' next to CS201.",
                "Open http://localhost:8080/groups/mine.",
                "Open http://localhost:8080/groups, open 'IS112 SQL Practice' and click 'Request to join'.",
                "Open http://localhost:8080/groups and click '+ Create a group'. Group name 'K8 Check'; Course 'ECON101 Principles of Economics'; Study goal 'Exam preparation'; Study mode 'Online'; Maximum group size 3; Slot 1: Day Monday, From 10:00, To 12:00. Click 'Create group'."),
       "Ben Koh takes IS442, IS216, CS201 (no CS201 preference) and leads the CS201 group",
-      "TODAY: Step 2: 'The course has been removed.' Step 3: 'CS201 DSA Problem Solvers' is still under 'Groups I lead'. Step 4: 'Request sent. The group's leader will review it.' although Ben doesn't take IS112. Step 5: 'Group created. Other students can now find it on Study groups and ask to join.' although Ben doesn't take ECON101.",
-      "Pins current behaviour K8 (team decision, treatment (a)); matches SGS and GMS K8 tests.", BATCH_B),
+      "Step 2: 'The course has been removed.' Step 3: 'CS201 DSA Problem Solvers' is still under 'Groups I lead'. Step 4: 'Request sent. The group's leader will review it.' although Ben doesn't take IS112. Step 5: 'Group created. Other students can now find it on Study groups and ask to join.' although Ben doesn't take ECON101.",
+      "Intended (team decision TD-1, was K8): a leader or member need not take the course. Matches the SGS and GMS TD-1 tests.", BATCH_B),
 
     # ================================ NEW (Batch C) ================================
     m("MAN-39", "SEC-3, K15", "permission", "H2 console opens without logging in (dev only)", APP_PRE + " Logged out.",
@@ -1140,6 +1179,16 @@ MANUAL = [
       "Seeded data",
       "Step 3: the Match requests page shows the error 'Student <n> already has a pending request to student <m>', with two internal id numbers (on a fresh start Alex is 2 and Daniel 5). Step 4: 'Student <m> has already sent you a request. Accept it instead of sending a new one' (Chloe's id, 4 on a fresh start). No new request is listed under 'Sent'.",
       "K13 (c): the ids mean nothing to the student. The ids depend on seeding order; compare the wording, not the numbers.", BATCH_E),
+
+    # ================================ Sync (2026-10-28) ================================
+    m("MAN-45", "S6, PRF-3, REQ-4, D3", "happy", "Another student's public profile page", APP_PRE,
+      numbered(login("student@studybuddy.com"), "Open http://localhost:8080/matches, choose IS442 in Course and click 'Search'.",
+               "Click the name 'Ben Koh' on the first card. Press Ctrl+F and search for 92345678, then for ben.koh@studybuddy.com. Note the number at the end of the address (3 on a fresh start).",
+               "Type http://localhost:8080/students/99999 in the address bar and press Enter.",
+               LOGOUT + " " + login("admin@studybuddy.com") + " Open http://localhost:8080/students/3 (the number from step 3)."),
+      "Ben Koh (92345678)",
+      "Step 3: the page shows 'Ben Koh', 'Information Systems, Year 3 · School of Computing and Information Systems', the note 'Contact numbers are only shared between study buddies, once a match request is accepted. See yours under Study buddies.', Courses IS442, IS216 and CS201, and one study preference: IS442 Object Oriented Programming, Exam preparation, In person or online, One-to-one, Free 'Wed 19:00-21:00, Thu 18:00-20:00'. Neither 92345678 nor the email is found. Step 4: back on Find study buddies with 'That student's profile no longer exists.' Step 5: an error page with status 403 (Forbidden).",
+      "Added for teammate commit 971c1a0. A deactivated student's profile is still shown (N-S1, list only).", SYNC),
 ]
 
 # --------------------------------------------------------------------------------------
@@ -1152,8 +1201,8 @@ GAPS = [
     ("K4", "Candidate bug (confirmed)", "Inputs over 255 characters reach the database and give a 500: course code and name, profile fields, match message. Study groups are NOT affected in the app (StudyGroupForm's @Size refuses a name over 255 or a description over 1000 with a message); the group service and entity accept them and the database refuses them.", "CourseController.java:53,66; StudentProfileController.java:52-64; MatchRequestController.java:63-75; StudyGroupForm.java:31,34", "(b) controller known-bug tests; (a) service pins", "CRK-01, CRK-02, SPK-01, MRK-02, CRS (courseCodeOver255...), SGS (nameOver255..., descriptionOver1000...), SPG (profileValueOver255...), MRG (messageOver255...), MAN-30, MAN-40", "Controller tests confirmed failing when enabled (courses Batch A, profile Batch C, match message Batch E). Service limits pinned."),
     ("K5", "Candidate bug", "Duplicate course codes allowed; CourseService has no @Transactional.", "CourseService.java:20; Course.java:21", "(c) List only", "-", "Listed."),
     ("K6", "Candidate bug (confirmed)", "A match request can be sent to a deactivated student (the matches page hides inactive students, but a direct POST still sends one).", "MatchRequestService.java:77-110", "(b) Known-bug test, @Disabled", "MRQ-01", "Confirmed failing when enabled (2026-10-24): the request is saved."),
-    ("K7", "Not implemented", "getPublicProfile and getRequestById have no route; no profile page (S6 partial).", "StudentProfileService.java:66; MatchRequestService.java:115", "Not decided (outside Batch A)", "MAN-07", "Open."),
-    ("K8", "Candidate bug (team decision)", "A student can drop a course while leading or in a group for it; creating or joining a group doesn't require taking the course. requirements.md L1 records 'Leader need not take the course' as current behaviour.", "StudentProfileService.java:113; StudyGroupService.java:68; StudyGroup.java:446", "(a) Pin all three (agreed 2026-10-24)", "SGS (createGroupDoesNotRequireTakingTheCourse, leaderCanDropTheCourseAndStillLeadTheGroup), GMS (joiningDoesNotRequireTakingTheCourse), SPS (addAndRemoveCourse), MAN-38", "Pinned. If the team decides it is a bug, add a StudyGroupServiceKnownBugTest."),
+    ("K7", "Partly resolved (2026-10-25)", "getPublicProfile now has a page: GET /students/{id} (S6). getRequestById still has no route.", "PublicProfileController.java; MatchRequestService.java:115", "Recorded", "PPC, PPG, PPL, CNV (publicProfilePageNeverShowsContactNumbers), MAN-45", "S6 done; getRequestById open."),
+    ("K8", "Resolved: team decision (2026-10-28)", "Now TD-1: a leader or member need not take the group's course (a senior who already took it may lead a group to help juniors). Creating or joining a group without the course, and dropping the course while leading, are intended.", "StudentProfileService.java:113; StudyGroupService.java:68; StudyGroup.java:446", "Intended; the tests now say so (TD-1)", "SGS (createGroupDoesNotRequireTakingTheCourse, leaderCanDropTheCourseAndStillLeadTheGroup), GMS (joiningDoesNotRequireTakingTheCourse), MAN-38", "Resolved: team decision (2026-10-28)."),
     ("K9", "Candidate bug", "Preference slots are looser than group slots: any times (not just 08:00-23:00 in 15-minute steps; the page's dropdowns hide this) and any number of slots (groups: 1-3).", "StudyPreferenceService.java:93-104", "(c) List only (agreed 2026-10-24)", "-", "Listed."),
     ("K10", "Candidate bug", "/register doesn't strip spaces from the contact number; profile update does (in the controller). The service itself never strips it, so ' 91234567 ' is refused there.", "AuthController.java:57; StudentProfileService.java:80,93", "(a) Pin", "AUC (contactNumberIsPassedOnAsTyped), SPG (contactNumberWithSpacesIsRefusedByTheService)", "Pinned (controller and service)."),
     ("K11", "Candidate bug", "A non-numeric year of study gives a raw 400.", "AuthController.java:53; StudentProfileController.java:54", "(a) Pin", "AUC (nonNumericYearOfStudyIsBadRequest), SPC (nonNumericYearOfStudyIsBadRequest)", "Pinned (sign-up and profile)."),
@@ -1189,10 +1238,10 @@ GAPS = [
     ("N-B8", "New finding", "Stale Javadoc: GroupMembership.reject() says it is also reached through StudyGroup#close, but close() uses endBecauseGroupClosed().", "GroupMembership.java:853-859", "(c) List only", "-", "Listed."),
     ("N-B9", "Test note", "LocalDateTime.now() ticks about once a millisecond on the test machine, so two quick actions can get the same time; the code then falls back to the id order (documented). Tests that depend on join order wait for the clock to tick.", "GroupMembershipService.java:244-249", "Handled in the test", "GMS (membersAreLeaderFirstThenInJoinOrder)", "Handled."),
     ("N-B10", "Manual case fix", "MAN-13 step 4 said the browser refuses a size below the member count; the group form has novalidate, so the server shows the error instead. MAN-12's member count text and MAN-31's request-sent text were also made exact.", "studygroup/form.html:31", "Fixed in the workbook", "MAN-12, MAN-13, MAN-31", "Fixed (2026-10-24)."),
-    ("GAP-L2", "Ambiguous requirement", "L2 lists 'goals' (plural); a group has exactly one study goal.", "StudyGroup.java:376", "Ask the team", "-", "Open."),
+    ("GAP-L2", "Resolved: team decision (2026-10-28)", "TD-2: a group has exactly one study goal, from the fixed list shared with study preferences, so groups stay comparable and filterable; the description covers any extra goals. requirements.md L2 now says 'goal'.", "StudyGroup.java:376", "Recorded as TD-2", "-", "Resolved: team decision (2026-10-28)."),
     ("GAP-GRP1", "Ambiguous requirement", "GRP-1 'name max 255, description max 1000': only StudyGroupForm (@Size) and the database columns enforce it, not the entity or service.", "StudyGroupForm.java:31,34; StudyGroup.java:365,367", "Recorded (see K4 row)", "SGF, SGS", "Open."),
-    ("GAP-GRP4", "Ambiguous requirement", "GRP-4 says join needs a 'non-full' group, but requests sent before the group filled up stay pending as a waiting list and can be accepted once a place opens.", "StudyGroup.java:446-483", "Recorded (tested as built)", "SGE (fullGroupRefusesRequestsAndAccepts), MAN-36", "Open."),
-    ("GAP-GRP6", "Ambiguous requirement", "No rule says closing is permanent; the code and the confirm box say it can't be reopened.", "StudyGroup.java:565; studygroup/details.html:41", "Recorded", "SGS (closedGroupCannotBeUpdatedOrClosedAgain), MAN-34", "Open."),
+    ("GAP-GRP4", "Resolved: team decision (2026-10-28)", "TD-3: a full group keeps pending requests as a waiting list on purpose; a place reopens when the leader removes a member or raises the maximum size. While pending, the student sees 'The group is full right now. The leader can still accept you if a place opens up.' (on My groups and, since 2026-10-25, on the group's page).", "StudyGroup.java:446-483; details.html:62-65", "Recorded as TD-3", "SGE (fullGroupRefusesRequestsAndAccepts), SGC (pendingStudentOnFullGroupIsToldTheyAreWaiting, pendingStudentOnOpenGroupSeesNoFullNote), MAN-36", "Resolved: team decision (2026-10-28)."),
+    ("GAP-GRP6", "Resolved: team decision (2026-10-28)", "TD-4: closing a group is permanent (the brief only says 'close the group when it is no longer active').", "StudyGroup.java:565; studygroup/details.html:41", "Recorded as TD-4", "SGS (closedGroupCannotBeUpdatedOrClosedAgain), MAN-34, MAN-37", "Resolved: team decision (2026-10-28)."),
     ("GAP-NR5", "Behaviour with no requirement", "Browse sort options, 'only groups I can join', full groups listed last, viewer roles, GROUP_CLOSED status and 'Remove from My groups' have no requirement in the brief.", "GroupSort.java; StudyGroupService.java:145-183; ViewerRole.java", "Tested as built", "GSO, SGS (browse...), GMS (viewerRole..., removeFromMyGroups...)", "Listed."),
     # ---- Batch C (security and controllers) ----
     ("N-C1", "New finding", "Hand-edited values that can't be converted give a raw 400 instead of a message: /matches?studyGoal=BOGUS or courseId=abc, a slot time like 25:00 (and K11's year of study).", "MatchingController.java:81; StudyPreferenceController.java:230", "(a) Pin", "MTC (unknownFilterValueIsBadRequest), PFC (timeNotInHourMinuteFormatIsBadRequest)", "Pinned."),
@@ -1216,6 +1265,12 @@ GAPS = [
     ("N-E2", "New finding", "Match messages aren't trimmed; a message of only spaces is stored and shows as an empty line.", "MatchRequestService.java:106; match-requests.html:26", "(c) List only", "-", "Listed."),
     ("N-E3", "New finding", "Accepting a request from a sender who was deactivated in the meantime still connects the two students.", "MatchRequestService.java:162-186", "(c) List only", "-", "Listed."),
     ("N-E4", "New finding", "The matches page limits the match message to 255 characters (maxlength), so K4 there needs a hand-made POST; the profile fields have no limit, so K4 on the profile happens in a normal browser (MAN-40).", "matches.html:116; profile.html:28-32", "(c) List only", "MRK-02, SPK-01", "Listed."),
+    # ---- Sync (2026-10-28) ----
+    ("GAP-TD3", "Open question", "The team's decision TD-3 says places reopen when 'members leave or are removed', but members can't leave a group (GAP-NI1) and the brief doesn't require it. requirements.md says 'removes a member or raises the maximum size'. Is leaving planned?", "GroupMembershipService.java", "Ask the team", "-", "Open."),
+    ("N-S1", "New finding", "A deactivated student's public profile is still shown at /students/{id} (getPublicProfile doesn't check active), while /matches hides inactive students.", "StudentProfileService.java:66-81", "(c) List only (agreed 2026-10-28)", "-", "Listed."),
+    ("N-S2", "New finding", "The public profile lists study preferences in no fixed order (getPublicPreferences doesn't sort; the matches page sorts its own by course code).", "StudentProfileService.java:73-81", "(c) List only", "-", "Listed."),
+    ("N-S3", "New finding", "The public profile's back link always says '← Find study buddies', even when it was opened from Match requests, Study buddies or Manage members.", "student/public-profile.html:8", "(c) List only", "-", "Listed."),
+    ("GAP-IDS", "Test note", "Automated Test IDs are now stable: docs/test-cases/test-ids.json maps Class#method to its ID (seeded 2026-10-28 from the Batch E workbook). Inserting or reordering tests no longer renumbers; a new test gets the next free number; a removed test's number is retired, never reused.", "docs/test-cases/test-ids.json", "Recorded", "-", "In place."),
     ("GAP-NI1", "Not implemented (no requirement)", "A member can't leave a group, a student can't withdraw a pending join request, and a group can't be deleted.", "GroupMembershipService.java", "List only", "-", "Listed."),
 ]
 
@@ -1303,7 +1358,7 @@ def parse_reports(sources):
 MANUAL_STATUSES = ["Not run", "Pass", "Fail"]
 WRITTEN_BY = {"Existing": "Existing (teammates)", "New": "New (Batch A)", BATCH_B: "New (Batch B)",
               BATCH_C: "New (Batch C)", BATCH_D: "New (Batch D)",
-              BATCH_E: "New (Batch E)"}
+              BATCH_E: "New (Batch E)", SYNC: "New (sync 2026-10-28)"}
 RESULT_COLUMNS = {"status": "Status", "tester": "Tester", "date": "Date", "actual": "Actual result"}
 
 
@@ -1329,7 +1384,39 @@ def read_previous_manual_results():
     return results
 
 
-def build_rows(sources, reports, previous):
+def load_test_ids():
+    """The saved Class#method -> Test ID map. The first time (no map yet) it is seeded from the
+    existing workbook, so the IDs people already use stay as they are."""
+    if TEST_IDS.exists():
+        return json.loads(TEST_IDS.read_text(encoding="utf-8"))
+    seeded = {}
+    if OUT.exists():
+        ws = load_workbook(OUT)["Test Cases"]
+        header = [cell.value for cell in ws[1]]
+        id_col, where_col = header.index("Test ID"), header.index("Test class and method")
+        for row in ws.iter_rows(min_row=2, values_only=True):
+            if row[id_col] and row[where_col]:
+                seeded[row[where_col]] = row[id_col]
+        print(f"Seeded {TEST_IDS.name} with {len(seeded)} Test IDs from the existing workbook")
+    return seeded
+
+
+def next_test_id(test_ids, prefix):
+    """The next number for the prefix. Retired IDs stay in the map, so they're never reused."""
+    used = [int(test_id.rsplit("-", 1)[1]) for test_id in test_ids.values() if test_id.rsplit("-", 1)[0] == prefix]
+    return f"{prefix}-{max(used, default=0) + 1:02d}"
+
+
+def save_test_ids(test_ids, sources):
+    """Writes the map back and reports new and retired IDs (retired: still listed, no longer in src/test)."""
+    TEST_IDS.write_text(json.dumps(dict(sorted(test_ids.items())), indent=2) + "\n", encoding="utf-8")
+    live = {f"{cls}#{test['method']}" for cls, tests in sources.items() for test in tests}
+    retired = sorted(test_ids[key] for key in test_ids.keys() - live)
+    if retired:
+        print(f"Retired Test IDs (kept, never reused): {', '.join(retired)}")
+
+
+def build_rows(sources, reports, previous, test_ids):
     problems = []
     for cls in sources:
         if cls not in CLASSES:
@@ -1345,10 +1432,14 @@ def build_rows(sources, reports, previous):
             problems.append(f"{cls}.{name} exists in src/test but has no description")
         for name in described.keys() - code.keys():
             problems.append(f"{cls}.{name} is described but doesn't exist in src/test")
-        for n, test in enumerate(sources[cls], 1):
+        for test in sources[cls]:
             case = described.get(test["method"])
             if case is None:
                 continue
+            key = f"{cls}#{test['method']}"
+            if key not in test_ids:
+                test_ids[key] = next_test_id(test_ids, prefix)
+                print(f"New Test ID {test_ids[key]} for {key}")
             ids = test["ids"] or case["ids"] or ""
             if not ids:
                 problems.append(f"{cls}.{test['method']} has no requirement IDs")
@@ -1367,7 +1458,7 @@ def build_rows(sources, reports, previous):
                 status = "Known bug (disabled)" if status in ("Skipped", "Not run") else status
                 notes.insert(0, f"@Disabled: {test['disabled']} Confirmed failing when enabled (2026-10-24).")
             rows.append({
-                "id": f"{prefix}-{n:02d}", "ids": ids, "title": case["title"], "type": case["type"],
+                "id": test_ids[key], "ids": ids, "title": case["title"], "type": case["type"],
                 "pre": pre, "steps": case["steps"], "data": case["data"], "expected": case["expected"],
                 "mode": "Automated", "where": f"{cls}#{test['method']}", "status": status,
                 "by": written_by, "notes": " ".join(notes), "cls": cls,
@@ -1388,6 +1479,8 @@ def build_rows(sources, reports, previous):
     for mid in sorted(previous.keys() - manual_ids.keys()):
         print(f"WARNING: manual case {mid} is in the old workbook but no longer exists; its results were dropped "
               f"({previous[mid]})")
+    duplicates = [test_id for test_id, n in Counter(test_ids.values()).items() if n > 1]
+    problems += [f"Test ID {test_id} is given to more than one test in {TEST_IDS.name}" for test_id in duplicates]
     if problems:
         print("Workbook does not match the code:", *problems, sep="\n  ")
         sys.exit(1)
@@ -1543,7 +1636,7 @@ def write(rows, reports):
     block("By type", ["Type", "Automated", "Manual"],
           [[kind, type_counts[(kind, "Automated")], type_counts[(kind, "Manual")]] for kind in TYPES])
 
-    groups = ["S", "L", "A", "D", "ACC", "CRS", "PRF", "PRE", "REQ", "GRP", "MAT", "SEC", "K"]
+    groups = ["S", "L", "A", "D", "ACC", "CRS", "PRF", "PRE", "REQ", "GRP", "MAT", "SEC", "TD", "K"]
     group_rows = []
     for g in groups:
         def in_group(r):
@@ -1579,7 +1672,9 @@ def main():
     reports = parse_reports(sources)
     # Read before writing: the workbook is rebuilt from scratch
     previous = read_previous_manual_results()
-    rows = build_rows(sources, reports, previous)
+    test_ids = load_test_ids()
+    rows = build_rows(sources, reports, previous, test_ids)
+    save_test_ids(test_ids, sources)
     after, status_counts, coverage = write(rows, reports)
     kept = sum(1 for r in rows if r["mode"] == "Manual"
                and (r["status"] != "Not run" or r["tester"] or r["date"] or r["actual"]))

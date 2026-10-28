@@ -91,7 +91,7 @@ class StudyGroupFormTest {
         assertThat(messages()).isEmpty();
     }
 
-    // L1, L2, GRP-1
+    // L1, L2, GRP-1, TD-2: one study goal per group, chosen from the shared list
     @Test
     void courseGoalAndModeAreRequired() {
         form.setCourseId(null);

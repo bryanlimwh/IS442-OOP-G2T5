@@ -1,6 +1,6 @@
 # Study Buddy Matcher: Requirements and Rules
 
-Source: the project brief plus a code scan of main (Oct 2026). "Current:" lines say what the code does today. If a test would contradict a "Current:" line, treat it as a Gap to raise, never guess.
+Source: the project brief plus a code scan of main (Oct 2026; updated 2026-10-28 for the public profile page, the full-group note and the team decisions). "Current:" lines say what the code does today. If a test would contradict a "Current:" line, treat it as a Gap to raise, never guess.
 
 ## Brief requirements
 
@@ -13,14 +13,14 @@ Source: the project brief plus a code scan of main (Oct 2026). "Current:" lines 
 - S4 Ranked list by matching score. Current: ScoreBreakdown.weightedScore plus the chosen strategy's ordering.
 - S5 Filter matches. Current: MatchSearch.accepts (course, goal, mode, group size, sharedTimeOnly). Availability filter means "shares some time" only.
 - S6 View another student's public profile; contact number hidden until a match is accepted.
-  Current (partial): StudentPublicProfile appears inside match cards only. No profile page route for getPublicProfile.
+  Current: GET /students/{id} (PublicProfileController, student/public-profile.html) shows name, programme, year, school, courses and study preferences (StudentProfileService.getPublicProfile/getPublicPreferences), never the contact number or email. Student names on Find matches, Match requests, Study buddies and Manage members link to it. An unknown id goes back to /matches with "That student's profile no longer exists." (since 2026-10-25)
 - S7 Send a buddy request with optional message. Current: MatchRequestService.createRequest, POST /match-requests.
 - S8 Accept or decline; contact number visible after accept. Current: acceptRequest/rejectRequest; contact number only on /connections.
 - S9 View connections and end one. Current: StudyBuddyConnectionService, /connections, POST /connections/{id}/end.
 
 ### Study Group Leader
-- L1 Create a group for a course. Current: StudyGroupService.createGroup, POST /groups. Leader need not take the course.
-- L2 Group fields: name, description, goals, mode, availability, max size.
+- L1 Create a group for a course. Current: StudyGroupService.createGroup, POST /groups. Leader need not take the course (team decision TD-1).
+- L2 Group fields: name, description, goal, mode, availability, max size. A group has exactly one study goal, from the list shared with study preferences; the description covers any extra goals (team decision TD-2).
 - L3 Update or close a group. Current: updateGroup/closeGroup. The course cannot be changed.
 - L4 View join requests. Current: GroupMembershipService.getPendingRequests, GET /groups/{id}/members.
 - L5 Accept or reject join requests.
@@ -73,9 +73,9 @@ Source: the project brief plus a code scan of main (Oct 2026). "Current:" lines 
 - GRP-1 Create needs an existing course; name required (max 255), description max 1000, size at least 2 (leader included).
 - GRP-2 Only the leader can update, close, view requests, accept, reject or remove (NotGroupLeaderException for others).
 - GRP-3 Update needs an active group; the new size cannot be below the current member count.
-- GRP-4 Join needs an active, non-full group; not the leader; no duplicate pending or accepted membership; a rejected or removed student may ask again.
+- GRP-4 Join needs an active, non-full group; not the leader; no duplicate pending or accepted membership; a rejected or removed student may ask again. A request sent before the group filled up stays pending as a waiting list (team decision TD-3): a place reopens when the leader removes a member or raises the maximum size, and while the group is full the waiting student sees "The group is full right now. The leader can still accept you if a place opens up."
 - GRP-5 Accept needs a pending membership that belongs to the group and free space. Remove needs an accepted member who is not the leader.
-- GRP-6 Closing turns pending requests into GROUP_CLOSED and freezes the group. removeFromMyGroups works only for closed groups.
+- GRP-6 Closing turns pending requests into GROUP_CLOSED and freezes the group. Closing is permanent: a closed group can't be reopened (team decision TD-4). removeFromMyGroups works only for closed groups.
 - GRP-7 Group slots: 1 to 3, times 08:00 to 23:00 in 15-minute steps from the list, end after start, no overlap (StudyGroupFormValidator).
 
 ### Matching
@@ -85,9 +85,16 @@ Source: the project brief plus a code scan of main (Oct 2026). "Current:" lines 
 - MAT-4 The "either" score must be between 0 and 1 (property).
 
 ### Security
-- SEC-1 Public: /login, /register, /error, /css, /js, /images. ADMIN: /admin/**. STUDENT: /matches, /groups, /match-requests, /connections, /student/**. Everything else: any logged-in user.
+- SEC-1 Public: /login, /register, /error, /css, /js, /images. ADMIN: /admin/**. STUDENT: /matches, /groups, /match-requests, /connections, /students/** (public profiles), /student/**. Everything else: any logged-in user.
 - SEC-2 Anonymous users are redirected to /login; the wrong role gets 403; a POST without a CSRF token gets 403.
 - SEC-3 The H2 console is open with CSRF off (development only).
+
+## Team decisions (2026-10-28)
+Decided by the team; these are intended behaviour, not bugs.
+- TD-1 (was K8) A leader or member need not take the group's course. A senior who already took the course may lead a group to help juniors. So creating or joining a group without the course, and dropping the course while leading or in a group, are intended.
+- TD-2 (L2) A group has exactly one study goal, chosen from the fixed list shared with study preferences. This keeps groups comparable and filterable; the description covers any extra goals.
+- TD-3 (GRP-4) A full group keeps pending requests as a waiting list on purpose. A place reopens when the leader removes a member or raises the maximum size. While pending, the student sees "The group is full right now. The leader can still accept you if a place opens up." (The decision as written also mentions members leaving; that isn't implemented and the brief doesn't require it, see the workbook Gaps sheet.)
+- TD-4 (GRP-6) Closing a group is permanent. The brief only says "close the group when it is no longer active".
 
 ## Candidate bugs from the scan (not confirmed by tests; list in Gaps, do not assume)
 - K1 Login is case-sensitive, but sign-up lower-cases the email.
@@ -96,8 +103,8 @@ Source: the project brief plus a code scan of main (Oct 2026). "Current:" lines 
 - K4 Inputs over 255 characters give a 500: match message, profile fields, course code and name (limit is an HTML maxlength only).
 - K5 Duplicate course codes allowed; CourseService has no @Transactional.
 - K6 A match request can be sent to a deactivated student by direct POST.
-- K7 getPublicProfile and getRequestById have no route (S6 gap).
-- K8 A student can drop a course while leading or joined to a group for it; creating or joining a group does not require taking the course.
+- K7 getRequestById has no route. (getPublicProfile has one since 2026-10-25: GET /students/{id}, see S6.)
+- K8 Moved to Team decisions as TD-1 (intended, not a bug).
 - K9 Preference slots are looser than group slots (any times, no maximum).
 - K10 /register does not strip spaces from the contact number; profile update does.
 - K11 A non-numeric yearOfStudy gives a raw 400.

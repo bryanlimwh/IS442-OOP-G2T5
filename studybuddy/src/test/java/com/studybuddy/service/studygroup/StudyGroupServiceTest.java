@@ -46,7 +46,7 @@ import jakarta.persistence.EntityManager;
  * StudyGroupService against an empty in-memory H2 (no seeders); each test is rolled back.
  * Courses IS442 and CS201; students Alex (takes IS442), Ben and Chloe (take IS442 and CS201)
  * and Daniel (takes nothing). The form starts as "IS442 Revision", IS442, Exam preparation,
- * Online, size 4, one slot Mon 10:00-12:00. StudentProfileService is only here for the K8
+ * Online, size 4, one slot Mon 10:00-12:00. StudentProfileService is only here for the TD-1
  * course-drop test. flushAndClear() writes changes to the database and forgets cached
  * objects, so the checks after it read what was really saved.
  */
@@ -170,7 +170,8 @@ class StudyGroupServiceTest {
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
 
-    // L1, K8: pins current behaviour, update if fixed. Daniel takes no courses but can lead a CS201 group.
+    // L1, TD-1: intended: a leader or member need not take the course (team decision). Daniel takes no
+    // courses but can lead a CS201 group.
     @Test
     void createGroupDoesNotRequireTakingTheCourse() {
         Long id = service.createGroup("daniel@test.com", form("CS201 Practice", cs201, 4)).getGroupId();
@@ -180,7 +181,8 @@ class StudyGroupServiceTest {
         assertThat(studentRepository.findByEmail("daniel@test.com").orElseThrow().getCoursesTaken()).isEmpty();
     }
 
-    // L1, K8: pins current behaviour, update if fixed. Ben drops CS201 while leading a CS201 group.
+    // L1, TD-1: intended: a leader or member need not take the course (team decision). Ben drops CS201
+    // while leading a CS201 group.
     @Test
     void leaderCanDropTheCourseAndStillLeadTheGroup() {
         Long id = service.createGroup("ben@test.com", form("CS201 Practice", cs201, 4)).getGroupId();
@@ -310,7 +312,7 @@ class StudyGroupServiceTest {
         assertThat(service.closeGroup(id, "alex@test.com")).isZero();
     }
 
-    // GRP-3, GRP-6
+    // GRP-3, GRP-6, TD-4: closing is permanent
     @Test
     void closedGroupCannotBeUpdatedOrClosedAgain() {
         Long id = createIs442Group("alex@test.com", 4);

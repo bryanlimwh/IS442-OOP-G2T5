@@ -181,7 +181,8 @@ class GroupMembershipServiceTest {
         assertThat(service.findPendingRequestsBy(EMILY)).isEmpty();
     }
 
-    // GRP-4, K8: pins current behaviour, update if fixed. Daniel doesn't take IS442 but can join.
+    // GRP-4, TD-1: intended: a leader or member need not take the course (team decision). Daniel doesn't
+    // take IS442 but can join.
     @Test
     void joiningDoesNotRequireTakingTheCourse() {
         Long id = request(DANIEL);
