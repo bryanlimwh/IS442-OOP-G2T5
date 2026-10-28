@@ -175,8 +175,9 @@ class AccountManagementControllerTest {
                 .andExpect(flash().attribute("newAdminEmail", "alex@test.com"));
     }
 
-    // A1, ACC-3, K3: pins current behaviour, update if fixed. Every database refusal is reported
-    // as a duplicate email, including values too long for their column.
+    // A1, ACC-3, K3: pins current behaviour, update if fixed. A database refusal at save (e.g. the same email
+    // saved twice at the same moment) is reported as a duplicate email. An email over 255 characters no longer
+    // gets this far: the controller checks it first (GAP-K3REG fixed 2026-10-28).
     @Test
     void createAdminDatabaseRefusalShowsDuplicateEmailMessage() throws Exception {
         when(service.createAdminAccount("new.admin@test.com", "password123"))
@@ -240,7 +241,8 @@ class AccountManagementControllerTest {
                 .andExpect(flash().attribute("error", "Another account already uses ben@test.com."));
     }
 
-    // A1, ACC-3, K3: pins current behaviour, update if fixed
+    // A1, ACC-3, K3: pins current behaviour, update if fixed. As for create: a database refusal at save is
+    // reported as a duplicate email; an over-long email is checked first (GAP-K3REG fixed 2026-10-28)
     @Test
     void updateEmailDatabaseRefusalShowsDuplicateEmailMessage() throws Exception {
         when(service.updateEmail(7L, "ben@test.com")).thenThrow(new DataIntegrityViolationException("unique constraint"));
@@ -383,5 +385,29 @@ class AccountManagementControllerTest {
                 .andExpect(redirectedUrl(BASE))
                 .andExpect(flash().attribute("error", "This student still has match requests, study groups or "
                         + "study buddies, so the account can't be deleted. Deactivate it instead."));
+    }
+
+    // A1, ACC-1, K3, K4: fixed 2026-10-28. An email over 255 characters gets its own message, is refilled,
+    // and never reaches the service
+    @Test
+    void createAdminWithOverLongEmailShowsItsOwnMessage() throws Exception {
+        String tooLong = "a".repeat(247) + "@test.com";
+
+        mockMvc.perform(post(BASE).param("email", tooLong).param("password", "password123").with(csrf()))
+                .andExpect(redirectedUrl(BASE))
+                .andExpect(flash().attribute("error", "The email can be at most 255 characters."))
+                .andExpect(flash().attribute("newAdminEmail", tooLong));
+
+        verifyNoInteractions(service);
+    }
+
+    // A1, ACC-1, K3, K4: fixed 2026-10-28. The same check when an admin changes an account's email
+    @Test
+    void updateEmailOverLongShowsItsOwnMessage() throws Exception {
+        mockMvc.perform(post(BASE + "/7/email").param("email", "a".repeat(247) + "@test.com").with(csrf()))
+                .andExpect(redirectedUrl(BASE))
+                .andExpect(flash().attribute("error", "The email can be at most 255 characters."));
+
+        verifyNoInteractions(service);
     }
 }

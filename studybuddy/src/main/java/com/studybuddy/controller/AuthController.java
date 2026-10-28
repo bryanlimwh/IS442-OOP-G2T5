@@ -20,6 +20,9 @@ import com.studybuddy.service.student.StudentProfileService;
 public class AuthController {
 
     private static final String REGISTER_VIEW = "auth/register";
+    // The database column size: checked here so a longer value gets its own message, not the
+    // duplicate-email one the database refusal below would give
+    private static final int MAX_LENGTH = 255;
 
     private final StudentProfileService studentProfileService;
 
@@ -53,15 +56,20 @@ public class AuthController {
             @RequestParam(defaultValue = "0") int yearOfStudy,
             @RequestParam(defaultValue = "") String contactNumber,
             Model model) {
-        try {
-            studentProfileService.createProfile(email, password, name, school, programme, yearOfStudy, contactNumber);
-            return "redirect:/login?registered";
-        } catch (InvalidAccountDetailsException | DuplicateEmailException | IllegalArgumentException e) {
-            model.addAttribute("error", e.getMessage());
-        } catch (DataIntegrityViolationException e) {
-            // Two sign-ups with the same email at the same moment can both pass the service's
-            // duplicate check; the unique constraint on user_account.email refuses the second.
-            model.addAttribute("error", "Another account already uses that email.");
+        if (tooLong(email, name, school, programme)) {
+            model.addAttribute("error", "Name, school, programme and email can be at most " + MAX_LENGTH + " characters.");
+        } else {
+            try {
+                studentProfileService.createProfile(email, password, name, school, programme, yearOfStudy,
+                        contactNumber);
+                return "redirect:/login?registered";
+            } catch (InvalidAccountDetailsException | DuplicateEmailException | IllegalArgumentException e) {
+                model.addAttribute("error", e.getMessage());
+            } catch (DataIntegrityViolationException e) {
+                // Two sign-ups with the same email at the same moment can both pass the service's
+                // duplicate check; the unique constraint on user_account.email refuses the second.
+                model.addAttribute("error", "Another account already uses that email.");
+            }
         }
         model.addAttribute("email", email);
         model.addAttribute("name", name);
@@ -70,5 +78,15 @@ public class AuthController {
         model.addAttribute("yearOfStudy", yearOfStudy == 0 ? null : yearOfStudy);
         model.addAttribute("contactNumber", contactNumber);
         return REGISTER_VIEW;
+    }
+
+    // Compared after stripping, as that's what is saved
+    private static boolean tooLong(String... values) {
+        for (String value : values) {
+            if (value.strip().length() > MAX_LENGTH) {
+                return true;
+            }
+        }
+        return false;
     }
 }

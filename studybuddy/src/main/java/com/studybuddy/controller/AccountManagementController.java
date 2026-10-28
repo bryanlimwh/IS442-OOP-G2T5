@@ -34,6 +34,9 @@ public class AccountManagementController {
     // Shown when the database's unique constraint, rather than the service's own check,
     // rejects a duplicate email (see createAdminAccount and updateEmail below).
     private static final String DUPLICATE_EMAIL_MESSAGE = "Another account already uses that email.";
+    // The email column's size: checked first so a longer email gets its own message, not the duplicate one
+    private static final int MAX_EMAIL_LENGTH = 255;
+    private static final String EMAIL_TOO_LONG = "The email can be at most " + MAX_EMAIL_LENGTH + " characters.";
 
     private final AccountManagementService accountManagementService;
 
@@ -52,6 +55,11 @@ public class AccountManagementController {
     @PostMapping
     public String createAdminAccount(@RequestParam(defaultValue = "") String email,
             @RequestParam(defaultValue = "") String password, RedirectAttributes redirectAttributes) {
+        if (email.strip().length() > MAX_EMAIL_LENGTH) {
+            redirectAttributes.addFlashAttribute("error", EMAIL_TOO_LONG);
+            redirectAttributes.addFlashAttribute("newAdminEmail", email);
+            return REDIRECT_TO_LIST;
+        }
         try {
             AccountStatus account = accountManagementService.createAdminAccount(email, password);
             redirectAttributes.addFlashAttribute("success",
@@ -74,6 +82,10 @@ public class AccountManagementController {
     @PostMapping("/{userId}/email")
     public String updateEmail(@PathVariable Long userId, @RequestParam(defaultValue = "") String email,
             RedirectAttributes redirectAttributes) {
+        if (email.strip().length() > MAX_EMAIL_LENGTH) {
+            redirectAttributes.addFlashAttribute("error", EMAIL_TOO_LONG);
+            return REDIRECT_TO_LIST;
+        }
         try {
             AccountStatus account = accountManagementService.updateEmail(userId, email);
             redirectAttributes.addFlashAttribute("success",

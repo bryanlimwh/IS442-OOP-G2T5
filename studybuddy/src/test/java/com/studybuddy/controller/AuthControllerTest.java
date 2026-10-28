@@ -18,6 +18,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -167,11 +170,12 @@ class AuthControllerTest {
                 .andExpect(model().attribute("error", "Contact number must be 8 digits"));
     }
 
-    // S1, ACC-3, K3: pins current behaviour, update if fixed. Every database refusal is reported
-    // as a duplicate email, including a name, school or programme too long for its column.
+    // S1, ACC-3, K3: pins current behaviour, update if fixed. A database refusal at save (e.g. two sign-ups
+    // with the same email at the same moment) is reported as a duplicate email. Over-long values no longer
+    // get this far: the controller checks them first (GAP-K3REG fixed 2026-10-28).
     @Test
     void registerDatabaseRefusalShowsDuplicateEmailMessage() throws Exception {
-        givenSignUpFails(new DataIntegrityViolationException("value too long"));
+        givenSignUpFails(new DataIntegrityViolationException("unique constraint"));
 
         mockMvc.perform(signUpForm())
                 .andExpect(view().name("auth/register"))
@@ -263,5 +267,47 @@ class AuthControllerTest {
         mockMvc.perform(logout())
                 .andExpect(redirectedUrl("/login?logout"))
                 .andExpect(unauthenticated());
+    }
+
+    // S1, PRF-1, K3, K4: fixed 2026-10-28. A value over 255 characters in any text field gets its own
+    // message (not the duplicate-email one), the form keeps what was typed except the password, and
+    // nothing reaches the service
+    @Test
+    void overLongFieldShowsItsOwnMessageAndKeepsTheForm() throws Exception {
+        String tooLong = "x".repeat(256);
+        for (String field : new String[] { "email", "name", "school", "programme" }) {
+            mockMvc.perform(signUpFormWith(field, tooLong))
+                    .andExpect(status().isOk())
+                    .andExpect(view().name("auth/register"))
+                    .andExpect(model().attribute("error",
+                            "Name, school, programme and email can be at most 255 characters."))
+                    .andExpect(model().attribute(field, tooLong))
+                    .andExpect(model().attribute("contactNumber", "98765432"))
+                    .andExpect(model().attributeDoesNotExist("password"));
+        }
+
+        verifyNoInteractions(studentProfileService);
+    }
+
+    // S1, PRF-1, K4: exactly 255 characters is still passed on to the service
+    @Test
+    void fieldOf255CharactersReachesTheService() throws Exception {
+        String longest = "x".repeat(255);
+
+        mockMvc.perform(signUpFormWith("school", longest)).andExpect(redirectedUrl("/login?registered"));
+
+        verify(studentProfileService).createProfile("new@test.com", PASSWORD, "New Student", longest,
+                "Information Systems", 1, "98765432");
+    }
+
+    // The usual sign-up form with one field typed differently
+    private MockHttpServletRequestBuilder signUpFormWith(String field, String value) {
+        Map<String, String> fields = new LinkedHashMap<>(Map.of(
+                "email", "new@test.com", "password", PASSWORD, "name", "New Student", "school", "SCIS",
+                "programme", "Information Systems", "yearOfStudy", "1", "contactNumber", "98765432"));
+        fields.put(field, value);
+        MockHttpServletRequestBuilder request = post("/register").with(csrf());
+        fields.forEach(request::param);
+        return request;
     }
 }
