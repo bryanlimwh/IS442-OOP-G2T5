@@ -99,15 +99,16 @@ Decided by the team; these are intended behaviour, not bugs.
 ## Fixed (2026-10-28)
 Fixed in the code; their former known-bug tests now run as regression tests.
 - K1 Login was case-sensitive although sign-up lower-cases the email. AuthService now looks up the trimmed, lower-cased email.
-- K4 Inputs over 255 characters gave a 500 for the course code and name, the profile's name, school and programme, and the match message. CourseController, StudentProfileController and MatchRequestController now check the length first and show "Course code and course name can be at most 255 characters." / "Name, school and programme can be at most 255 characters." / "Messages can be at most 255 characters." The services still rely on the database limit. Not covered: sign-up (/register) with over-long fields still reaches the database and shows K3's message.
+- K4 Inputs over 255 characters gave a 500 for the course code and name, the profile's name, school and programme, and the match message. CourseController, StudentProfileController and MatchRequestController now check the length first and show "Course code and course name can be at most 255 characters." / "Name, school and programme can be at most 255 characters." / "Messages can be at most 255 characters." The services still rely on the database limit. Sign-up and the admin account forms were added the same day (see the K3 entry below).
+- K3 (over-long part) Sign-up, create-admin and change-email reported an over-long value as "Another account already uses that email." AuthController and AccountManagementController now check the length (255) first and show "Name, school, programme and email can be at most 255 characters." / "The email can be at most 255 characters.", keeping what was typed except the password. A real database refusal (two saves of the same email at the same moment) still shows the duplicate-email message.
 - K6 A match request could be sent to a deactivated student by direct POST. MatchRequestService now treats a deactivated recipient as not found ("That student no longer exists."), and nothing is saved.
 - K12 (display part) th:if hid messages like "no", "false", "off". The template now shows any non-blank message (and no longer an empty line for an empty one). Messages are still stored as typed, so an empty message is stored as "".
 
 ## Candidate bugs from the scan (not confirmed by tests; list in Gaps, do not assume)
 - K1 Fixed 2026-10-28, see Fixed.
 - K2 Changing a logged-in student's email breaks their session (404s); deactivation and password reset do not end open sessions.
-- K3 Any DataIntegrityViolationException shows "Another account already uses that email" (AuthController, AccountManagementController), including over-long fields.
-- K4 Fixed 2026-10-28 for course, profile and match message, see Fixed (sign-up still shows K3's message).
+- K3 Any DataIntegrityViolationException at save still shows "Another account already uses that email" (AuthController, AccountManagementController). Over-long values no longer reach the database (fixed 2026-10-28, see Fixed).
+- K4 Fixed 2026-10-28 for course, profile, match message, sign-up and the admin account forms, see Fixed.
 - K5 Duplicate course codes allowed; CourseService has no @Transactional.
 - K6 Fixed 2026-10-28, see Fixed.
 - K7 getRequestById has no route. (getPublicProfile has one since 2026-10-25: GET /students/{id}, see S6.)
