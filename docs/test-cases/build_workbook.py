@@ -45,12 +45,14 @@ BASELINES = [
      {"run": 687, "passed": 678, "failed": 0, "errors": 0, "skipped": 9}),
     ("Before the 2026-10-28 fixes of K1, K4, K6, K12", {"run": 699, "passed": 690, "failed": 0, "errors": 0, "skipped": 9}),
     ("Before the 2026-10-28 GAP-K3REG fix", {"run": 699, "passed": 697, "failed": 0, "errors": 0, "skipped": 2}),
+    ("Before TD-5 and TD-6 (2026-10-30)", {"run": 703, "passed": 701, "failed": 0, "errors": 0, "skipped": 2}),
 ]
 BATCH_B = "Batch B"
 BATCH_C = "Batch C"
 BATCH_D = "Batch D"
 BATCH_E = "Batch E"
 SYNC = "Sync 2026-10-28"
+TD56 = "TD-5/TD-6 2026-10-30"
 
 # Not after a letter, digit or "-", so finding ids such as N-D1 aren't read as requirement D1
 ID_PATTERN = re.compile(r"(?<![\w-])(?:[SLAD]\d+|ACC-\d+|CRS-\d+|PRF-\d+|PRE-\d+|REQ-\d+|GRP-\d+|MAT-\d+|SEC-\d+|TD-\d+|K\d+)\b")
@@ -120,6 +122,8 @@ REQUIREMENTS = [
     ("TD-2", "Team decisions", "A group has exactly one study goal from the shared list; extra goals go in the description (L2)."),
     ("TD-3", "Team decisions", "A full group keeps pending requests as a waiting list; a place reopens when the leader removes a member or raises the maximum size (GRP-4)."),
     ("TD-4", "Team decisions", "Closing a group is permanent (GRP-6)."),
+    ("TD-5", "Team decisions", "Find study buddies keeps listing buddies and students with a pending request either way; their card shows a label instead of 'Send request' (was K17; decided 2026-10-30)."),
+    ("TD-6", "Team decisions", "A deactivated student's public profile is treated like an unknown id: redirect to /matches with 'That student's profile no longer exists.' (was N-S1; decided 2026-10-30)."),
 ]
 
 # Where uncovered items are scheduled
@@ -194,6 +198,7 @@ CLASSES = {
     # Teammate (2026-10-25) and sync (2026-10-28)
     "PublicProfileControllerTest": ("PPC", "Existing", "@WebMvcTest with the real SecurityConfig and real templates (Thymeleaf renders the page); StudentProfileService mocked. Logged in as STUDENT alex@test.com, viewing Ben Koh (student 2)."),
     "PublicProfileControllerGapTest": ("PPG", SYNC, "@WebMvcTest with the real SecurityConfig and real templates (Thymeleaf renders the page); StudentProfileService mocked; STUDENT alex@test.com. Adds to the teammate's PublicProfileControllerTest (unchanged)."),
+    "PublicProfileControllerServiceTest": ("PPS", TD56, "@WebMvcTest(PublicProfileController) with the REAL StudentProfileService and AccountCredentials; only the repositories are mocked (no database). STUDENT alex@test.com; Ben Koh is student 2."),
     "PublicProfileLinksTest": ("PPL", SYNC, "@WebMvcTest with the real SecurityConfig and real templates (Thymeleaf renders the page) for /matches, /match-requests, /connections and /groups/{id}/members; services mocked. STUDENT alex@test.com; the other student is Ben Koh, student 2."),
     "GroupMembershipServiceTest": ("GMS", BATCH_B, "@DataJpaTest + GroupMembershipService + StudyGroupService, empty H2. Course IS442 taken by Alex, Ben, Chloe, Emily (Daniel takes nothing). Alex leads 'IS442 Revision', maximum size 4. Own data, rolled back."),
 }
@@ -638,6 +643,8 @@ CASES = {
         t("unknownFilterValueIsBadRequest", "negative", "Hand-edited filter value", "GET ?studyGoal=BOGUS; ?courseId=abc", "-", "400 each; service not called"),
         t("missingStudentAccountIsNotFound", "negative", "Logged-in email with no student account", "Mock throws StudentNotFoundException", "-", "404"),
         t("refusedRequestsNeverReachTheService", "permission", "Refused requests never reach the service", "GET anonymous and as ADMIN", "-", "/login, 403; no service call"),
+        t("buddyStatusesComeFromConnectionsAndPendingRequests", "happy", "Link to each listed student worked out for the page", "Mock: buddy Ben (2), sent pending to Dan (4), received pending from Chloe (3), rejected both ways with Eve (5) and Finn (6); GET /matches", "-", "Model buddyStatuses = {2: CONNECTED, 4: REQUEST_SENT, 3: REQUEST_RECEIVED}; rejected ones absent; services asked with alex@test.com"),
+        t("relatedStudentsShowALabelInsteadOfTheSendButton", "happy", "Label instead of 'Send request' for buddies and pending requests", "Same links; results Ben, Chloe, Dan, Eve; GET /matches", "-", "All four listed; 'You're already study buddies' links to /connections, 'Request sent' and 'They've sent you a request' to /match-requests; only Eve (rejected) has a Send form"),
         t("oneTimeErrorIsShownOnThePage", "happy", "One-time error shown on the matches page", "GET /matches with flash error", "'That student's profile no longer exists.'", "The message is on the page"),
     ],
     "StudyBuddyConnectionControllerTest": [
@@ -770,8 +777,8 @@ CASES = {
         t("newPreferenceIsMatchedOnTheNextSearch", "happy", "A new preference is matched on the next search", "Fay (no preference) not listed; she adds an IS442 preference and slot like Alex's", "-", "Fay first with 100", notes="Own-data replacement for the teammate's seeded StudyPreferenceServiceTest.newPreferenceShowsUpInMatching (K19)."),
     ],
     "MatchingServiceKnownBugTest": [
-        t("connectedBuddyIsNotListed", "negative", "A connected buddy should not be listed", "Alex and Ben connected; Alex searches", "-", "DESIRED: Chloe and Dan, not Ben. TODAY: Ben, Chloe and Dan (confirmed when enabled)"),
-        t("studentWithPendingRequestEitherWayIsNotListed", "negative", "A student with a pending request either way should not be listed", "Alex -> Ben and Chloe -> Alex pending; Alex searches", "-", "DESIRED: Dan only. TODAY: Ben, Chloe and Dan (confirmed when enabled)", notes="Planned in docs/decisions.md ('Not done yet')."),
+        t("connectedBuddyIsStillListed", "happy", "A buddy is still listed", "Alex and Ben connected; Alex searches", "-", "Ben, Chloe and Dan all listed (the page shows Ben a label instead of the button)", notes="Was a @Disabled K17 known-bug test asserting 'not listed'; rewritten 2026-10-30 for TD-5 (renamed, same Test ID)."),
+        t("studentWithPendingRequestEitherWayIsStillListed", "happy", "Students with a pending request either way are still listed", "Alex -> Ben and Chloe -> Alex pending; Alex searches", "-", "Ben, Chloe and Dan all listed (the page shows labels instead of the button)", notes="Was a @Disabled K17 known-bug test asserting 'not listed'; rewritten 2026-10-30 for TD-5 (renamed, same Test ID)."),
     ],
     "DataSeedersTest": [
         t("atLeastTenCoursesAndFiftyStudentsAreSeeded", "happy", "At least 10 courses and 50 students", "Count after startup", "seeded", ">= 10 courses, >= 50 students", notes="Uses the seeded data (DataSeedersTest checks the seeders)."),
@@ -798,6 +805,7 @@ CASES = {
         t("unknownStudentOrCourseIsNotFound", "negative", "Unknown student or course", "getPublicProfile(999999), getProfile / updateProfile as ghost, add / remove course 999999", "-", "StudentNotFoundException x3; CourseNotFoundException x2; courses unchanged"),
         t("publicPreferencesListOnlyThatStudentsPreferences", "side-effect", "Public preferences: only that student's, no contact", "Alex IS442 and Ben CS201 preferences; getPublicPreferences(Alex)", "91234567, alex@test.com", "Only IS442 (Wed 19:00-21:00); PreferenceSummary fields have no contact or email; neither appears"),
         t("studentWithoutPreferencesHasNoPublicPreferences", "boundary", "No preferences gives an empty list", "getPublicPreferences(Alex) with none", "-", "Empty list"),
+        t("deactivatedStudentHasNoPublicProfile", "negative", "Deactivated student has no public profile", "Alex deactivated; getPublicProfile / getPublicPreferences", "-", "StudentNotFoundException from both, as for an unknown id"),
         t("unknownOrAdminIdHasNoPublicProfile", "negative", "Unknown or admin id has no public profile", "getPublicProfile / getPublicPreferences for 999999 and an admin's id", "-", "StudentNotFoundException x4"),
         t("profileValueOver255CharactersFailsInDatabase", "boundary", "Profile name 255 / 256 at the database", "updateProfile name 'N' x 255, then x 256; flush", "-", "255 saved; 256 DataIntegrityViolationException", notes="The database is the service's limit; the controller checks the length first (K4 fixed 2026-10-28)."),
     ],
@@ -839,6 +847,10 @@ CASES = {
         t("refusedRequestsNeverReachTheService", "permission", "Refused requests never reach the service", "GET /students/2 anonymous and as ADMIN", "-", "/login, 403; no service call"),
         t("nonNumericIdIsBadRequest", "negative", "Non-numeric id", "GET /students/abc", "-", "400; service not called"),
     ],
+    "PublicProfileControllerServiceTest": [
+        t("deactivatedStudentsProfileRedirectsLikeAnUnknownId", "negative", "Deactivated student's profile redirects", "Mocked repository returns Ben, deactivated; GET /students/2", "-", "Redirect /matches; flash 'That student's profile no longer exists.'"),
+        t("activeStudentsProfileIsShown", "happy", "Active student's profile is shown", "Mocked repository returns Ben, active; GET /students/2", "-", "200, view student/public-profile"),
+    ],
     "PublicProfileLinksTest": [
         t("matchCardNameLinksToTheProfile", "happy", "Match card name links to the profile", "Mock one result (Ben); GET /matches", "-", "<a href=\"/students/2\">Ben Koh</a>"),
         t("requestNamesLinkToTheProfile", "happy", "Request names link to the profile", "Mock received from Ben, sent to Chloe; GET /match-requests", "-", "Links to /students/2 (Ben) and /students/3 (Chloe)"),
@@ -871,9 +883,11 @@ def after(*earlier):
             "(a restart undoes them).")
 
 
-def m(mid, ids, kind, title, pre, steps, data, expected, notes="", batch="New"):
+def m(mid, ids, kind, title, pre, steps, data, expected, notes="", batch="New", retired=""):
+    """A manual case. retired: the reason it can no longer be run; it then keeps its ID (never reused) and
+    its row, with Status 'Retired', but is left out of Traceability and every Summary count."""
     return {"id": mid, "ids": ids, "type": kind, "title": title, "pre": pre, "steps": steps,
-            "data": data, "expected": expected, "notes": notes, "batch": batch}
+            "data": data, "expected": expected, "notes": notes, "batch": batch, "retired": retired}
 
 
 def numbered(*lines):
@@ -930,12 +944,13 @@ MANUAL = [
       "Ben Koh's number 92345678",
       "The card shows name, programme, year and school only. 92345678 is not found on the page.",
       "Ben Koh's name is a link to his public profile page (see MAN-45), which doesn't show the number either."),
-    m("MAN-08", "S7, REQ-1", "happy", "Send a buddy request with a message", APP_PRE,
+    m("MAN-08", "S7, REQ-1, TD-5", "happy", "Send a buddy request with a message", APP_PRE,
       numbered(login("student@studybuddy.com"), "Open http://localhost:8080/matches, choose IS442, click 'Search'.",
                "On the first card that is NOT Ben Koh, Chloe Lim or Daniel Ng, type 'Want to study IS442 together?' in 'Optional message' and click 'Send request'.",
-               "Go back to http://localhost:8080/matches, choose IS442, click 'Search', and click 'Send request' on Ben Koh's card."),
+               "Go back to http://localhost:8080/matches, choose IS442, click 'Search', and look at Ben Koh's card (still first, 92 / 100). Click its 'You're already study buddies' label."),
       "Message 'Want to study IS442 together?'",
-      "Step 3: the Match requests page shows 'Request sent.' and the student under 'Sent' with the message and PENDING. Step 4: error 'You're already study buddies. Find them under Study buddies.'"),
+      "Step 3: the Match requests page shows 'Request sent.' and the student under 'Sent' with the message and PENDING. Step 4: Ben Koh's card has no 'Send request' button and no message box; it shows 'You're already study buddies', which opens the Study buddies page (Ben Koh listed).",
+      "Step 4 changed on 2026-10-30 (TD-5): before, the card had a Send button that gave 'You're already study buddies. Find them under Study buddies.'"),
     m("MAN-09", "S8, REQ-3, REQ-4", "happy", "Accept a request; contact number appears", APP_PRE,
       numbered(login("student@studybuddy.com"), "Open http://localhost:8080/match-requests.",
                "Under 'Received', on Chloe Lim's request click 'Accept'.",
@@ -1159,14 +1174,15 @@ MANUAL = [
       "K12 fixed 2026-10-28; matches MatchRequestControllerKnownBugTest (now a regression test). Compare MAN-08.", BATCH_C),
 
     # ================================ NEW (Batch D) ================================
-    m("MAN-42", "S3, S7, K17", "negative", "Matches still list buddies and pending requests (known bug)",
+    m("MAN-42", "S3, S7, K17, TD-5", "happy", "Matches keep buddies and pending requests, with a label instead of Send",
       APP_PRE + " Seeded: Ben Koh is already Alex's study buddy; Chloe Lim -> Alex and Alex -> Daniel Ng are pending requests.",
       numbered(login("student@studybuddy.com"), "Open http://localhost:8080/matches, choose IS442 in Course and click 'Search'.",
-               "On Ben Koh's card click 'Send request'.",
-               "Open http://localhost:8080/matches, choose 'All my courses' in Course and click 'Search'. Press Ctrl+F and search for Chloe Lim, then Daniel Ng."),
+               "On Ben Koh's card click 'You're already study buddies'.",
+               "Open http://localhost:8080/matches, choose 'All my courses' in Course and click 'Search'. Press Ctrl+F and find Chloe Lim's card, then Daniel Ng's card.",
+               "On Chloe Lim's card click 'They've sent you a request'."),
       "Seeded data",
-      "DESIRED: Ben Koh, Chloe Lim and Daniel Ng are not listed. TODAY: step 2 lists Ben Koh first (92 / 100); step 3 shows the error 'You're already study buddies. Find them under Study buddies.'; step 4 finds cards for Chloe Lim and Daniel Ng (K17).",
-      "Known bug K17; matches MatchingServiceKnownBugTest (connected buddy; pending request either way, planned in docs/decisions.md).", BATCH_D),
+      "Step 2: Ben Koh is still listed first (92 / 100); his card shows 'You're already study buddies' and has no 'Send request' button. Step 3: the Study buddies page opens. Step 4: Chloe Lim's card shows 'They've sent you a request' and Daniel Ng's card 'Request sent', neither with a 'Send request' button; the other cards still have one. Step 5: the Match requests page opens, with Chloe Lim's request under 'Received'.",
+      "TD-5 (team decision 2026-10-30, was K17). Matches MatchingControllerTest (buddyStatusesComeFromConnectionsAndPendingRequests, relatedStudentsShowALabelInsteadOfTheSendButton) and MatchingServiceKnownBugTest (still listed).", BATCH_D),
     m("MAN-43", "A3, A4, D2, MAT-2", "happy", "Course first with only the course weight", APP_PRE,
       numbered(login("admin@studybuddy.com"), "Open http://localhost:8080/admin/matching.",
                "Choose 'Course first'. Set Same course 1, Shared free time 0, Study mode (in person / online) 0, Study goal 0, Group size (one-to-one / small group) 0. Click 'Save settings'.",
@@ -1183,17 +1199,20 @@ MANUAL = [
                "Go back to http://localhost:8080/matches, choose 'All my courses', click 'Search', and on Chloe Lim's card click 'Send request'."),
       "Seeded data",
       "Step 3: the Match requests page shows the error 'Student <n> already has a pending request to student <m>', with two internal id numbers (on a fresh start Alex is 2 and Daniel 5). Step 4: 'Student <m> has already sent you a request. Accept it instead of sending a new one' (Chloe's id, 4 on a fresh start). No new request is listed under 'Sent'.",
-      "K13 (c): the ids mean nothing to the student. The ids depend on seeding order; compare the wording, not the numbers.", BATCH_E),
+      "K13 (c): the ids mean nothing to the student. The ids depend on seeding order; compare the wording, not the numbers.", BATCH_E,
+      retired="TD-5: the Send button is replaced by a label for pending requests, so K13's id-filled message is no longer reachable from the page, only by a hand-made request."),
 
     # ================================ Sync (2026-10-28) ================================
-    m("MAN-45", "S6, PRF-3, REQ-4, D3", "happy", "Another student's public profile page", APP_PRE,
+    m("MAN-45", "S6, PRF-3, REQ-4, D3, TD-6", "happy", "Another student's public profile page", APP_PRE,
       numbered(login("student@studybuddy.com"), "Open http://localhost:8080/matches, choose IS442 in Course and click 'Search'.",
                "Click the name 'Ben Koh' on the first card. Press Ctrl+F and search for 92345678, then for ben.koh@studybuddy.com. Note the number at the end of the address (3 on a fresh start).",
                "Type http://localhost:8080/students/99999 in the address bar and press Enter.",
-               LOGOUT + " " + login("admin@studybuddy.com") + " Open http://localhost:8080/students/3 (the number from step 3)."),
+               LOGOUT + " " + login("admin@studybuddy.com") + " Open http://localhost:8080/students/3 (the number from step 3).",
+               "Open http://localhost:8080/admin/accounts and click 'Deactivate' on ben.koh@studybuddy.com.",
+               LOGOUT + " " + login("student@studybuddy.com") + " Open http://localhost:8080/students/3 (the number from step 3)."),
       "Ben Koh (92345678)",
-      "Step 3: the page shows 'Ben Koh', 'Information Systems, Year 3 · School of Computing and Information Systems', the note 'Contact numbers are only shared between study buddies, once a match request is accepted. See yours under Study buddies.', Courses IS442, IS216 and CS201, and one study preference: IS442 Object Oriented Programming, Exam preparation, In person or online, One-to-one, Free 'Wed 19:00-21:00, Thu 18:00-20:00'. Neither 92345678 nor the email is found. Step 4: back on Find study buddies with 'That student's profile no longer exists.' Step 5: an error page with status 403 (Forbidden).",
-      "Added for teammate commit 971c1a0. A deactivated student's profile is still shown (N-S1, list only).", SYNC),
+      "Step 3: the page shows 'Ben Koh', 'Information Systems, Year 3 · School of Computing and Information Systems', the note 'Contact numbers are only shared between study buddies, once a match request is accepted. See yours under Study buddies.', Courses IS442, IS216 and CS201, and one study preference: IS442 Object Oriented Programming, Exam preparation, In person or online, One-to-one, Free 'Wed 19:00-21:00, Thu 18:00-20:00'. Neither 92345678 nor the email is found. Step 4: back on Find study buddies with 'That student's profile no longer exists.' Step 5: an error page with status 403 (Forbidden). Step 6: 'ben.koh@studybuddy.com has been deactivated and can no longer log in.' Step 7: back on Find study buddies with 'That student's profile no longer exists.' (a deactivated student is treated like an unknown id).",
+      "Added for teammate commit 971c1a0. Steps 6-7 added on 2026-10-30 for TD-6 (was N-S1).", SYNC),
     m("MAN-46", "S1, PRF-1, K3, K4", "boundary", "Sign-up with an over-long school keeps the form", APP_PRE + " Logged out.",
       numbered("Open http://localhost:8080/register.",
                "Email: long.school@example.com; Password: password123; Name: Long School; School: paste 256 characters (e.g. 256 letter S); Programme: Information Systems; Year of study: 2; Contact number: 98765432.",
@@ -1220,11 +1239,11 @@ GAPS = [
     ("K10", "Candidate bug", "/register doesn't strip spaces from the contact number; profile update does (in the controller). The service itself never strips it, so ' 91234567 ' is refused there.", "AuthController.java:57; StudentProfileService.java:80,93", "(a) Pin", "AUC (contactNumberIsPassedOnAsTyped), SPG (contactNumberWithSpacesIsRefusedByTheService)", "Pinned (controller and service)."),
     ("K11", "Candidate bug", "A non-numeric year of study gives a raw 400.", "AuthController.java:53; StudentProfileController.java:54", "(a) Pin", "AUC (nonNumericYearOfStudyIsBadRequest), SPC (nonNumericYearOfStudyIsBadRequest)", "Pinned (sign-up and profile)."),
     ("K12", "Fixed (2026-10-28), display", "th:if=\"${req.message}\" hid a message that was just 'no', 'false' or 'off'. The template now shows any non-blank message (th:if checks not null and not blank), so an empty or spaces-only message no longer shows as an empty line. Storage is unchanged: an empty message is still stored as '' (list only).", "match-requests.html:27,53", "Fixed (display); known-bug test kept as a regression test; empty-message storage (c)", "MRK-01, MAN-41", "Fixed (2026-10-28); empty-message storage listed."),
-    ("K13", "Candidate bug", "The duplicate-request errors show internal student ids: 'Student 2 already has a pending request to student 5', 'Student 4 has already sent you a request. Accept it instead of sending a new one'.", "DuplicateMatchRequestException.java:24-34", "(c) List only (agreed 2026-10-24)", "MAN-44", "Listed."),
+    ("K13", "Candidate bug (not reachable from the page since 2026-10-30)", "The duplicate-request errors show internal student ids: 'Student 2 already has a pending request to student 5', 'Student 4 has already sent you a request. Accept it instead of sending a new one'. Since TD-5 (2026-10-30) the Send button is replaced by a label for pending requests, so this message is no longer reachable from the page, only by a hand-made request; MAN-44 retired.", "DuplicateMatchRequestException.java:24-34", "(c) List only", "MRC (duplicateRequestShowsServiceMessage), MAN-44 (retired)", "Listed; not reachable from the page."),
     ("K14", "Candidate bug", "No database constraint for one pending request or one connection per pair (two requests at the same moment could both pass the checks).", "MatchRequestService.java:90-104; StudyBuddyConnectionService.java:46-50; StudyBuddyConnection.java:15", "(c) List only (agreed 2026-10-24)", "-", "Listed."),
     ("K15", "Candidate bug", "H2 console open to everyone with CSRF off and frame options off (its own filter chain, permitAll).", "SecurityConfig.java:26-35; application.properties:15", "(a) Pin (SEC-3) + deployment note GAP-DEP1", "SCM (h2ConsoleIsOpenWithoutLoginOrCsrf, h2ConsoleRelaxesFrameOptionsOnlyForItself), MAN-39", "Pinned."),
     ("K16", "Candidate bug", "No @ControllerAdvice or custom error pages: an exception a controller doesn't catch becomes a bare 404 (StudentNotFoundException has @ResponseStatus) or 500.", "-", "(a) Pin representative 404s; (c) list 'no custom pages'", "SPC, MTC (missingStudentAccountIsNotFound), MAN-26", "Pinned / listed."),
-    ("K17", "Candidate bug (confirmed)", "/matches lists students who are already study buddies (Send request then only gives 'You're already study buddies...'), and students with a pending request either way. Belongs to MatchingService.findMatches, which builds the list (docs/decisions.md 'Not done yet' plans the check there).", "MatchingService.java:81-107", "(b) Two known-bug tests", "MSK-01, MSK-02, MAN-42", "Both confirmed failing when enabled (2026-10-24): Ben (buddy) and Ben/Chloe (pending) are listed."),
+    ("K17", "Fixed (2026-10-30): team decision TD-5", "Find study buddies listed buddies and students with a pending request, and 'Send request' then only gave an error. Team decision TD-5: they stay listed (findMatches is unchanged), but their card shows a label instead of the button: 'You're already study buddies' (links to Study buddies), 'Request sent' or 'They've sent you a request' (link to Match requests). A rejected request keeps the button.", "MatchingController.java; matches.html; BuddyStatus.java", "Fixed by TD-5; the two known-bug tests rewritten as regression tests (same IDs)", "MSK-01, MSK-02, MTC (buddyStatusesComeFromConnectionsAndPendingRequests, relatedStudentsShowALabelInsteadOfTheSendButton), MAN-08, MAN-42", "Fixed (2026-10-30)."),
     ("K18", "Test risk", "Open-session-in-view is relied on; non-transactional tests can hit LazyInitializationException.", "-", "Handled: every new service test is transactional (@DataJpaTest); entity, form and validator tests use no session", "SGS, GMS", "Mitigated (Batch A and B)."),
     ("K19", "Test risk", "StudyPreferenceServiceTest.newPreferenceShowsUpInMatching depends on seeded random data (Ben must come first among random CS201 students).", "StudyPreferenceServiceTest.java:150-161", "(c) List only (teammate file is read-only) + own-data replacement test", "SPF (newPreferenceShowsUpInMatching), MSF (newPreferenceIsMatchedOnTheNextSearch)", "Listed; behaviour now also covered without seeded data."),
     ("N1", "New finding", "Password limit is 72 BYTES, but the message says 'Passwords can be at most 72 characters.' 25 x '€' (25 characters) is refused.", "AccountCredentials.java:58-59", "(a) Byte behaviour tested; message mismatch listed", "CRD (multibytePasswordIsLimitedByBytes)", "Listed."),
@@ -1280,7 +1299,7 @@ GAPS = [
     ("N-E4", "New finding", "The matches page limits the match message to 255 characters (maxlength), so K4 there needs a hand-made POST; the profile fields have no limit, so K4 on the profile happens in a normal browser (MAN-40).", "matches.html:116; profile.html:28-32", "(c) List only", "MRK-02, SPK-01", "Listed."),
     # ---- Sync (2026-10-28) ----
     ("GAP-TD3", "Open question", "The team's decision TD-3 says places reopen when 'members leave or are removed', but members can't leave a group (GAP-NI1) and the brief doesn't require it. requirements.md says 'removes a member or raises the maximum size'. Is leaving planned?", "GroupMembershipService.java", "Ask the team", "-", "Open."),
-    ("N-S1", "New finding", "A deactivated student's public profile is still shown at /students/{id} (getPublicProfile doesn't check active), while /matches hides inactive students. A fix is ready to make (treat inactive like an unknown id: same redirect and message) once the team agrees.", "StudentProfileService.java:66-81", "(c) List only, awaiting the team", "-", "Listed; awaiting team decision."),
+    ("N-S1", "Fixed (2026-10-30): team decision TD-6", "A deactivated student's public profile was still shown at /students/{id}. Team decision TD-6: StudentProfileService treats a deactivated student like an unknown id, so the page redirects to /matches with 'That student's profile no longer exists.'", "StudentProfileService.java (getPublicProfile, getPublicPreferences)", "Fixed by TD-6", "SPG (deactivatedStudentHasNoPublicProfile), PPS (deactivatedStudentsProfileRedirectsLikeAnUnknownId, activeStudentsProfileIsShown), MAN-45", "Fixed (2026-10-30)."),
     ("N-S2", "New finding", "The public profile lists study preferences in no fixed order (getPublicPreferences doesn't sort; the matches page sorts its own by course code).", "StudentProfileService.java:73-81", "(c) List only", "-", "Listed."),
     ("N-S3", "New finding", "The public profile's back link always says '← Find study buddies', even when it was opened from Match requests, Study buddies or Manage members.", "student/public-profile.html:8", "(c) List only", "-", "Listed."),
     ("GAP-IDS", "Test note", "Automated Test IDs are now stable: docs/test-cases/test-ids.json maps Class#method to its ID (seeded 2026-10-28 from the Batch E workbook). Inserting or reordering tests no longer renumbers; a new test gets the next free number; a removed test's number is retired, never reused.", "docs/test-cases/test-ids.json", "Recorded", "-", "In place."),
@@ -1372,7 +1391,8 @@ def parse_reports(sources):
 MANUAL_STATUSES = ["Not run", "Pass", "Fail"]
 WRITTEN_BY = {"Existing": "Existing (teammates)", "New": "New (Batch A)", BATCH_B: "New (Batch B)",
               BATCH_C: "New (Batch C)", BATCH_D: "New (Batch D)",
-              BATCH_E: "New (Batch E)", SYNC: "New (sync 2026-10-28)"}
+              BATCH_E: "New (Batch E)", SYNC: "New (sync 2026-10-28)",
+              TD56: "New (2026-10-30)"}
 RESULT_COLUMNS = {"status": "Status", "tester": "Tester", "date": "Date", "actual": "Actual result"}
 
 
@@ -1486,7 +1506,8 @@ def build_rows(sources, reports, previous, test_ids):
         rows.append({
             "id": case["id"], "ids": case["ids"], "title": case["title"], "type": case["type"], "pre": case["pre"],
             "steps": case["steps"], "data": case["data"], "expected": case["expected"], "mode": "Manual",
-            "where": "", "status": kept.get("status", "Not run"), "by": case["batch"], "notes": case["notes"],
+            "where": "", "status": "Retired" if case["retired"] else kept.get("status", "Not run"), "by": case["batch"],
+            "notes": f"RETIRED: {case['retired']} " + case["notes"] if case["retired"] else case["notes"],
             "cls": "", "tester": kept.get("tester", ""), "date": kept.get("date", ""),
             "actual": kept.get("actual", ""),
         })
@@ -1511,6 +1532,7 @@ FILLS = {
     "Fail": PatternFill("solid", fgColor="FFC7CE"),
     "Known bug (disabled)": PatternFill("solid", fgColor="FFEB9C"),
     "Not run": PatternFill("solid", fgColor="EDEDED"),
+    "Retired": PatternFill("solid", fgColor="D9D9D9"),
     "No test": PatternFill("solid", fgColor="FFC7CE"),
     "amber": PatternFill("solid", fgColor="FFEB9C"),
 }
@@ -1566,9 +1588,13 @@ def write(rows, reports):
         fill = FILLS.get(row[10].value)
         if fill:
             row[10].fill = fill
-        if row[8].value == "Manual":
+        if row[8].value == "Manual" and row[10].value != "Retired":
             status_choice.add(row[10])
             row[12].number_format = "yyyy-mm-dd"
+
+    # Retired manual cases stay on the Test Cases sheet only
+    retired = [r["id"] for r in rows if r["status"] == "Retired"]
+    rows = [r for r in rows if r["status"] != "Retired"]
 
     # --- Traceability ---
     auto, known, manual = defaultdict(list), defaultdict(list), defaultdict(list)
@@ -1632,6 +1658,8 @@ def write(rows, reports):
     parameterized = [r for r in rows if r.get("runs")]
     ws.append([f"Of the last run, {sum(r['runs'] for r in parameterized)} runs come from {len(parameterized)} "
                f"parameterized test methods (one workbook row each)."])
+    if retired:
+        ws.append([f"Retired manual cases, not counted below: {', '.join(retired)} (IDs never reused)."])
 
     automated = [r for r in rows if r["mode"] == "Automated"]
     manual_rows = [r for r in rows if r["mode"] == "Manual"]
@@ -1690,7 +1718,7 @@ def main():
     rows = build_rows(sources, reports, previous, test_ids)
     save_test_ids(test_ids, sources)
     after, status_counts, coverage = write(rows, reports)
-    kept = sum(1 for r in rows if r["mode"] == "Manual"
+    kept = sum(1 for r in rows if r["mode"] == "Manual" and r["status"] != "Retired"
                and (r["status"] != "Not run" or r["tester"] or r["date"] or r["actual"]))
     print(f"Manual results carried over: {kept} of {sum(r['mode'] == 'Manual' for r in rows)} manual cases have a result")
     print(f"Wrote {OUT}")

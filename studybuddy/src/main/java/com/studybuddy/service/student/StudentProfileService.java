@@ -63,19 +63,16 @@ public class StudentProfileService {
         return findStudent(email);
     }
 
-    // What other students may see: no contact number or email.
+    // What other students may see: no contact number or email. A deactivated student's profile is
+    // treated as unknown (team decision TD-6), as on the matches page.
     public StudentPublicProfile getPublicProfile(Long studentId) {
-        Student student = studentRepository.findById(studentId)
-                .orElseThrow(() -> new StudentNotFoundException(studentId));
-        return StudentPublicProfile.from(student);
+        return StudentPublicProfile.from(findActiveStudent(studentId));
     }
 
     // The study preferences shown on another student's public profile, copied out of the
     // entities so the page never holds a Student (and its contact number).
     public List<PreferenceSummary> getPublicPreferences(Long studentId) {
-        Student student = studentRepository.findById(studentId)
-                .orElseThrow(() -> new StudentNotFoundException(studentId));
-        return student.getPreferences().stream()
+        return findActiveStudent(studentId).getPreferences().stream()
                 .map(PreferenceSummary::from)
                 .toList();
     }
@@ -140,6 +137,12 @@ public class StudentProfileService {
 
     private Course findCourse(Long courseId) {
         return courseRepository.findById(courseId).orElseThrow(() -> new CourseNotFoundException(courseId));
+    }
+
+    private Student findActiveStudent(Long studentId) {
+        return studentRepository.findById(studentId)
+                .filter(Student::isActive)
+                .orElseThrow(() -> new StudentNotFoundException(studentId));
     }
 
     private Student findStudent(String email) {

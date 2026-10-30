@@ -111,14 +111,28 @@
                         </ul>
                     </div>
 
-                    <!-- Sends this student a study-buddy request (handled by MatchRequestController's POST /match-requests).
-                         th:action adds the CSRF token automatically. -->
-                    <form class="match-request-form" th:action="@{/match-requests}" method="post">
-                        <!-- Hidden field carries the matched student's ID (MatchResult.student is a StudentPublicProfile) -->
-                        <input type="hidden" name="recipientId" th:value="${result.student.studentId}">
-                        <input type="text" name="message" placeholder="Optional message" maxlength="255">
-                        <button type="submit" class="button button-primary">Send request</button>
-                    </form>
+                    <!-- A buddy, or a student with a pending request either way, gets a label instead of the
+                         button (team decision TD-5); a rejected request doesn't count, so a new one can be sent -->
+                    <th:block th:with="status=${buddyStatuses[result.student.studentId]}">
+                        <p th:if="${status != null and status.name() == 'CONNECTED'}">
+                            <a class="status-label status-label-member" th:href="@{/connections}">You're already study buddies</a>
+                        </p>
+                        <p th:if="${status != null and status.name() == 'REQUEST_SENT'}">
+                            <a class="status-label status-label-pending" th:href="@{/match-requests}">Request sent</a>
+                        </p>
+                        <p th:if="${status != null and status.name() == 'REQUEST_RECEIVED'}">
+                            <a class="status-label status-label-pending" th:href="@{/match-requests}">They've sent you a request</a>
+                        </p>
+
+                        <!-- Sends this student a study-buddy request (handled by MatchRequestController's POST /match-requests).
+                             th:action adds the CSRF token automatically. -->
+                        <form class="match-request-form" th:if="${status == null}" th:action="@{/match-requests}" method="post">
+                            <!-- Hidden field carries the matched student's ID (MatchResult.student is a StudentPublicProfile) -->
+                            <input type="hidden" name="recipientId" th:value="${result.student.studentId}">
+                            <input type="text" name="message" placeholder="Optional message" maxlength="255">
+                            <button type="submit" class="button button-primary">Send request</button>
+                        </form>
+                    </th:block>
                 </li>
             </ol>
         </th:block>

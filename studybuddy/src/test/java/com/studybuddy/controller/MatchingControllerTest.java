@@ -3,6 +3,7 @@ package com.studybuddy.controller;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
@@ -18,7 +19,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
 
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -33,10 +36,12 @@ import org.springframework.test.web.servlet.MockMvc;
 import com.studybuddy.config.SecurityConfig;
 import com.studybuddy.entity.MatchingConfig;
 import com.studybuddy.entity.enums.Arrangement;
+import com.studybuddy.entity.enums.MatchRequestStatus;
 import com.studybuddy.entity.enums.MatchingStrategyType;
 import com.studybuddy.entity.enums.StudyGoal;
 import com.studybuddy.entity.enums.StudyMode;
 import com.studybuddy.exception.StudentNotFoundException;
+import com.studybuddy.matching.BuddyStatus;
 import com.studybuddy.matching.MatchResult;
 import com.studybuddy.matching.MatchSearch;
 import com.studybuddy.matching.PreferenceSummary;
@@ -44,6 +49,10 @@ import com.studybuddy.matching.ScoreBreakdown;
 import com.studybuddy.matching.StudentPublicProfile;
 import com.studybuddy.service.matching.MatchingConfigService;
 import com.studybuddy.service.matching.MatchingService;
+import com.studybuddy.service.studybuddymatching.ConnectionSummary;
+import com.studybuddy.service.studybuddymatching.MatchRequestService;
+import com.studybuddy.service.studybuddymatching.MatchRequestSummary;
+import com.studybuddy.service.studybuddymatching.StudyBuddyConnectionService;
 
 /**
  * Web-layer test for the matches page, rendered with the real template. The services are mocked
@@ -66,6 +75,11 @@ class MatchingControllerTest {
     private MatchingService matchingService;
     @MockitoBean
     private MatchingConfigService matchingConfigService;
+    // Unstubbed they return empty lists, so every card has the "Send request" button
+    @MockitoBean
+    private StudyBuddyConnectionService connectionService;
+    @MockitoBean
+    private MatchRequestService matchRequestService;
 
     private final PreferenceSummary alexIs442 = new PreferenceSummary(1L, "IS442", "Object Oriented Programming",
             StudyMode.IN_PERSON, Arrangement.EITHER, StudyGoal.EXAM_PREPARATION, List.of("Wed 19:00-21:00"));
@@ -164,5 +178,67 @@ class MatchingControllerTest {
         mockMvc.perform(get(BASE).flashAttr("error", "That student's profile no longer exists."))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("That student&#39;s profile no longer exists.")));
+    }
+
+    // S3, S7, TD-5: Ben is a buddy, Alex sent Dan a request, Chloe sent Alex one; rejected requests either
+    // way (Eve, Finn) don't count, so those students keep the button
+    @Test
+    void buddyStatusesComeFromConnectionsAndPendingRequests() throws Exception {
+        givenAlexsLinks();
+
+        mockMvc.perform(get(BASE))
+                .andExpect(model().attribute("buddyStatuses", Map.of(2L, BuddyStatus.CONNECTED,
+                        4L, BuddyStatus.REQUEST_SENT, 3L, BuddyStatus.REQUEST_RECEIVED)));
+
+        verify(connectionService).getConnections(ALEX);
+        verify(matchRequestService).getMatchRequestBySender(ALEX);
+        verify(matchRequestService).getMatchRequestByRecipient(ALEX);
+    }
+
+    // S3, S7, TD-5: everyone stays listed; a buddy or a pending request shows a label linking to the right
+    // page instead of "Send request", and only the unrelated student and the rejected one can be sent a request
+    @Test
+    void relatedStudentsShowALabelInsteadOfTheSendButton() throws Exception {
+        givenAlexsLinks();
+        PreferenceSummary is442 = ben.preference();
+        ScoreBreakdown breakdown = ben.breakdown();
+        when(matchingService.findMatches(any(), any())).thenReturn(List.of(ben,
+                new MatchResult(profile(3L, "Chloe Lim"), is442, breakdown, 80),
+                new MatchResult(profile(4L, "Dan Ho"), is442, breakdown, 70),
+                new MatchResult(profile(5L, "Eve Tan"), is442, breakdown, 60)));
+
+        mockMvc.perform(get(BASE))
+                .andExpect(status().isOk())
+                .andExpect(content().string(allOf(containsString("Ben Koh"), containsString("Chloe Lim"),
+                        containsString("Dan Ho"), containsString("Eve Tan"),
+                        containsString("<a class=\"status-label status-label-member\" href=\"/connections\">"
+                                + "You're already study buddies</a>"),
+                        containsString("<a class=\"status-label status-label-pending\" href=\"/match-requests\">"
+                                + "Request sent</a>"),
+                        containsString("<a class=\"status-label status-label-pending\" href=\"/match-requests\">"
+                                + "They've sent you a request</a>"),
+                        containsString("name=\"recipientId\" value=\"5\""),
+                        not(containsString("name=\"recipientId\" value=\"2\"")),
+                        not(containsString("name=\"recipientId\" value=\"3\"")),
+                        not(containsString("name=\"recipientId\" value=\"4\"")))));
+    }
+
+    // Alex's links: buddy Ben (2); pending sent to Dan (4); pending received from Chloe (3); rejected both ways
+    // with Eve (5) and Finn (6)
+    private void givenAlexsLinks() {
+        StudentPublicProfile alex = profile(1L, "Alex Tan");
+        LocalDateTime sentAt = LocalDateTime.of(2026, 10, 20, 9, 0);
+        when(connectionService.getConnections(ALEX)).thenReturn(List.of(
+                new ConnectionSummary(9L, profile(2L, "Ben Koh"), "92345678", sentAt)));
+        when(matchRequestService.getMatchRequestBySender(ALEX)).thenReturn(List.of(
+                new MatchRequestSummary(6L, alex, profile(4L, "Dan Ho"), "Hi", MatchRequestStatus.PENDING, sentAt),
+                new MatchRequestSummary(7L, alex, profile(5L, "Eve Tan"), null, MatchRequestStatus.REJECTED, sentAt)));
+        when(matchRequestService.getMatchRequestByRecipient(ALEX)).thenReturn(List.of(
+                new MatchRequestSummary(8L, profile(3L, "Chloe Lim"), alex, "Hi", MatchRequestStatus.PENDING, sentAt),
+                new MatchRequestSummary(10L, profile(6L, "Finn Lee"), alex, null, MatchRequestStatus.REJECTED, sentAt)));
+    }
+
+    private static StudentPublicProfile profile(long id, String name) {
+        return new StudentPublicProfile(id, name, "SCIS", "Information Systems", 2, List.of("IS442"));
     }
 }

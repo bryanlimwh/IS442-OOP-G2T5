@@ -279,6 +279,19 @@ class StudentProfileServiceGapTest {
         }
     }
 
+    // S6, TD-6: a deactivated student has no public profile, like an unknown id (team decision 2026-10-30)
+    @Test
+    void deactivatedStudentHasNoPublicProfile() {
+        Student alex = studentRepository.findByEmail(ALEX).orElseThrow();
+        alex.addPreference(preference(is442, DayOfWeek.WEDNESDAY));
+        alex.setActive(false);
+        flushAndClear();
+        Long id = studentRepository.findByEmail(ALEX).orElseThrow().getUserId();
+
+        assertThatThrownBy(() -> service.getPublicProfile(id)).isInstanceOf(StudentNotFoundException.class);
+        assertThatThrownBy(() -> service.getPublicPreferences(id)).isInstanceOf(StudentNotFoundException.class);
+    }
+
     // In person, Either group size, Exam preparation, 19:00-21:00 on the given day
     private static StudyPreference preference(Course course, DayOfWeek day) {
         StudyPreference preference = new StudyPreference(course, StudyMode.IN_PERSON, Arrangement.EITHER,

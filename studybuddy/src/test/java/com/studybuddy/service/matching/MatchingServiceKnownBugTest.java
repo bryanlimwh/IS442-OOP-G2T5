@@ -7,7 +7,6 @@ import java.time.LocalTime;
 import java.util.List;
 
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
@@ -39,10 +38,12 @@ import com.studybuddy.repository.StudyBuddyConnectionRepository;
 import jakarta.persistence.EntityManager;
 
 /**
- * Known bugs in MatchingService. Each test describes what SHOULD happen and fails on today's
- * code, so it is @Disabled to keep the main suite green. Remove @Disabled to check a fix.
+ * Regression tests for K17, resolved by team decision TD-5 (2026-10-30): the matches page keeps listing
+ * buddies and students with a pending request either way, and only replaces their "Send request" button
+ * with a label (MatchingControllerTest). So findMatches must still return them. These were @Disabled
+ * known-bug tests until then; the class keeps its name so the workbook Test IDs stay the same.
  * Empty in-memory H2 with own data; Alex searches, and Ben, Chloe and Dan all have an IS442
- * preference like Alex's, so all three are matched today.
+ * preference like Alex's.
  */
 @DataJpaTest
 @Import({ MatchingService.class, MatchingConfigService.class, CompatibilityCalculator.class,
@@ -80,31 +81,27 @@ class MatchingServiceKnownBugTest {
         student("dan@test.com", "Dan Ho", is442);
     }
 
-    // S3, MAT-3, K17
+    // S3, MAT-3, K17, TD-5: intended (team decision 2026-10-30). A buddy is still listed; the page shows a label
+    // instead of the button
     @Test
-    @Disabled("KNOWN BUG K17: a student who is already the searcher's study buddy should not be listed on /matches "
-            + "(sending them a request only gives an error)")
-    void connectedBuddyIsNotListed() {
+    void connectedBuddyIsStillListed() {
         connectionRepository.save(new StudyBuddyConnection(alex, ben));
         flushAndClear();
 
         assertThat(names(service.findMatches("alex@test.com", EVERYTHING)))
-                .doesNotContain("Ben Koh")
-                .contains("Chloe Lim", "Dan Ho");
+                .containsExactlyInAnyOrder("Ben Koh", "Chloe Lim", "Dan Ho");
     }
 
-    // S3, MAT-3, K17
+    // S3, MAT-3, K17, TD-5: intended (team decision 2026-10-30). Students with a pending request either way are
+    // still listed; the page shows a label instead of the button
     @Test
-    @Disabled("KNOWN BUG K17: a student with a pending match request either way should not be listed on /matches "
-            + "(planned in docs/decisions.md, 'Not done yet': hide students you have a pending request to)")
-    void studentWithPendingRequestEitherWayIsNotListed() {
+    void studentWithPendingRequestEitherWayIsStillListed() {
         matchRequestRepository.save(new MatchRequest(alex, ben, "Study IS442 together?"));
         matchRequestRepository.save(new MatchRequest(chloe, alex, null));
         flushAndClear();
 
         assertThat(names(service.findMatches("alex@test.com", EVERYTHING)))
-                .doesNotContain("Ben Koh", "Chloe Lim")
-                .contains("Dan Ho");
+                .containsExactlyInAnyOrder("Ben Koh", "Chloe Lim", "Dan Ho");
     }
 
     private static List<String> names(List<MatchResult> results) {

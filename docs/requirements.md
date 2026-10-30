@@ -1,6 +1,6 @@
 # Study Buddy Matcher: Requirements and Rules
 
-Source: the project brief plus a code scan of main (Oct 2026; updated 2026-10-28 for the public profile page, the full-group note, the team decisions and the fixes to K1, K4, K6 and K12). "Current:" lines say what the code does today. If a test would contradict a "Current:" line, treat it as a Gap to raise, never guess.
+Source: the project brief plus a code scan of main (Oct 2026; updated 2026-10-28 and 2026-10-30 for the public profile page, the full-group note, the team decisions and the fixes to K1, K4, K6 and K12). "Current:" lines say what the code does today. If a test would contradict a "Current:" line, treat it as a Gap to raise, never guess.
 
 ## Brief requirements
 
@@ -9,11 +9,11 @@ Source: the project brief plus a code scan of main (Oct 2026; updated 2026-10-28
   Current: StudentProfileService.createProfile/updateProfile/addCourse/removeCourse; POST /register, /student/profile, /student/profile/courses. Students cannot change their own email or password.
 - S2 Study preferences (course, study mode, weekly slots, group-size preference, goal).
   Current: StudyPreferenceService; /student/preferences/**. One preference per course, only for a course the student takes. Slots belong to each preference.
-- S3 Search buddies by course or goal. Current: MatchingService.findMatches, GET /matches.
+- S3 Search buddies by course or goal. Current: MatchingService.findMatches, GET /matches. Buddies and students with a pending request either way stay listed, with a label instead of "Send request" (team decision TD-5).
 - S4 Ranked list by matching score. Current: ScoreBreakdown.weightedScore plus the chosen strategy's ordering.
 - S5 Filter matches. Current: MatchSearch.accepts (course, goal, mode, group size, sharedTimeOnly). Availability filter means "shares some time" only.
 - S6 View another student's public profile; contact number hidden until a match is accepted.
-  Current: GET /students/{id} (PublicProfileController, student/public-profile.html) shows name, programme, year, school, courses and study preferences (StudentProfileService.getPublicProfile/getPublicPreferences), never the contact number or email. Student names on Find matches, Match requests, Study buddies and Manage members link to it. An unknown id goes back to /matches with "That student's profile no longer exists." (since 2026-10-25)
+  Current: GET /students/{id} (PublicProfileController, student/public-profile.html) shows name, programme, year, school, courses and study preferences (StudentProfileService.getPublicProfile/getPublicPreferences), never the contact number or email. Student names on Find matches, Match requests, Study buddies and Manage members link to it. An unknown id, or a deactivated student's (team decision TD-6, 2026-10-30), goes back to /matches with "That student's profile no longer exists." (page since 2026-10-25)
 - S7 Send a buddy request with optional message. Current: MatchRequestService.createRequest, POST /match-requests.
 - S8 Accept or decline; contact number visible after accept. Current: acceptRequest/rejectRequest; contact number only on /connections.
 - S9 View connections and end one. Current: StudyBuddyConnectionService, /connections, POST /connections/{id}/end.
@@ -96,6 +96,10 @@ Decided by the team; these are intended behaviour, not bugs.
 - TD-3 (GRP-4) A full group keeps pending requests as a waiting list on purpose. A place reopens when the leader removes a member or raises the maximum size. While pending, the student sees "The group is full right now. The leader can still accept you if a place opens up." (The decision as written also mentions members leaving; that isn't implemented and the brief doesn't require it, see the workbook Gaps sheet.)
 - TD-4 (GRP-6) Closing a group is permanent. The brief only says "close the group when it is no longer active".
 
+Decided 2026-10-30:
+- TD-5 (was K17) Find study buddies keeps listing everyone the search finds, including students the searcher is already connected with and students with a pending request in either direction. For those students the "Send request" button is replaced by a label: "You're already study buddies" (links to Study buddies), "Request sent" or "They've sent you a request" (link to Match requests). A student with a rejected request keeps the button (a new request is allowed). MatchingService.findMatches is unchanged; MatchingController works out the labels.
+- TD-6 (was N-S1) /students/{id} treats a deactivated student like an unknown id: the same redirect to /matches and the same message "That student's profile no longer exists."
+
 ## Fixed (2026-10-28)
 Fixed in the code; their former known-bug tests now run as regression tests.
 - K1 Login was case-sensitive although sign-up lower-cases the email. AuthService now looks up the trimmed, lower-cased email.
@@ -121,6 +125,6 @@ Fixed in the code; their former known-bug tests now run as regression tests.
 - K14 No DB constraint for one pending request or one connection per pair (race).
 - K15 H2 console open to everyone.
 - K16 No @ControllerAdvice or custom error pages.
-- K17 /matches still lists existing buddies.
+- K17 Resolved 2026-10-30 by team decision TD-5 (listed, with a label instead of the Send button).
 - K18 Open-session-in-view is relied on; non-transactional tests can hit LazyInitializationException.
 - K19 StudyPreferenceServiceTest.newPreferenceShowsUpInMatching depends on seeded random data.
