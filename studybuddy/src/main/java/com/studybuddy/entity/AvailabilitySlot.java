@@ -3,6 +3,8 @@ package com.studybuddy.entity;
 import java.time.DayOfWeek;
 import java.time.Duration;
 import java.time.LocalTime;
+import java.time.format.TextStyle;
+import java.util.Locale;
 
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -65,6 +67,14 @@ public class AvailabilitySlot {
         LocalTime laterStart = startTime.isAfter(other.startTime) ? startTime : other.startTime;
         LocalTime earlierEnd = endTime.isBefore(other.endTime) ? endTime : other.endTime;
         return Duration.between(laterStart, earlierEnd).toMinutes();
+    }
+
+    /**
+     * The slot as people read it, e.g. "Wed 19:00-21:00". Used everywhere a slot is shown
+     * (matches, study groups, preferences), so the format is the same on every page.
+     */
+    public String getLabel() {
+        return dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.ENGLISH) + " " + startTime + "-" + endTime;
     }
 
     // ---- Getters / Setters (no Lombok in this project) ----

@@ -1,9 +1,7 @@
 package com.studybuddy.matching;
 
-import java.time.format.TextStyle;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Locale;
 
 import com.studybuddy.entity.AvailabilitySlot;
 import com.studybuddy.entity.Course;
@@ -30,16 +28,11 @@ public record PreferenceSummary(
         List<String> availability = preference.getAvailabilitySlots().stream()
                 .sorted(Comparator.comparing(AvailabilitySlot::getDayOfWeek)
                         .thenComparing(AvailabilitySlot::getStartTime))
-                .map(PreferenceSummary::describe)
+                .map(AvailabilitySlot::getLabel)
                 .toList();
         Course course = preference.getCourse();
         return new PreferenceSummary(course.getCourseId(), course.getCourseCode(), course.getCourseName(),
                 preference.getStudyMode(), preference.getArrangement(), preference.getStudyGoal(), availability);
     }
 
-    // e.g. "Wed 19:00-21:00"
-    private static String describe(AvailabilitySlot slot) {
-        return slot.getDayOfWeek().getDisplayName(TextStyle.SHORT, Locale.ENGLISH) + " "
-                + slot.getStartTime() + "-" + slot.getEndTime();
-    }
 }

@@ -1243,6 +1243,104 @@ a {
     white-space: nowrap;
 }
 
+/* ---- Study preferences (student/preferences.html) ---- */
+
+/* Time slots as chips: full-size text, one slot per line, never split in the middle of a time */
+.slot-chips {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    align-items: flex-start;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.slot-chip {
+    padding: 0.3rem 0.65rem;
+    border-radius: var(--radius);
+    background-color: var(--info-bg);
+    color: var(--navy);
+    font-size: var(--text-base);
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+/* While editing, each chip has its Remove button beside it */
+.slot-chips-editable {
+    gap: 0.6rem;
+    margin-bottom: 1.25rem;
+}
+
+.slot-chips-editable li {
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+}
+
+.slot-chips-editable form {
+    margin: 0;
+}
+
+/* The row being edited is a form, not a table row, so its text and buttons are page-sized
+   rather than the small table size */
+.data-table td.preference-edit {
+    padding: 1.25rem;
+    font-size: var(--text-base);
+}
+
+.data-table td.preference-edit .button {
+    padding: 0.7rem 1.25rem;
+    font-size: var(--text-base);
+}
+
+.preference-edit .button-row {
+    margin-top: 0.75rem;
+}
+
+/* Clear space and a line between the preference's details and its time slots */
+.preference-edit-section {
+    margin-top: 2rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--rule);
+}
+
+/* ---- Send a match request (student/matches.html) ---- */
+
+/* The message box is a few lines tall and as wide as the card, with Send under it */
+.match-request-form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    align-items: flex-start;
+    margin-top: 1rem;
+}
+
+.match-request-form label {
+    font-weight: 700;
+}
+
+.match-request-form label .muted {
+    font-weight: 400;
+}
+
+.match-request-form textarea {
+    width: 100%;
+    margin-bottom: 0.4rem;
+    padding: 0.7rem 0.8rem;
+    border: 1px solid var(--rule);
+    border-radius: var(--radius);
+    background-color: var(--surface);
+    color: var(--ink);
+    font-family: var(--font-body);
+    font-size: var(--text-base);
+    resize: vertical;
+}
+
+.match-request-form textarea:hover {
+    border-color: var(--ink-soft);
+}
+
 /* ---- Small screens ---- */
 
 @media (max-width: 800px) {

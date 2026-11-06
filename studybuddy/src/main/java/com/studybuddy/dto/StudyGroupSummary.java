@@ -1,9 +1,7 @@
 package com.studybuddy.dto;
 
-import java.time.format.TextStyle;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Locale;
 
 import com.studybuddy.entity.AvailabilitySlot;
 import com.studybuddy.entity.Student;
@@ -39,7 +37,7 @@ public record StudyGroupSummary(
         List<String> sessions = group.getAvailability().stream()
                 .sorted(Comparator.comparing(AvailabilitySlot::getDayOfWeek)
                         .thenComparing(AvailabilitySlot::getStartTime))
-                .map(StudyGroupSummary::describe)
+                .map(AvailabilitySlot::getLabel)
                 .toList();
         List<String> memberNames = group.getAcceptedMembers().stream()
                 .map(Student::getName)
@@ -65,9 +63,4 @@ public record StudyGroupSummary(
         return pendingRequestCount + (pendingRequestCount == 1 ? " request waiting" : " requests waiting");
     }
 
-    // e.g. "Wed 19:00-21:00", the same format as the matches page
-    private static String describe(AvailabilitySlot slot) {
-        return slot.getDayOfWeek().getDisplayName(TextStyle.SHORT, Locale.ENGLISH) + " "
-                + slot.getStartTime() + "-" + slot.getEndTime();
-    }
 }

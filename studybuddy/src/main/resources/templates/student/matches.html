@@ -129,7 +129,11 @@
                         <form class="match-request-form" th:if="${status == null}" th:action="@{/match-requests}" method="post">
                             <!-- Hidden field carries the matched student's ID (MatchResult.student is a StudentPublicProfile) -->
                             <input type="hidden" name="recipientId" th:value="${result.student.studentId}">
-                            <input type="text" name="message" placeholder="Optional message" maxlength="255">
+                            <!-- A few lines tall, so the whole message stays in view while typing.
+                                 255 = MatchRequestController.MAX_MESSAGE_LENGTH, which the server checks too. -->
+                            <label th:for="|message-${row.count}|">Message <span class="muted">(optional)</span></label>
+                            <textarea name="message" rows="3" maxlength="255" th:id="|message-${row.count}|"
+                                      placeholder="e.g. Want to go through past-year papers together on Wednesdays?"></textarea>
                             <button type="submit" class="button button-primary">Send request</button>
                         </form>
                     </th:block>

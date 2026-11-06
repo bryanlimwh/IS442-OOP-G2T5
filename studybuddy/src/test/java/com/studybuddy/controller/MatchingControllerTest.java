@@ -195,6 +195,18 @@ class MatchingControllerTest {
         verify(matchRequestService).getMatchRequestByRecipient(ALEX);
     }
 
+    // S7: the optional message is a labelled box a few lines tall (not a one-line field), with the same 255 limit
+    @Test
+    void requestMessageIsALabelledMultiLineBox() throws Exception {
+        when(matchingService.findMatches(any(), any())).thenReturn(List.of(ben));
+
+        mockMvc.perform(get(BASE))
+                .andExpect(content().string(allOf(
+                        containsString("<label for=\"message-1\">Message <span class=\"muted\">(optional)</span></label>"),
+                        containsString("<textarea name=\"message\" rows=\"3\" maxlength=\"255\" id=\"message-1\""),
+                        not(containsString("type=\"text\" name=\"message\"")))));
+    }
+
     // S3, S7, TD-5: everyone stays listed; a buddy or a pending request shows a label linking to the right
     // page instead of "Send request", and only the unrelated student and the rejected one can be sent a request
     @Test

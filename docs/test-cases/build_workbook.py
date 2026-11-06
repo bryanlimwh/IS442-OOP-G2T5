@@ -635,6 +635,7 @@ CASES = {
     ],
     "StudyPreferenceControllerTest": [
         t("pageShowsPreferencesAndOnlyCoursesWithoutOne", "happy", "Preferences page", "Mock: preference 4 (IS442); Alex takes IS442, CS201; GET ?edit=4", "-", "View student/preferences; preferences, coursesWithoutPreference [CS201], editingId 4, 61 time options"),
+        t("slotsShowAsChipsAndEditButtonsHaveTheirOwnRow", "happy", "Slots as chips; Save and Done in their own row", "Mock: IS442 preference with Mon 10:00-12:00; GET /student/preferences, then ?edit=4", "-", "Table: chip 'Mon 10:00-12:00' (no 'Monday 10:00'); edit form: page-sized cell, the slot as a chip, Save and Done in a button-row"),
         t("createPreferenceRedirectsToItsEditForm", "happy", "Add a preference", "POST /student/preferences", "IS442, ONLINE, ONE_TO_ONE, CONCEPT_REVIEW", "Redirect ?edit=4; flash 'Your IS442 preference has been added. Add the times you're free below.'"),
         t("createWithoutCourseSavesNothing", "negative", "Add without a course", "POST without courseId", "-", "Flash 'Choose a course for the preference.'; service not called"),
         t("createForUnknownCourseShowsError", "negative", "Add for a missing course", "Mock throws CourseNotFoundException", "99", "Flash 'That course no longer exists.'"),
@@ -661,6 +662,7 @@ CASES = {
         t("refusedRequestsNeverReachTheService", "permission", "Refused requests never reach the service", "GET anonymous and as ADMIN", "-", "/login, 403; no service call"),
         t("buddyStatusesComeFromConnectionsAndPendingRequests", "happy", "Link to each listed student worked out for the page", "Mock: buddy Ben (2), sent pending to Dan (4), received pending from Chloe (3), rejected both ways with Eve (5) and Finn (6); GET /matches", "-", "Model buddyStatuses = {2: CONNECTED, 4: REQUEST_SENT, 3: REQUEST_RECEIVED}; rejected ones absent; services asked with alex@test.com"),
         t("relatedStudentsShowALabelInsteadOfTheSendButton", "happy", "Label instead of 'Send request' for buddies and pending requests", "Same links; results Ben, Chloe, Dan, Eve; GET /matches", "-", "All four listed; 'You're already study buddies' links to /connections, 'Request sent' and 'They've sent you a request' to /match-requests; only Eve (rejected) has a Send form"),
+        t("requestMessageIsALabelledMultiLineBox", "happy", "The request message is a labelled multi-line box", "Mock: one unrelated result; GET /matches", "-", "Label 'Message (optional)' tied to a 3-row textarea with maxlength 255; no one-line text field for the message"),
         t("oneTimeErrorIsShownOnThePage", "happy", "One-time error shown on the matches page", "GET /matches with flash error", "'That student's profile no longer exists.'", "The message is on the page"),
     ],
     "StudyBuddyConnectionControllerTest": [
@@ -970,7 +972,7 @@ MANUAL = [
       "Ben Koh's name is a link to his public profile page (see MAN-45), which doesn't show the number either."),
     m("MAN-08", "S7, REQ-1, TD-5", "happy", "Send a buddy request with a message", APP_PRE,
       numbered(login("student@studybuddy.com"), "Open http://localhost:8080/matches, choose IS442, click 'Search'.",
-               "On the first card that is NOT Ben Koh, Chloe Lim or Daniel Ng, type 'Want to study IS442 together?' in 'Optional message' and click 'Send request'.",
+               "On the first card that is NOT Ben Koh, Chloe Lim or Daniel Ng, type 'Want to study IS442 together?' in the 'Message (optional)' box and click 'Send request'.",
                "Go back to http://localhost:8080/matches, choose IS442, click 'Search', and look at Ben Koh's card (still first, 92 / 100). Click its 'You're already study buddies' label."),
       "Message 'Want to study IS442 together?'",
       "Step 3: the Match requests page shows a green banner 'Request sent to <name>. Their reply will show under Sent below.' and the student under 'Sent', framed in green, with the message and the label 'Waiting for a reply'. Step 4: Ben Koh's card has no 'Send request' button and no message box; it shows 'You're already study buddies', which opens the Study buddies page (Ben Koh listed).",
@@ -1192,7 +1194,7 @@ MANUAL = [
       "K4 fixed 2026-10-28; matches StudentProfileControllerKnownBugTest (now a regression test).", BATCH_C),
     m("MAN-41", "S7, S8, K12", "boundary", "A message that is just 'no' is shown", APP_PRE,
       numbered(login("student@studybuddy.com"), "Open http://localhost:8080/matches, choose IS442, click 'Search'.",
-               "On the first card that is NOT Ben Koh, Chloe Lim or Daniel Ng, type no in 'Optional message' and click 'Send request'."),
+               "On the first card that is NOT Ben Koh, Chloe Lim or Daniel Ng, type no in the 'Message (optional)' box and click 'Send request'."),
       "Message 'no'",
       "'Request sent to <name>. Their reply will show under Sent below.' and, under 'Sent', the new request shows 'Waiting for a reply' and the message 'no'. The same holds for 'false' and 'off'.",
       "K12 fixed 2026-10-28; matches MatchRequestControllerKnownBugTest (now a regression test). Compare MAN-08.", BATCH_C),

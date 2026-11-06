@@ -29,7 +29,7 @@
                 <tbody>
                     <tr th:each="pref : ${preferences}">
                         <!-- The preference being edited (?edit=id) shows as forms across the whole row -->
-                        <td colspan="6" th:if="${pref.id == editingId}">
+                        <td class="preference-edit" colspan="6" th:if="${pref.id == editingId}">
                             <h3 th:text="|${pref.course.courseCode} ${pref.course.courseName}|">IS442 Object Oriented Programming</h3>
                             <form class="form" th:action="@{/student/preferences/{id}/update(id=${pref.id})}" method="post">
                                 <label th:for="|edit-mode-${pref.id}|">Study mode</label>
@@ -47,17 +47,18 @@
                                     <option th:each="goal : ${studyGoals}" th:value="${goal}" th:text="${goal.label}"
                                             th:selected="${goal == pref.studyGoal}">Exam preparation</option>
                                 </select>
-                                <div class="data-table-actions">
+                                <!-- Save keeps the edit open; Done goes back to the table -->
+                                <div class="button-row">
                                     <button type="submit" class="button button-primary">Save</button>
                                     <a class="button button-quiet" th:href="@{/student/preferences}">Done</a>
                                 </div>
                             </form>
 
-                            <h3>When you're free</h3>
+                            <h3 class="preference-edit-section">When you're free</h3>
                             <p class="muted" th:if="${#lists.isEmpty(pref.availabilitySlots)}">No time slots yet.</p>
-                            <ul class="session-list">
-                                <li class="data-table-actions" th:each="slot : ${pref.availabilitySlots}">
-                                    <span th:text="|${#strings.capitalize(#strings.toLowerCase(slot.dayOfWeek.name()))} ${slot.startTime}-${slot.endTime}|">Monday 09:00-11:00</span>
+                            <ul class="slot-chips slot-chips-editable">
+                                <li th:each="slot : ${pref.availabilitySlots}">
+                                    <span class="slot-chip" th:text="${slot.label}">Mon 09:00-11:00</span>
                                     <form th:action="@{/student/preferences/{id}/slots/{slotId}/remove(id=${pref.id}, slotId=${slot.id})}" method="post">
                                         <button type="submit" class="button button-quiet"
                                                 th:attr="aria-label=|Remove ${slot.dayOfWeek} ${slot.startTime} slot|">Remove</button>
@@ -106,9 +107,9 @@
                             <td th:text="${pref.studyGoal.label}">Exam preparation</td>
                             <td>
                                 <span class="muted" th:if="${#lists.isEmpty(pref.availabilitySlots)}">&mdash;</span>
-                                <ul class="session-list">
-                                    <li th:each="slot : ${pref.availabilitySlots}"
-                                        th:text="|${#strings.capitalize(#strings.toLowerCase(slot.dayOfWeek.name()))} ${slot.startTime}-${slot.endTime}|">Monday 09:00-11:00</li>
+                                <!-- Each slot on its own line, never split across two -->
+                                <ul class="slot-chips">
+                                    <li class="slot-chip" th:each="slot : ${pref.availabilitySlots}" th:text="${slot.label}">Mon 09:00-11:00</li>
                                 </ul>
                             </td>
                             <td>

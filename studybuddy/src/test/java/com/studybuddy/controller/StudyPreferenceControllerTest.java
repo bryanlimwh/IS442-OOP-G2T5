@@ -1,6 +1,9 @@
 package com.studybuddy.controller;
 
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
@@ -12,6 +15,7 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.flash;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.model;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
@@ -86,6 +90,24 @@ class StudyPreferenceControllerTest {
                 .andExpect(model().attribute("editingId", 4L))
                 // The same 08:00 to 23:00 quarter-hour list as the study group form
                 .andExpect(model().attribute("timeOptions", hasSize(61)));
+    }
+
+    // S2: slots show as chips in the short "Mon 10:00-12:00" format used on every other page,
+    // and the edit form's Save and Done are full-size buttons in their own row
+    @Test
+    void slotsShowAsChipsAndEditButtonsHaveTheirOwnRow() throws Exception {
+        when(studyPreferenceService.getPreferences(ALEX)).thenReturn(List.of(is442Preference()));
+        when(studentProfileService.getCoursesTaken(ALEX)).thenReturn(List.of(is442));
+
+        mockMvc.perform(get(BASE))
+                .andExpect(content().string(allOf(
+                        containsString("<li class=\"slot-chip\">Mon 10:00-12:00</li>"),
+                        not(containsString("Monday 10:00")))));
+        mockMvc.perform(get(BASE).param("edit", "4"))
+                .andExpect(content().string(allOf(
+                        containsString("<td class=\"preference-edit\" colspan=\"6\">"),
+                        containsString("<span class=\"slot-chip\">Mon 10:00-12:00</span>"),
+                        containsString("<div class=\"button-row\">"))));
     }
 
     // S2, PRE-1: straight to the new preference's edit form
