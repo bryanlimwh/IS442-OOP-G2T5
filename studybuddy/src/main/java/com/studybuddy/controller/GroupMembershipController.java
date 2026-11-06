@@ -24,7 +24,7 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 /**
  * The study group actions about who is in a group: asking to join, cancelling
- * a request that is still waiting, removing a
+ * a request that is still waiting, leaving, removing a
  * closed group from My groups, and the leader's Manage members page, where
  * they accept or reject join requests and remove members. Each action calls
  * {@link GroupMembershipService}, then redirects back with a one-time success
@@ -86,6 +86,23 @@ public class GroupMembershipController {
         return redirectKeepingFrom("/groups/" + groupId, from, redirectAttributes);
     }
 
+    // "Leave group" on the group's page. The reason is optional; only the leader sees it.
+    @PostMapping("/{groupId}/leave")
+    public String leaveGroup(@PathVariable Long groupId, @RequestParam(required = false) String reason,
+            @RequestParam(required = false) String from, Principal principal, RedirectAttributes redirectAttributes) {
+        try {
+            groupMembershipService.leaveGroup(groupId, principal.getName(), reason);
+            redirectAttributes.addFlashAttribute("success", "You left the group. You can ask to join again later.");
+        } catch (StudyGroupNotFoundException e) {
+            redirectAttributes.addFlashAttribute("error", StudyGroupController.GROUP_GONE);
+            return "redirect:/groups";
+        } catch (IllegalStateException | IllegalArgumentException e) {
+            // e.g. "The leader can't leave their own group" or "The reason can be at most 500 characters"
+            redirectAttributes.addFlashAttribute("error", e.getMessage());
+        }
+        return redirectKeepingFrom("/groups/" + groupId, from, redirectAttributes);
+    }
+
     // The "Remove" button on a closed group's card on My groups, so closed groups don't pile up there.
     @PostMapping("/{groupId}/remove-from-my-groups")
     public String removeFromMyGroups(@PathVariable Long groupId, Principal principal,
@@ -104,7 +121,7 @@ public class GroupMembershipController {
 
     // ---- The leader's Manage members page ----
 
-    // Join requests (Accept / Reject) above the members (Remove). Only the leader may open it;
+    // Join requests (Accept / Reject) above the members (Remove), then members who left and why. Only the leader may open it;
     // anyone else goes back to the group's page with a message. It's only linked from the
     // My groups trail, so the page always leads back there and needs no from=mine of its own.
     @GetMapping("/{groupId}/members")
@@ -115,6 +132,7 @@ public class GroupMembershipController {
             model.addAttribute("group", StudyGroupSummary.from(studyGroupService.getGroupLedBy(groupId, leaderEmail)));
             model.addAttribute("requests", toSummaries(groupMembershipService.getPendingRequests(groupId, leaderEmail)));
             model.addAttribute("members", toSummaries(groupMembershipService.getMembers(groupId, leaderEmail)));
+            model.addAttribute("leftMembers", toSummaries(groupMembershipService.getMembersWhoLeft(groupId, leaderEmail)));
         } catch (StudyGroupNotFoundException e) {
             redirectAttributes.addFlashAttribute("error", StudyGroupController.GROUP_GONE);
             return "redirect:/groups";

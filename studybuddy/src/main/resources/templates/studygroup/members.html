@@ -117,6 +117,28 @@
                 </li>
             </ul>
         </section>
+
+        <!-- Only shown once someone has left. Most recent first; the reason is only ever shown here, to the leader. -->
+        <section class="my-groups-section" aria-labelledby="left-members-heading" th:unless="${#lists.isEmpty(leftMembers)}">
+            <h2 id="left-members-heading">Members who left</h2>
+            <ul class="group-list">
+                <li class="group-card" th:each="left : ${leftMembers}">
+                    <div class="group-card-header">
+                        <div>
+                            <h3 class="group-name"><a th:href="@{/students/{id}(id=${left.student.studentId})}" th:text="${left.student.name}">Ben Koh</a></h3>
+                            <p class="muted" th:text="${left.studiesLine()}">Information Systems, Year 2 · School of Computing and Information Systems</p>
+                        </div>
+                    </div>
+                    <div class="group-card-footer">
+                        <p class="group-facts" th:text="|Left on ${left.leftOn()}|">Left on 9 Oct 2026, 19:05</p>
+                    </div>
+                    <p class="group-card-note" th:if="${left.leaveReason != null}">
+                        <strong>Reason:</strong> <span th:text="${left.leaveReason}">My timetable changed</span>
+                    </p>
+                    <p class="muted group-card-note" th:unless="${left.leaveReason != null}">No reason given.</p>
+                </li>
+            </ul>
+        </section>
     </main>
 </body>
 </html>

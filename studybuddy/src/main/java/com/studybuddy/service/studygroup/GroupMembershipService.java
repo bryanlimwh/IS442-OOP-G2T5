@@ -22,7 +22,8 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * Handles who is in a study group: students asking to join (and cancelling
  * a request that is still waiting), the leader accepting, rejecting and
- * removing them, and students removing closed groups from their My groups page. The group's own details are handled
+ * removing them, members leaving, and students removing closed groups from
+ * their My groups page. The group's own details are handled
  * by {@link StudyGroupService}; the two are split by the Single Responsibility
  * Principle, because membership is started by any student while the details
  * are only changed by the leader.
@@ -58,6 +59,9 @@ public class GroupMembershipService {
     private static final Comparator<GroupMembership> EARLIEST_ANSWER_FIRST = Comparator
             .comparing(GroupMembership::getRespondedAt, Comparator.nullsLast(Comparator.naturalOrder()))
             .thenComparing(GroupMembership::getMembershipId);
+    private static final Comparator<GroupMembership> NEWEST_LEAVE_FIRST = Comparator
+            .comparing(GroupMembership::getLeftAt, Comparator.reverseOrder())
+            .thenComparing(GroupMembership::getMembershipId, Comparator.reverseOrder());
 
     private final GroupMembershipRepository groupMembershipRepository;
     private final StudentRepository studentRepository;
@@ -100,6 +104,21 @@ public class GroupMembershipService {
     public GroupMembership cancelRequest(Long groupId, String studentEmail) {
         StudyGroup group = studyGroupService.getGroup(groupId);
         return group.cancelRequest(findStudentByEmail(studentEmail));
+    }
+
+    /**
+     * The member leaves the group, with an optional reason for the leader.
+     * The student acts only on their own membership, found from their login,
+     * so no leader check is needed.
+     *
+     * @return the membership that has now left
+     * @throws StudyGroupNotFoundException if no group has this id
+     * @throws StudentNotFoundException if no student has this email
+     */
+    @Transactional
+    public GroupMembership leaveGroup(Long groupId, String studentEmail, String reason) {
+        StudyGroup group = studyGroupService.getGroup(groupId);
+        return group.leave(findStudentByEmail(studentEmail), reason);
     }
 
     /**
@@ -201,6 +220,21 @@ public class GroupMembershipService {
         return group.getAcceptedMemberships().stream()
                 .sorted(Comparator.comparing((GroupMembership membership) -> !group.isLedBy(membership.getStudent()))
                         .thenComparing(EARLIEST_ANSWER_FIRST))
+                .toList();
+    }
+
+    /**
+     * Students who left the group themselves, most recent first, with their
+     * reasons, for the leader's "Manage members" page. Only the leader sees
+     * the reasons.
+     *
+     * @throws StudyGroupNotFoundException if no group has this id
+     * @throws NotGroupLeaderException if the caller doesn't lead the group
+     */
+    @Transactional(readOnly = true)
+    public List<GroupMembership> getMembersWhoLeft(Long groupId, String leaderEmail) {
+        return studyGroupService.getGroupLedBy(groupId, leaderEmail).getLeftMemberships().stream()
+                .sorted(NEWEST_LEAVE_FIRST)
                 .toList();
     }
 

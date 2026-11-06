@@ -52,6 +52,8 @@ public enum ViewerRole {
             case GROUP_CLOSED -> GROUP_CLOSED;
             // The student withdrew it themselves, so the page just offers to join, with no "declined" message
             case CANCELLED -> NONE;
+            // They chose to leave, so they can simply ask again, like a student who cancelled
+            case LEFT -> NONE;
         };
     }
 }

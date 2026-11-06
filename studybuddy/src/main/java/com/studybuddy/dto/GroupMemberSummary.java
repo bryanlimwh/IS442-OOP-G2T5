@@ -8,8 +8,8 @@ import com.studybuddy.entity.GroupMembership;
 import com.studybuddy.matching.StudentPublicProfile;
 
 /**
- * A read-only copy of one join request or member, for the leader's "Manage
- * members" page.
+ * A read-only copy of one join request, member, or member who left, for the
+ * leader's "Manage members" page.
  * <p>
  * The student is copied as a {@link StudentPublicProfile} (name, school,
  * programme, year and courses), the same record the matches page uses, so the
@@ -21,7 +21,9 @@ public record GroupMemberSummary(
         StudentPublicProfile student,
         boolean leader,
         LocalDateTime requestedAt,
-        LocalDateTime respondedAt) {
+        LocalDateTime respondedAt,
+        LocalDateTime leftAt,
+        String leaveReason) {
 
     // e.g. "9 Oct 2026, 19:05": the same format as GroupRequestSummary
     private static final DateTimeFormatter DATE_TIME_FORMAT =
@@ -31,7 +33,8 @@ public record GroupMemberSummary(
         return new GroupMemberSummary(membership.getMembershipId(),
                 StudentPublicProfile.from(membership.getStudent()),
                 membership.getStudyGroup().isLedBy(membership.getStudent()),
-                membership.getRequestedAt(), membership.getRespondedAt());
+                membership.getRequestedAt(), membership.getRespondedAt(),
+                membership.getLeftAt(), membership.getLeaveReason());
     }
 
     // "Sent on 9 Oct 2026, 19:05", on a join request
@@ -42,6 +45,11 @@ public record GroupMemberSummary(
     // "Joined on 9 Oct 2026, 19:05", on a member. The leader was accepted when they created the group.
     public String joinedOn() {
         return respondedAt.format(DATE_TIME_FORMAT);
+    }
+
+    // "Left on 9 Oct 2026, 19:05", on a member who left
+    public String leftOn() {
+        return leftAt.format(DATE_TIME_FORMAT);
     }
 
     // "Information Systems, Year 3 · School of Computing and Information Systems", as on the matches page

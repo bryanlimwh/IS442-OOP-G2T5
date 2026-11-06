@@ -1,5 +1,6 @@
 package com.studybuddy.controller;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
@@ -13,6 +14,7 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.flash;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.model;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
@@ -52,7 +54,7 @@ import com.studybuddy.service.studygroup.GroupMembershipService;
 import com.studybuddy.service.studygroup.StudyGroupService;
 
 /**
- * Web-layer test for joining a group, cancelling a request, removing a closed one from My groups, and the leader's
+ * Web-layer test for joining a group, cancelling a request, leaving, removing a closed one from My groups, and the leader's
  * Manage members page (accept, reject, remove), rendered with the real templates. The services
  * are mocked (the rules are in GroupMembershipServiceTest). Logged in as student alex@test.com,
  * who leads group 1 "IS442 Revision" (size 4): members Alex and Chloe Lim (membership 12),
@@ -156,6 +158,34 @@ class GroupMembershipControllerTest {
                 .andExpect(flash().attribute("error", GROUP_GONE));
     }
 
+    // GRP-9: back to the group's page; the reason is passed on as typed, or null if none was sent
+    @Test
+    void leaveGroupRedirectsWithSuccess() throws Exception {
+        mockMvc.perform(post(BASE + "/1/leave").param("reason", "My timetable changed").with(csrf()))
+                .andExpect(redirectedUrl(BASE + "/1"))
+                .andExpect(flash().attribute("success", "You left the group. You can ask to join again later."));
+        mockMvc.perform(post(BASE + "/1/leave").param("from", "mine").with(csrf()))
+                .andExpect(redirectedUrl(BASE + "/1?from=mine"));
+
+        verify(groupMembershipService).leaveGroup(1L, ALEX, "My timetable changed");
+        verify(groupMembershipService).leaveGroup(1L, ALEX, null);
+    }
+
+    // GRP-9: the entity's refusal is shown as it is
+    @Test
+    void leaveGroupRefusedWithReason() throws Exception {
+        when(groupMembershipService.leaveGroup(1L, ALEX, null))
+                .thenThrow(new IllegalArgumentException("The leader can't leave their own group"));
+        when(groupMembershipService.leaveGroup(99L, ALEX, null)).thenThrow(new StudyGroupNotFoundException(99L));
+
+        mockMvc.perform(post(BASE + "/1/leave").with(csrf()))
+                .andExpect(redirectedUrl(BASE + "/1"))
+                .andExpect(flash().attribute("error", "The leader can't leave their own group"));
+        mockMvc.perform(post(BASE + "/99/leave").with(csrf()))
+                .andExpect(redirectedUrl(BASE))
+                .andExpect(flash().attribute("error", GROUP_GONE));
+    }
+
     // GRP-6
     @Test
     void removeFromMyGroupsRedirectsWithSuccess() throws Exception {
@@ -197,6 +227,25 @@ class GroupMembershipControllerTest {
                 .andExpect(model().attribute("requests", List.of(GroupMemberSummary.from(farhansRequest))))
                 .andExpect(model().attribute("members", group.getAcceptedMemberships().stream()
                         .map(GroupMemberSummary::from).toList()));
+    }
+
+    // GRP-9: the leader sees who left, when, and their reason (or that they gave none)
+    @Test
+    void membersPageShowsWhoLeftAndWhy() throws Exception {
+        group.leave(chloesMembership.getStudent(), "My timetable changed");
+        GroupMembership benLeft = group.requestToJoin(student(5L, "ben@test.com", "Ben Koh"));
+        group.acceptRequest(benLeft);
+        group.leave(benLeft.getStudent(), null);
+        when(studyGroupService.getGroupLedBy(1L, ALEX)).thenReturn(group);
+        when(groupMembershipService.getMembersWhoLeft(1L, ALEX)).thenReturn(List.of(benLeft, chloesMembership));
+
+        mockMvc.perform(get(BASE + "/1/members"))
+                .andExpect(status().isOk())
+                .andExpect(model().attribute("leftMembers",
+                        List.of(GroupMemberSummary.from(benLeft), GroupMemberSummary.from(chloesMembership))))
+                .andExpect(content().string(containsString("Members who left")))
+                .andExpect(content().string(containsString("My timetable changed")))
+                .andExpect(content().string(containsString("No reason given.")));
     }
 
     // L4, GRP-2
@@ -267,12 +316,14 @@ class GroupMembershipControllerTest {
         mockMvc.perform(post(BASE + "/1/join").param("email", "ben@test.com").with(csrf()));
         mockMvc.perform(post(BASE + "/1/remove-from-my-groups").param("email", "ben@test.com").with(csrf()));
         mockMvc.perform(post(BASE + "/1/cancel-request").param("email", "ben@test.com").with(csrf()));
+        mockMvc.perform(post(BASE + "/1/leave").param("email", "ben@test.com").with(csrf()));
         mockMvc.perform(post(BASE + "/1/members/13/accept").param("email", "ben@test.com").with(csrf()));
         mockMvc.perform(post(BASE + "/1/members/12/remove").param("email", "ben@test.com").with(csrf()));
 
         verify(groupMembershipService).requestToJoin(1L, ALEX);
         verify(groupMembershipService).removeFromMyGroups(1L, ALEX);
         verify(groupMembershipService).cancelRequest(1L, ALEX);
+        verify(groupMembershipService).leaveGroup(1L, ALEX, null);
         verify(groupMembershipService).acceptRequest(1L, 13L, ALEX);
         verify(groupMembershipService).removeMember(1L, 12L, ALEX);
         verify(groupMembershipService, never()).acceptRequest(anyLong(), anyLong(), eq("ben@test.com"));
@@ -283,6 +334,7 @@ class GroupMembershipControllerTest {
     void refusedRequestsNeverReachTheService() throws Exception {
         List<Supplier<MockHttpServletRequestBuilder>> posts = List.of(() -> post(BASE + "/1/join"),
                 () -> post(BASE + "/1/remove-from-my-groups"), () -> post(BASE + "/1/cancel-request"),
+                () -> post(BASE + "/1/leave"),
                 () -> post(BASE + "/1/members/13/accept"),
                 () -> post(BASE + "/1/members/13/reject"), () -> post(BASE + "/1/members/12/remove"));
         mockMvc.perform(get(BASE + "/1/members").with(anonymous())).andExpect(redirectedUrl("/login"));

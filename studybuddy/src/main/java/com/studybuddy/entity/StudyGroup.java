@@ -120,7 +120,7 @@ public class StudyGroup {
 
     /**
      * Records a student's request to join. A student who was rejected,
-     * removed or cancelled before gets their old row back as PENDING.
+     * removed, cancelled or left before gets their old row back as PENDING.
      *
      * @return the pending membership
      * @throws IllegalStateException if the group is closed or full, or the
@@ -208,6 +208,27 @@ public class StudyGroup {
         GroupMembership membership = findMembershipOf(student)
                 .orElseThrow(() -> new IllegalArgumentException("You haven't asked to join this group"));
         membership.cancel();
+        return membership;
+    }
+
+    /**
+     * The student leaves the group, with an optional reason that only the
+     * leader sees. The leader can't leave, and a closed group's members stay
+     * as they were when it closed. The student can ask to join again later.
+     *
+     * @return the membership that has now left
+     * @throws IllegalStateException if the group is closed or the student is no longer a member
+     * @throws IllegalArgumentException if the student is the leader, never joined,
+     *         or the reason is too long
+     */
+    public GroupMembership leave(Student student, String reason) {
+        requireActive();
+        if (isLedBy(student)) {
+            throw new IllegalArgumentException("The leader can't leave their own group");
+        }
+        GroupMembership membership = findMembershipOf(student)
+                .orElseThrow(() -> new IllegalArgumentException("You aren't a member of this group"));
+        membership.leave(reason);
         return membership;
     }
 
@@ -324,6 +345,15 @@ public class StudyGroup {
     public List<Student> getAcceptedMembers() {
         return getAcceptedMemberships().stream()
                 .map(GroupMembership::getStudent)
+                .toList();
+    }
+
+    /**
+     * Students who left the group themselves, for the leader's "manage members" page.
+     */
+    public List<GroupMembership> getLeftMemberships() {
+        return memberships.stream()
+                .filter(GroupMembership::hasLeft)
                 .toList();
     }
 

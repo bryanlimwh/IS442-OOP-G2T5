@@ -470,6 +470,46 @@ class GroupMembershipServiceTest {
                 .isEqualTo(MembershipStatus.PENDING);
     }
 
+    // GRP-9: the place is freed, the group leaves the student's lists, and the leader sees who left and why
+    @Test
+    void leavingIsSavedAndTheLeaderSeesWhoLeftAndWhy() {
+        Long benId = request(BEN);
+        accept(benId);
+        Long chloeId = request(CHLOE);
+        accept(chloeId);
+        service.leaveGroup(groupId, BEN, "My timetable changed");
+        waitForClockTick();
+        service.leaveGroup(groupId, CHLOE, null);
+        flushAndClear();
+
+        assertThat(service.getMembersWhoLeft(groupId, ALEX))
+                .extracting(GroupMembership::getMembershipId, GroupMembership::getLeaveReason)
+                .containsExactly(tuple(chloeId, null), tuple(benId, "My timetable changed"));
+        assertThat(studyGroupService.getGroup(groupId).getMemberCount()).isEqualTo(1);
+        assertThat(service.findGroupsJoinedBy(BEN)).isEmpty();
+        // Not a decline or removal: Ben chose to leave
+        assertThat(service.findPastRequestsBy(BEN)).isEmpty();
+        assertThat(service.getViewerRole(groupId, BEN)).isEqualTo(ViewerRole.NONE);
+        // Only the leader sees the reasons
+        assertThatThrownBy(() -> service.getMembersWhoLeft(groupId, BEN))
+                .isInstanceOf(NotGroupLeaderException.class);
+    }
+
+    // GRP-9
+    @Test
+    void leaderCannotLeaveAndUnknownGroupOrStudentIsRefused() {
+        assertThatThrownBy(() -> service.leaveGroup(groupId, ALEX, "Too busy"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("The leader can't leave their own group");
+        assertThatThrownBy(() -> service.leaveGroup(UNKNOWN_ID, BEN, null))
+                .isInstanceOf(StudyGroupNotFoundException.class);
+        assertThatThrownBy(() -> service.leaveGroup(groupId, "nobody@test.com", null))
+                .isInstanceOf(StudentNotFoundException.class);
+        flushAndClear();
+
+        assertThat(service.getMembers(groupId, ALEX)).hasSize(1);
+    }
+
     // GRP-6: the student sees the request ended because the group closed, not a decline
     @Test
     void closingMovesPendingRequestsToGroupClosed() {

@@ -4,6 +4,7 @@ import java.time.LocalDateTime;
 
 import com.studybuddy.entity.enums.MembershipStatus;
 
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -18,7 +19,7 @@ import jakarta.persistence.UniqueConstraint;
 /**
  * Association class linking a {@link Student} to a {@link StudyGroup}. It
  * records where that link stands (pending, accepted, rejected, removed,
- * cancelled by the student, or ended by the group closing), when the request was made and answered, and
+ * cancelled or left by the student, or ended by the group closing), when the request was made and answered, and
  * whether the student has removed the closed group from their My groups page.
  * <p>
  * The constructor and status changes are package-private, so every change
@@ -28,6 +29,9 @@ import jakarta.persistence.UniqueConstraint;
 @Entity
 @Table(uniqueConstraints = @UniqueConstraint(columnNames = {"student_id", "study_group_id"}))
 public class GroupMembership {
+
+    // The longest reason a member can give for leaving. The group page's text box uses the same limit.
+    public static final int MAX_LEAVE_REASON_LENGTH = 500;
 
     private static final String ALREADY_ANSWERED = "This request has already been answered";
 
@@ -52,6 +56,11 @@ public class GroupMembership {
 
     // Only this student's view: the group and its history stay, and other students still see it.
     private boolean hiddenFromMyGroups;
+
+    // Set when the member leaves; both cleared if they ask to join again. Only the leader sees the reason.
+    private LocalDateTime leftAt;
+    @Column(length = MAX_LEAVE_REASON_LENGTH)
+    private String leaveReason;  // null when the member gave no reason
 
     /**
      * No-arg constructor required by JPA.
@@ -152,8 +161,30 @@ public class GroupMembership {
     }
 
     /**
-     * REJECTED, REMOVED or CANCELLED -> PENDING, for a student asking to join
-     * again. Starts the request afresh.
+     * ACCEPTED -> LEFT, when the member leaves the group themselves. The
+     * reason is optional: a blank one is stored as none. Leaves respondedAt
+     * alone so the time the student was accepted is kept.
+     * <p>
+     * Package-private (no {@code public}) so it can only be reached through
+     * {@link StudyGroup#leave}, which stops the leader from leaving.
+     *
+     * @throws IllegalArgumentException if the reason is over {@link #MAX_LEAVE_REASON_LENGTH} characters
+     */
+    void leave(String reason) {
+        requireStatus(MembershipStatus.ACCEPTED, "You aren't a member of this group");
+        String trimmed = reason == null ? "" : reason.strip();
+        if (trimmed.length() > MAX_LEAVE_REASON_LENGTH) {
+            throw new IllegalArgumentException(
+                    "The reason can be at most " + MAX_LEAVE_REASON_LENGTH + " characters");
+        }
+        this.status = MembershipStatus.LEFT;
+        this.leftAt = LocalDateTime.now();
+        this.leaveReason = trimmed.isEmpty() ? null : trimmed;
+    }
+
+    /**
+     * REJECTED, REMOVED, CANCELLED or LEFT -> PENDING, for a student asking to
+     * join again. Starts the request afresh.
      * <p>
      * Package-private (no {@code public}) so it can only be reached through
      * {@link StudyGroup#requestToJoin}, which first checks the group is
@@ -161,12 +192,14 @@ public class GroupMembership {
      */
     void reRequest() {
         if (status != MembershipStatus.REJECTED && status != MembershipStatus.REMOVED
-                && status != MembershipStatus.CANCELLED) {
+                && status != MembershipStatus.CANCELLED && status != MembershipStatus.LEFT) {
             throw new IllegalStateException("Cannot re-request a membership that is " + status);
         }
         this.status = MembershipStatus.PENDING;
         this.requestedAt = LocalDateTime.now();
         this.respondedAt = null;
+        this.leftAt = null;
+        this.leaveReason = null;
     }
 
     public boolean isPending() {
@@ -175,6 +208,10 @@ public class GroupMembership {
 
     public boolean isAccepted() {
         return status == MembershipStatus.ACCEPTED;
+    }
+
+    public boolean hasLeft() {
+        return status == MembershipStatus.LEFT;
     }
 
     // For Accept and Reject. A leader whose page is out of date is told the student withdrew,
@@ -222,5 +259,13 @@ public class GroupMembership {
 
     public boolean isHiddenFromMyGroups() {
         return hiddenFromMyGroups;
+    }
+
+    public LocalDateTime getLeftAt() {
+        return leftAt;
+    }
+
+    public String getLeaveReason() {
+        return leaveReason;
     }
 }

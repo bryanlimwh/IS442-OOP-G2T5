@@ -58,6 +58,26 @@
                 </div>
             </div>
             <p th:if="${role == 'MEMBER'}"><strong>You're a member of this group.</strong></p>
+            <!-- A closed group's members stay as they were, so leaving is only offered while it's open.
+                 The popover attribute opens the box without JavaScript. -->
+            <th:block th:if="${role == 'MEMBER' and group.active}">
+                <button type="button" class="button button-danger" popovertarget="confirm-leave">Leave group</button>
+                <div id="confirm-leave" class="confirm-popover" popover>
+                    <form class="form" th:action="@{/groups/{id}/leave(id=${group.groupId})}" method="post">
+                        <p>Leave <strong th:text="${group.name}">IS442 OOP Exam Prep</strong>? You can ask to join again later.</p>
+                        <label for="leave-reason">Reason <span class="muted">(optional, only the leader sees it)</span></label>
+                        <!-- 500 = GroupMembership.MAX_LEAVE_REASON_LENGTH, which the server checks too -->
+                        <textarea id="leave-reason" name="reason" rows="3" maxlength="500"
+                                  placeholder="e.g. My timetable changed"></textarea>
+                        <input type="hidden" name="from" value="mine" th:if="${fromMyGroups}">
+                        <div class="confirm-actions">
+                            <button type="button" class="button button-quiet"
+                                    popovertarget="confirm-leave" popovertargetaction="hide">Stay in group</button>
+                            <button type="submit" class="button button-danger">Leave group</button>
+                        </div>
+                    </form>
+                </div>
+            </th:block>
             <p th:if="${role == 'PENDING'}"><strong>Request sent.</strong> Waiting for the group's leader to respond.</p>
             <th:block th:if="${role == 'PENDING'}">
                 <th:block th:replace="~{fragments/cancel-join-request :: cancelButton(${group.groupId}, ${group.name}, false, ${fromMyGroups})}"></th:block>

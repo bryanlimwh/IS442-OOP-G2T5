@@ -246,6 +246,29 @@ class StudyGroupControllerTest {
                 .andExpect(content().string(not(containsString("cancel-request"))));
     }
 
+    // GRP-9: a member of an open group sees Leave group with an optional reason; nobody else does
+    @Test
+    void onlyAMemberOfAnOpenGroupCanLeave() throws Exception {
+        StudyGroup openGroup = group(6L, "Open Group", ben, 4, alex);
+        when(studyGroupService.getGroup(6L)).thenReturn(openGroup);
+        when(groupMembershipService.getViewerRole(6L, ALEX)).thenReturn(ViewerRole.MEMBER);
+
+        mockMvc.perform(get(BASE + "/6"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("action=\"/groups/6/leave\"")))
+                .andExpect(content().string(containsString("name=\"reason\"")))
+                .andExpect(content().string(containsString("maxlength=\"500\"")));
+
+        // The leader can't leave
+        when(groupMembershipService.getViewerRole(6L, ALEX)).thenReturn(ViewerRole.LEADER);
+        mockMvc.perform(get(BASE + "/6")).andExpect(content().string(not(containsString("/groups/6/leave"))));
+
+        // A closed group's members stay as they were
+        openGroup.close();
+        when(groupMembershipService.getViewerRole(6L, ALEX)).thenReturn(ViewerRole.MEMBER);
+        mockMvc.perform(get(BASE + "/6")).andExpect(content().string(not(containsString("/groups/6/leave"))));
+    }
+
     // GRP-8: My groups offers Cancel on a waiting request, not on one whose group closed
     @Test
     void myGroupsOffersCancelOnlyOnWaitingRequests() throws Exception {

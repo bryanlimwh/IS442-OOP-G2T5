@@ -123,6 +123,7 @@ class SecurityConfigTest {
             // GroupMembershipController
             new Route("POST", "/groups/{groupId}/join", "/groups/1/join", Access.STUDENT),
             new Route("POST", "/groups/{groupId}/cancel-request", "/groups/1/cancel-request", Access.STUDENT),
+            new Route("POST", "/groups/{groupId}/leave", "/groups/1/leave", Access.STUDENT),
             new Route("POST", "/groups/{groupId}/remove-from-my-groups", "/groups/1/remove-from-my-groups",
                     Access.STUDENT),
             new Route("GET", "/groups/{groupId}/members", "/groups/1/members", Access.STUDENT),

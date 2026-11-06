@@ -201,6 +201,75 @@ class StudyGroupTest {
         assertThat(group.getPendingRequests()).containsExactly(request);
     }
 
+    // GRP-9: the reason is optional and trimmed; a blank one is stored as none
+    @Test
+    void leaveEndsMembershipWithAnOptionalReason() {
+        GroupMembership benMembership = addMember(group, ben);
+        GroupMembership chloeMembership = addMember(group, chloe);
+
+        assertThat(group.leave(ben, "  My timetable changed  ")).isSameAs(benMembership);
+        group.leave(chloe, "   ");
+
+        assertThat(benMembership.getStatus()).isEqualTo(MembershipStatus.LEFT);
+        assertThat(benMembership.getLeaveReason()).isEqualTo("My timetable changed");
+        assertThat(benMembership.getLeftAt()).isNotNull();
+        // The time Ben was accepted is kept
+        assertThat(benMembership.getRespondedAt()).isNotNull();
+        assertThat(chloeMembership.getLeaveReason()).isNull();
+        assertThat(group.getMemberCount()).isEqualTo(1);
+        assertThat(group.getLeftMemberships()).containsExactlyInAnyOrder(benMembership, chloeMembership);
+    }
+
+    // GRP-9: the leader can't leave; only a member of an open group can, with a reason of at most 500 characters
+    @Test
+    void leaveRefusedForLeaderNonMemberClosedGroupAndLongReason() {
+        GroupMembership member = addMember(group, ben);
+        group.requestToJoin(chloe);
+
+        assertThatThrownBy(() -> group.leave(alex, null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("The leader can't leave their own group");
+        assertThatThrownBy(() -> group.leave(daniel, null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("You aren't a member of this group");
+        assertThatThrownBy(() -> group.leave(chloe, null))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("You aren't a member of this group");
+        assertThatThrownBy(() -> group.leave(ben, "x".repeat(501)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("The reason can be at most 500 characters");
+        assertThat(member.getStatus()).isEqualTo(MembershipStatus.ACCEPTED);
+
+        group.close();
+        assertThatThrownBy(() -> group.leave(ben, null))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("Group is closed");
+        assertThat(member.getStatus()).isEqualTo(MembershipStatus.ACCEPTED);
+    }
+
+    // GRP-9: exactly 500 characters is allowed
+    @Test
+    void leaveReasonOfExactly500CharactersIsKept() {
+        GroupMembership member = addMember(group, ben);
+
+        group.leave(ben, "x".repeat(500));
+
+        assertThat(member.getLeaveReason()).hasSize(500);
+    }
+
+    // GRP-4, GRP-9: asking again after leaving reuses the row and clears the old reason
+    @Test
+    void leftStudentCanAskAgain() {
+        GroupMembership member = addMember(group, ben);
+        group.leave(ben, "Busy this month");
+
+        assertThat(group.requestToJoin(ben)).isSameAs(member);
+        assertThat(member.getStatus()).isEqualTo(MembershipStatus.PENDING);
+        assertThat(member.getLeftAt()).isNull();
+        assertThat(member.getLeaveReason()).isNull();
+        assertThat(group.getLeftMemberships()).isEmpty();
+    }
+
     // GRP-4, GRP-5: maximum size 2 means the leader plus one member
     @Test
     void fullGroupRefusesRequestsAndAccepts() {
