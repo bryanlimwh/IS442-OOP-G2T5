@@ -73,10 +73,11 @@ Source: the project brief plus a code scan of main (Oct 2026; updated 2026-10-28
 - GRP-1 Create needs an existing course; name required (max 255), description max 1000, size at least 2 (leader included).
 - GRP-2 Only the leader can update, close, view requests, accept, reject or remove (NotGroupLeaderException for others).
 - GRP-3 Update needs an active group; the new size cannot be below the current member count.
-- GRP-4 Join needs an active, non-full group; not the leader; no duplicate pending or accepted membership; a rejected or removed student may ask again. A request sent before the group filled up stays pending as a waiting list (team decision TD-3): a place reopens when the leader removes a member or raises the maximum size, and while the group is full the waiting student sees "The group is full right now. The leader can still accept you if a place opens up."
+- GRP-4 Join needs an active, non-full group; not the leader; no duplicate pending or accepted membership; a rejected, removed or cancelled (GRP-8) student may ask again. A request sent before the group filled up stays pending as a waiting list (team decision TD-3): a place reopens when the leader removes a member or raises the maximum size, and while the group is full the waiting student sees "The group is full right now. The leader can still accept you if a place opens up."
 - GRP-5 Accept needs a pending membership that belongs to the group and free space. Remove needs an accepted member who is not the leader.
 - GRP-6 Closing turns pending requests into GROUP_CLOSED and freezes the group. Closing is permanent: a closed group can't be reopened (team decision TD-4). removeFromMyGroups works only for closed groups.
 - GRP-7 Group slots: 1 to 3, times 08:00 to 23:00 in 15-minute steps from the list, end after start, no overlap (StudyGroupFormValidator).
+- GRP-8 A student can cancel their own join request while it is still pending; it becomes CANCELLED (kept as history, not shown as a decline). A cancelled request can't be accepted or rejected, and the student may ask again later, which starts a new request.
 
 ### Matching
 - MAT-1 Config: strategy required, weights not negative, total weight above 0, session minutes above 0 (InvalidMatchingConfigException). /admin/matching is protected by the URL rule only.

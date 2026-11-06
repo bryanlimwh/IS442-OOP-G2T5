@@ -52,7 +52,7 @@ import com.studybuddy.service.studygroup.GroupMembershipService;
 import com.studybuddy.service.studygroup.StudyGroupService;
 
 /**
- * Web-layer test for joining a group, removing a closed one from My groups, and the leader's
+ * Web-layer test for joining a group, cancelling a request, removing a closed one from My groups, and the leader's
  * Manage members page (accept, reject, remove), rendered with the real templates. The services
  * are mocked (the rules are in GroupMembershipServiceTest). Logged in as student alex@test.com,
  * who leads group 1 "IS442 Revision" (size 4): members Alex and Chloe Lim (membership 12),
@@ -124,6 +124,35 @@ class GroupMembershipControllerTest {
         mockMvc.perform(post(BASE + "/3/join").with(csrf()))
                 .andExpect(flash().attribute("error", "The leader is already in the group"));
         mockMvc.perform(post(BASE + "/99/join").with(csrf())).andExpect(redirectedUrl(BASE))
+                .andExpect(flash().attribute("error", GROUP_GONE));
+    }
+
+    // GRP-8: back to the group's page, or to My groups when cancelled from there
+    @Test
+    void cancelRequestRedirectsWithSuccess() throws Exception {
+        mockMvc.perform(post(BASE + "/1/cancel-request").with(csrf()))
+                .andExpect(redirectedUrl(BASE + "/1"))
+                .andExpect(flash().attribute("success", "Request cancelled. You can ask to join again later."));
+        mockMvc.perform(post(BASE + "/1/cancel-request").param("from", "mine").with(csrf()))
+                .andExpect(redirectedUrl(BASE + "/1?from=mine"));
+        mockMvc.perform(post(BASE + "/1/cancel-request").param("backToMyGroups", "true").with(csrf()))
+                .andExpect(redirectedUrl(BASE + "/mine"));
+
+        verify(groupMembershipService, times(3)).cancelRequest(1L, ALEX);
+    }
+
+    // GRP-8: e.g. the leader answered first
+    @Test
+    void cancelRequestRefusedWithReason() throws Exception {
+        when(groupMembershipService.cancelRequest(1L, ALEX))
+                .thenThrow(new IllegalStateException("Only a request that is still waiting can be cancelled"));
+        when(groupMembershipService.cancelRequest(99L, ALEX)).thenThrow(new StudyGroupNotFoundException(99L));
+
+        mockMvc.perform(post(BASE + "/1/cancel-request").with(csrf()))
+                .andExpect(redirectedUrl(BASE + "/1"))
+                .andExpect(flash().attribute("error", "Only a request that is still waiting can be cancelled"));
+        mockMvc.perform(post(BASE + "/99/cancel-request").with(csrf()))
+                .andExpect(redirectedUrl(BASE))
                 .andExpect(flash().attribute("error", GROUP_GONE));
     }
 
@@ -237,11 +266,13 @@ class GroupMembershipControllerTest {
 
         mockMvc.perform(post(BASE + "/1/join").param("email", "ben@test.com").with(csrf()));
         mockMvc.perform(post(BASE + "/1/remove-from-my-groups").param("email", "ben@test.com").with(csrf()));
+        mockMvc.perform(post(BASE + "/1/cancel-request").param("email", "ben@test.com").with(csrf()));
         mockMvc.perform(post(BASE + "/1/members/13/accept").param("email", "ben@test.com").with(csrf()));
         mockMvc.perform(post(BASE + "/1/members/12/remove").param("email", "ben@test.com").with(csrf()));
 
         verify(groupMembershipService).requestToJoin(1L, ALEX);
         verify(groupMembershipService).removeFromMyGroups(1L, ALEX);
+        verify(groupMembershipService).cancelRequest(1L, ALEX);
         verify(groupMembershipService).acceptRequest(1L, 13L, ALEX);
         verify(groupMembershipService).removeMember(1L, 12L, ALEX);
         verify(groupMembershipService, never()).acceptRequest(anyLong(), anyLong(), eq("ben@test.com"));
@@ -251,7 +282,8 @@ class GroupMembershipControllerTest {
     @Test
     void refusedRequestsNeverReachTheService() throws Exception {
         List<Supplier<MockHttpServletRequestBuilder>> posts = List.of(() -> post(BASE + "/1/join"),
-                () -> post(BASE + "/1/remove-from-my-groups"), () -> post(BASE + "/1/members/13/accept"),
+                () -> post(BASE + "/1/remove-from-my-groups"), () -> post(BASE + "/1/cancel-request"),
+                () -> post(BASE + "/1/members/13/accept"),
                 () -> post(BASE + "/1/members/13/reject"), () -> post(BASE + "/1/members/12/remove"));
         mockMvc.perform(get(BASE + "/1/members").with(anonymous())).andExpect(redirectedUrl("/login"));
         mockMvc.perform(get(BASE + "/1/members").with(user("admin@test.com").roles("ADMIN")))

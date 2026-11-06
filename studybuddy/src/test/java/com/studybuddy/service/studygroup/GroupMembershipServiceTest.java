@@ -428,6 +428,48 @@ class GroupMembershipServiceTest {
         assertThat(service.getPendingRequests(groupId, ALEX)).isEmpty();
     }
 
+    // GRP-8: a cancelled request leaves every list, and the group's page offers a plain join again
+    @Test
+    void cancelledRequestIsSavedAndLeavesEveryList() {
+        Long benId = request(BEN);
+        service.cancelRequest(groupId, BEN);
+        flushAndClear();
+
+        assertThat(groupMembershipRepository.findById(benId).orElseThrow().getStatus())
+                .isEqualTo(MembershipStatus.CANCELLED);
+        assertThat(service.getPendingRequests(groupId, ALEX)).isEmpty();
+        assertThat(service.findPendingRequestsBy(BEN)).isEmpty();
+        // Not a decline: the student withdrew it themselves
+        assertThat(service.findPastRequestsBy(BEN)).isEmpty();
+        assertThat(service.getViewerRole(groupId, BEN)).isEqualTo(ViewerRole.NONE);
+        assertThatThrownBy(() -> service.acceptRequest(groupId, benId, ALEX))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("The student has cancelled this request");
+
+        // Asking again brings the same row back
+        assertThat(request(BEN)).isEqualTo(benId);
+        assertThat(service.getPendingRequests(groupId, ALEX)).extracting(GroupMembership::getMembershipId)
+                .containsExactly(benId);
+    }
+
+    // GRP-8: the student is found from their login, so only their own request can be cancelled
+    @Test
+    void cancelRequestOnlyTouchesTheCallersRequest() {
+        Long benId = request(BEN);
+
+        assertThatThrownBy(() -> service.cancelRequest(groupId, CHLOE))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("You haven't asked to join this group");
+        assertThatThrownBy(() -> service.cancelRequest(UNKNOWN_ID, BEN))
+                .isInstanceOf(StudyGroupNotFoundException.class);
+        assertThatThrownBy(() -> service.cancelRequest(groupId, "nobody@test.com"))
+                .isInstanceOf(StudentNotFoundException.class);
+        flushAndClear();
+
+        assertThat(groupMembershipRepository.findById(benId).orElseThrow().getStatus())
+                .isEqualTo(MembershipStatus.PENDING);
+    }
+
     // GRP-6: the student sees the request ended because the group closed, not a decline
     @Test
     void closingMovesPendingRequestsToGroupClosed() {

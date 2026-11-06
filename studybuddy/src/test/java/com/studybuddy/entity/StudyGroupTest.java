@@ -150,6 +150,57 @@ class StudyGroupTest {
         assertThat(group.getPendingRequests()).containsExactlyInAnyOrder(rejected, removed);
     }
 
+    // GRP-8: only the student's own request, and only while it is still waiting
+    @Test
+    void cancelRequestWithdrawsOnlyAPendingRequest() {
+        GroupMembership request = group.requestToJoin(ben);
+        GroupMembership member = addMember(group, chloe);
+
+        assertThat(group.cancelRequest(ben)).isSameAs(request);
+        assertThat(request.getStatus()).isEqualTo(MembershipStatus.CANCELLED);
+        assertThat(request.getRespondedAt()).isNull();
+        assertThat(group.getPendingRequests()).isEmpty();
+
+        assertThatThrownBy(() -> group.cancelRequest(ben))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("Only a request that is still waiting can be cancelled");
+        assertThatThrownBy(() -> group.cancelRequest(chloe))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("Only a request that is still waiting can be cancelled");
+        assertThatThrownBy(() -> group.cancelRequest(daniel))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("You haven't asked to join this group");
+        assertThat(member.getStatus()).isEqualTo(MembershipStatus.ACCEPTED);
+    }
+
+    // GRP-8: a leader whose page is out of date is told the student withdrew
+    @Test
+    void leaderCannotAnswerACancelledRequest() {
+        GroupMembership request = group.requestToJoin(ben);
+        group.cancelRequest(ben);
+
+        assertThatThrownBy(() -> group.acceptRequest(request))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("The student has cancelled this request");
+        assertThatThrownBy(() -> group.rejectRequest(request))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("The student has cancelled this request");
+        assertThat(request.getStatus()).isEqualTo(MembershipStatus.CANCELLED);
+        assertThat(group.getMemberCount()).isEqualTo(1);
+    }
+
+    // GRP-4, GRP-8: asking again after cancelling reuses the row as a new request
+    @Test
+    void cancelledStudentCanAskAgain() {
+        GroupMembership request = group.requestToJoin(ben);
+        group.cancelRequest(ben);
+
+        assertThat(group.requestToJoin(ben)).isSameAs(request);
+        assertThat(request.getStatus()).isEqualTo(MembershipStatus.PENDING);
+        assertThat(group.getMemberships()).hasSize(2);
+        assertThat(group.getPendingRequests()).containsExactly(request);
+    }
+
     // GRP-4, GRP-5: maximum size 2 means the leader plus one member
     @Test
     void fullGroupRefusesRequestsAndAccepts() {

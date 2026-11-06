@@ -107,6 +107,9 @@
                             <th:block th:if="${closed}">
                                 <form th:replace="~{fragments/remove-from-my-groups :: removeButton(${request.groupId}, ${request.groupName})}"></form>
                             </th:block>
+                            <th:block th:unless="${closed}">
+                                <th:block th:replace="~{fragments/cancel-join-request :: cancelButton(${request.groupId}, ${request.groupName}, true, false)}"></th:block>
+                            </th:block>
                         </div>
                     </div>
                     <!-- A full group keeps requests pending (a waiting list), so say the student can still get in -->

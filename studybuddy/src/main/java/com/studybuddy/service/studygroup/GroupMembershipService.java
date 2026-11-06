@@ -20,9 +20,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Handles who is in a study group: students asking to join, the leader
- * accepting, rejecting and removing them, and students removing closed
- * groups from their My groups page. The group's own details are handled
+ * Handles who is in a study group: students asking to join (and cancelling
+ * a request that is still waiting), the leader accepting, rejecting and
+ * removing them, and students removing closed groups from their My groups page. The group's own details are handled
  * by {@link StudyGroupService}; the two are split by the Single Responsibility
  * Principle, because membership is started by any student while the details
  * are only changed by the leader.
@@ -85,6 +85,21 @@ public class GroupMembershipService {
         // No save() needed: the new row is in the group's memberships list, which
         // cascades to the database when the transaction ends.
         return group.requestToJoin(student);
+    }
+
+    /**
+     * Withdraws the student's own pending request. The student acts only on
+     * their own link to the group, found from their login, so no leader check
+     * is needed.
+     *
+     * @return the cancelled membership
+     * @throws StudyGroupNotFoundException if no group has this id
+     * @throws StudentNotFoundException if no student has this email
+     */
+    @Transactional
+    public GroupMembership cancelRequest(Long groupId, String studentEmail) {
+        StudyGroup group = studyGroupService.getGroup(groupId);
+        return group.cancelRequest(findStudentByEmail(studentEmail));
     }
 
     /**

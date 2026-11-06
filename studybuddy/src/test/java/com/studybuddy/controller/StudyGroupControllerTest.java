@@ -52,6 +52,7 @@ import com.studybuddy.dto.StudyGroupForm;
 import com.studybuddy.dto.StudyGroupSummary;
 import com.studybuddy.entity.AvailabilitySlot;
 import com.studybuddy.entity.Course;
+import com.studybuddy.entity.GroupMembership;
 import com.studybuddy.entity.Student;
 import com.studybuddy.entity.StudyGroup;
 import com.studybuddy.entity.enums.StudyGoal;
@@ -225,6 +226,41 @@ class StudyGroupControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("Waiting for the group's leader to respond.")))
                 .andExpect(content().string(not(containsString("The group is full right now."))));
+    }
+
+    // GRP-8: a waiting student can cancel from the group's page; the form keeps from=mine
+    @Test
+    void pendingStudentCanCancelFromTheGroupPage() throws Exception {
+        StudyGroup openGroup = group(6L, "Open Group", ben, 4, chloe);
+        when(studyGroupService.getGroup(6L)).thenReturn(openGroup);
+        when(groupMembershipService.getViewerRole(6L, ALEX)).thenReturn(ViewerRole.PENDING);
+
+        mockMvc.perform(get(BASE + "/6").param("from", "mine"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("action=\"/groups/6/cancel-request\"")))
+                .andExpect(content().string(containsString("<input type=\"hidden\" name=\"from\" value=\"mine\">")))
+                .andExpect(content().string(not(containsString("name=\"backToMyGroups\""))));
+        // A member has nothing to cancel
+        when(groupMembershipService.getViewerRole(6L, ALEX)).thenReturn(ViewerRole.MEMBER);
+        mockMvc.perform(get(BASE + "/6"))
+                .andExpect(content().string(not(containsString("cancel-request"))));
+    }
+
+    // GRP-8: My groups offers Cancel on a waiting request, not on one whose group closed
+    @Test
+    void myGroupsOffersCancelOnlyOnWaitingRequests() throws Exception {
+        StudyGroup waiting = group(7L, "Waiting Group", ben, 4);
+        StudyGroup closed = group(8L, "Closed Group", chloe, 4);
+        GroupMembership waitingRequest = waiting.requestToJoin(alex);
+        GroupMembership closedRequest = closed.requestToJoin(alex);
+        closed.close();
+        when(groupMembershipService.findPendingRequestsBy(ALEX)).thenReturn(List.of(waitingRequest, closedRequest));
+
+        mockMvc.perform(get(BASE + "/mine"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("action=\"/groups/7/cancel-request\"")))
+                .andExpect(content().string(containsString("name=\"backToMyGroups\" value=\"true\"")))
+                .andExpect(content().string(not(containsString("/groups/8/cancel-request"))));
     }
 
     // L1

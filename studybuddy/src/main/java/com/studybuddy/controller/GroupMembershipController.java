@@ -23,7 +23,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 /**
- * The study group actions about who is in a group: asking to join, removing a
+ * The study group actions about who is in a group: asking to join, cancelling
+ * a request that is still waiting, removing a
  * closed group from My groups, and the leader's Manage members page, where
  * they accept or reject join requests and remove members. Each action calls
  * {@link GroupMembershipService}, then redirects back with a one-time success
@@ -59,6 +60,28 @@ public class GroupMembershipController {
         } catch (IllegalStateException | IllegalArgumentException e) {
             // The entity's own messages are already readable, e.g. "Group is full" or "Group is closed".
             redirectAttributes.addFlashAttribute("error", e.getMessage());
+        }
+        return redirectKeepingFrom("/groups/" + groupId, from, redirectAttributes);
+    }
+
+    // "Cancel request" on the group's page or on a pending card on My groups. backToMyGroups is sent by
+    // the My groups card, so the student stays on that page; otherwise it's back to the group's page.
+    @PostMapping("/{groupId}/cancel-request")
+    public String cancelRequest(@PathVariable Long groupId, @RequestParam(required = false) String from,
+            @RequestParam(defaultValue = "false") boolean backToMyGroups,
+            Principal principal, RedirectAttributes redirectAttributes) {
+        try {
+            groupMembershipService.cancelRequest(groupId, principal.getName());
+            redirectAttributes.addFlashAttribute("success", "Request cancelled. You can ask to join again later.");
+        } catch (StudyGroupNotFoundException e) {
+            redirectAttributes.addFlashAttribute("error", StudyGroupController.GROUP_GONE);
+            return "redirect:/groups";
+        } catch (IllegalStateException | IllegalArgumentException e) {
+            // e.g. "Only a request that is still waiting can be cancelled" if the leader answered it first
+            redirectAttributes.addFlashAttribute("error", e.getMessage());
+        }
+        if (backToMyGroups) {
+            return "redirect:/groups/mine";
         }
         return redirectKeepingFrom("/groups/" + groupId, from, redirectAttributes);
     }

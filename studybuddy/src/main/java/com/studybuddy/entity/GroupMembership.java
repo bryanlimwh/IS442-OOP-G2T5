@@ -17,8 +17,8 @@ import jakarta.persistence.UniqueConstraint;
 
 /**
  * Association class linking a {@link Student} to a {@link StudyGroup}. It
- * records where that link stands (pending, accepted, rejected, removed, or
- * ended by the group closing), when the request was made and answered, and
+ * records where that link stands (pending, accepted, rejected, removed,
+ * cancelled by the student, or ended by the group closing), when the request was made and answered, and
  * whether the student has removed the closed group from their My groups page.
  * <p>
  * The constructor and status changes are package-private, so every change
@@ -109,7 +109,7 @@ public class GroupMembership {
      * not full and owns this membership.
      */
     void accept() {
-        requireStatus(MembershipStatus.PENDING, ALREADY_ANSWERED);
+        requirePendingForLeader();
         this.status = MembershipStatus.ACCEPTED;
         this.respondedAt = LocalDateTime.now();
     }
@@ -122,7 +122,7 @@ public class GroupMembership {
      * membership, or {@link StudyGroup#close}.
      */
     void reject() {
-        requireStatus(MembershipStatus.PENDING, ALREADY_ANSWERED);
+        requirePendingForLeader();
         this.status = MembershipStatus.REJECTED;
         this.respondedAt = LocalDateTime.now();
     }
@@ -140,15 +140,28 @@ public class GroupMembership {
     }
 
     /**
-     * REJECTED or REMOVED -> PENDING, for a student asking to join again.
-     * Starts the request afresh.
+     * PENDING -> CANCELLED, when the student withdraws their own request.
+     * Leaves respondedAt empty: the leader never answered.
+     * <p>
+     * Package-private (no {@code public}) so it can only be reached through
+     * {@link StudyGroup#cancelRequest}, which finds the student's own row.
+     */
+    void cancel() {
+        requireStatus(MembershipStatus.PENDING, "Only a request that is still waiting can be cancelled");
+        this.status = MembershipStatus.CANCELLED;
+    }
+
+    /**
+     * REJECTED, REMOVED or CANCELLED -> PENDING, for a student asking to join
+     * again. Starts the request afresh.
      * <p>
      * Package-private (no {@code public}) so it can only be reached through
      * {@link StudyGroup#requestToJoin}, which first checks the group is
      * active and not full.
      */
     void reRequest() {
-        if (status != MembershipStatus.REJECTED && status != MembershipStatus.REMOVED) {
+        if (status != MembershipStatus.REJECTED && status != MembershipStatus.REMOVED
+                && status != MembershipStatus.CANCELLED) {
             throw new IllegalStateException("Cannot re-request a membership that is " + status);
         }
         this.status = MembershipStatus.PENDING;
@@ -164,7 +177,16 @@ public class GroupMembership {
         return status == MembershipStatus.ACCEPTED;
     }
 
-    // The message is shown to the leader as it is, e.g. after pressing Accept twice
+    // For Accept and Reject. A leader whose page is out of date is told the student withdrew,
+    // rather than "already answered", which would suggest the leader answered it.
+    private void requirePendingForLeader() {
+        if (status == MembershipStatus.CANCELLED) {
+            throw new IllegalStateException("The student has cancelled this request");
+        }
+        requireStatus(MembershipStatus.PENDING, ALREADY_ANSWERED);
+    }
+
+    // The message is shown to the user as it is, e.g. after pressing Accept twice
     private void requireStatus(MembershipStatus expected, String message) {
         if (status != expected) {
             throw new IllegalStateException(message);

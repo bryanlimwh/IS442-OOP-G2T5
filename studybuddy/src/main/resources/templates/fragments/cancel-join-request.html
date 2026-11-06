@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<!--
+    The "Cancel request" button for a join request still waiting on the leader, with a confirmation
+    first (asking again later starts a new request, so the student loses their place in the queue).
+    Used on the group's page and on each pending card on My groups.
+    backToMyGroups: true on My groups, so the student stays there afterwards.
+    fromMyGroups: keeps the group page's "← My groups" link after the redirect.
+    Usage: <th:block th:replace="~{fragments/cancel-join-request :: cancelButton(${id}, ${name}, false, ${fromMyGroups})}"></th:block>
+-->
+<th:block th:fragment="cancelButton(groupId, groupName, backToMyGroups, fromMyGroups)"
+          th:with="popoverId=|confirm-cancel-${groupId}|">
+    <!-- The popover attribute opens the box without JavaScript; the id is per group, as My groups lists several -->
+    <button type="button" class="button button-danger" th:popovertarget="${popoverId}"
+            th:attr="aria-label=|Cancel your request to join ${groupName}|">Cancel request</button>
+    <div th:id="${popoverId}" class="confirm-popover" popover>
+        <p th:text="|Cancel your request to join ${groupName}? If you ask again later, it will count as a new request.|">
+            Cancel your request to join IS111 Python Basics?
+        </p>
+        <div class="confirm-actions">
+            <button type="button" class="button button-quiet"
+                    th:popovertarget="${popoverId}" popovertargetaction="hide">Keep request</button>
+            <form th:action="@{/groups/{id}/cancel-request(id=${groupId})}" method="post">
+                <input type="hidden" name="backToMyGroups" value="true" th:if="${backToMyGroups}">
+                <input type="hidden" name="from" value="mine" th:if="${fromMyGroups}">
+                <button type="submit" class="button button-danger">Cancel request</button>
+            </form>
+        </div>
+    </div>
+</th:block>
+</html>

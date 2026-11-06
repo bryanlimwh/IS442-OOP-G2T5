@@ -53,6 +53,7 @@ BATCH_D = "Batch D"
 BATCH_E = "Batch E"
 SYNC = "Sync 2026-10-28"
 TD56 = "TD-5/TD-6 2026-10-30"
+CANCEL = "Cancel join request 2026-11-06"
 
 # Not after a letter, digit or "-", so finding ids such as N-D1 aren't read as requirement D1
 ID_PATTERN = re.compile(r"(?<![\w-])(?:[SLAD]\d+|ACC-\d+|CRS-\d+|PRF-\d+|PRE-\d+|REQ-\d+|GRP-\d+|MAT-\d+|SEC-\d+|TD-\d+|K\d+)\b")
@@ -107,10 +108,11 @@ REQUIREMENTS = [
     ("GRP-1", "Groups", "Create needs a course; name required (max 255), description max 1000, size at least 2."),
     ("GRP-2", "Groups", "Only the leader updates, closes, views requests, accepts, rejects, removes."),
     ("GRP-3", "Groups", "Update needs an active group; size not below member count."),
-    ("GRP-4", "Groups", "Join: active, not full, not leader, no duplicate; rejected/removed may ask again."),
+    ("GRP-4", "Groups", "Join: active, not full, not leader, no duplicate; rejected/removed/cancelled may ask again."),
     ("GRP-5", "Groups", "Accept needs a pending own membership and space; remove needs accepted non-leader."),
     ("GRP-6", "Groups", "Closing turns pending into GROUP_CLOSED and freezes; removeFromMyGroups only when closed."),
     ("GRP-7", "Groups", "Group slots 1-3, 08:00-23:00 in 15-minute steps, end after start, no overlap."),
+    ("GRP-8", "Groups", "A student cancels their own pending request (CANCELLED); leader can't answer it; may ask again."),
     ("MAT-1", "Matching", "Config: strategy required, weights >= 0, total > 0, session minutes > 0."),
     ("MAT-2", "Matching", "Per-criterion scores and weighted overall score; Appendix A scores 92."),
     ("MAT-3", "Matching", "Each student once with best result; inactive excluded; strategy ordering."),
@@ -481,6 +483,9 @@ CASES = {
         t("rejectedOrRemovedStudentCanAskAgain", "conflict", "Rejected or removed student can ask again", "Reject Ben, remove Chloe; both requestToJoin", "-", "Same row objects come back PENDING with respondedAt null; still 3 rows"),
         t("fullGroupRefusesRequestsAndAccepts", "boundary", "Group exactly full (size 2)", "Size 2; Chloe pending; accept Ben (fills it); Daniel asks; accept Chloe", "maxSize 2", "Not full before Ben; then full (2 of 2): request 'Group is full', accept 'Group is full. Remove a member to accept new members.'; Chloe stays PENDING"),
         t("acceptAndRejectNeedPendingRequest", "conflict", "Answered requests can't be answered again", "Accept Ben, reject Chloe; accept/reject again", "-", "IllegalStateException 'This request has already been answered' x3; statuses unchanged"),
+        t("cancelRequestWithdrawsOnlyAPendingRequest", "conflict", "Only a waiting request can be cancelled", "Ben pending, Chloe member; cancel Ben, Ben again, Chloe, never-asked Daniel", "-", "Ben's row CANCELLED, respondedAt null, not in pending list; then 'Only a request that is still waiting can be cancelled' x2; Daniel: 'You haven't asked to join this group'; Chloe still ACCEPTED"),
+        t("leaderCannotAnswerACancelledRequest", "conflict", "A cancelled request can't be accepted or rejected", "Ben requests then cancels; leader accepts, rejects", "-", "IllegalStateException 'The student has cancelled this request' x2; still CANCELLED; 1 member"),
+        t("cancelledStudentCanAskAgain", "conflict", "A student who cancelled can ask again", "Ben requests, cancels, requests again", "-", "Same row back as PENDING; still 2 rows; Ben in the pending list"),
         t("membershipOfAnotherGroupIsRefused", "conflict", "Membership from another group refused", "Daniel's group has Ben pending, Chloe member; Alex's group accept/reject/remove them", "-", "IllegalArgumentException 'Membership does not belong to this group' x3; nothing changed"),
         t("removeMemberEndsMembershipButNotTheLeaders", "happy", "Remove a member; the leader can't be removed", "removeMember(Ben); removeMember(leader's row)", "-", "Ben REMOVED (accept time kept), count 1; leader: IllegalArgumentException 'The leader can't be removed from their own group'"),
         t("removeNeedsAcceptedMember", "negative", "Only accepted members can be removed", "removeMember on a pending and an already removed row", "-", "IllegalStateException 'This student isn't a member of the group any more'"),
@@ -566,6 +571,8 @@ CASES = {
         t("leaderCannotBeRemovedAndPendingRequestCannotBeRemoved", "negative", "Leader and pending request can't be removed", "removeMember(leader's row); removeMember(Chloe pending)", "-", "'The leader can't be removed from their own group'; 'This student isn't a member of the group any more'; nothing changed"),
         t("closedGroupIsFrozenForMembership", "side-effect", "Closed group is frozen for membership", "Ben member, Chloe pending; close; join, accept, remove, reject", "-", "'Group is closed' x3; reject: 'This request has already been answered' (N-B3); Ben ACCEPTED, Chloe GROUP_CLOSED; leader still sees 2 members, no requests"),
         t("closingMovesPendingRequestsToGroupClosed", "side-effect", "Closing shows the student 'group closed', not a decline", "Ben pending; close", "-", "Ben's pending list has the row as GROUP_CLOSED; past list empty; viewer role GROUP_CLOSED (can't ask again)"),
+        t("cancelledRequestIsSavedAndLeavesEveryList", "side-effect", "A cancelled request leaves every list", "Ben requests; cancelRequest; read back; leader accepts; Ben asks again", "-", "Saved as CANCELLED; leader's and Ben's pending lists and Ben's declined list empty; viewer role NONE; accept refused 'The student has cancelled this request'; asking again reuses the same id and is pending"),
+        t("cancelRequestOnlyTouchesTheCallersRequest", "permission", "Only the caller's own request is cancelled", "Ben pending; cancel as Chloe, on an unknown group, as an unknown email", "-", "'You haven't asked to join this group'; StudyGroupNotFoundException; StudentNotFoundException; Ben still PENDING"),
         t("removeFromMyGroupsOnlyWorksForClosedGroups", "conflict", "Remove from My groups only for closed groups", "Open group (Ben, Alex); close; Daniel (no link)", "-", "Open: 'Only a closed group can be removed from My groups' x2; Daniel: 'You aren't linked to this group'; Ben still sees it"),
         t("removeFromMyGroupsHidesTheGroupForThatStudentOnly", "side-effect", "Remove from My groups hides it for that student only", "Ben, Chloe members, Emily pending; close; Alex, Ben, Emily remove it", "-", "Gone from Alex's led list, Ben's joined list, Emily's pending list; Chloe still sees it; 3 members unchanged"),
         t("membersAreLeaderFirstThenInJoinOrder", "happy", "Members: leader first, then join order", "Chloe asks, Ben asks; accept Ben, (clock ticks), accept Chloe", "-", "Alex, Ben, Chloe", notes="Accept times on this machine tick once a millisecond; equal times fall back to the request order, so the test waits for the clock to tick (no fixed sleep)."),
@@ -589,7 +596,7 @@ CASES = {
         t("h2ConsoleRelaxesFrameOptionsOnlyForItself", "side-effect", "Only the console may be framed", "GET /h2-console/, /login, /home", "-", "Console: no X-Frame-Options; /login and /home: X-Frame-Options DENY"),
     ],
     "RouteInventoryTest": [
-        t("securityMatrixListsEveryControllerRoute", "boundary", "Security matrix lists every controller route", "Read every request mapping of com.studybuddy.controller; compare with SecurityConfigTest.ROUTES", "49 mappings", "Same set both ways; otherwise 'Route table out of date: add <method path> to the SecurityConfigTest matrix and say which role may call it' (or remove ...)"),
+        t("securityMatrixListsEveryControllerRoute", "boundary", "Security matrix lists every controller route", "Read every request mapping of com.studybuddy.controller; compare with SecurityConfigTest.ROUTES", "50 mappings", "Same set both ways; otherwise 'Route table out of date: add <method path> to the SecurityConfigTest matrix and say which role may call it' (or remove ...)"),
         t("rootAddressIsNotMapped", "negative", "Bare address / is not mapped", "GET / anonymous, as STUDENT, as ADMIN", "-", "Anonymous: /login; logged in: 404"),
     ],
     "HomeControllerTest": [
@@ -691,6 +698,8 @@ CASES = {
         t("groupPageShowsGroupAndViewerRole", "happy", "Group page", "GET /groups/1?from=mine", "-", "View studygroup/details; group summary, viewerRole LEADER, fromMyGroups true"),
         t("pendingStudentOnFullGroupIsToldTheyAreWaiting", "boundary", "Waiting student on a full group is told why", "Mock: full group (2 of 2), viewer PENDING; GET /groups/5", "-", "Page shows 'The group is full right now. The leader can still accept you if a place opens up.'", "GRP-4, TD-3, L4", notes="Written by a teammate (commit 0385418); its requirement IDs come from this workbook."),
         t("pendingStudentOnOpenGroupSeesNoFullNote", "boundary", "No full-group note while there's room", "Mock: open group (2 of 4), viewer PENDING; GET /groups/6", "-", "'Waiting for the group's leader to respond.' shown; the full-group note isn't", "GRP-4, TD-3", notes="Written by a teammate (commit 0385418); its requirement IDs come from this workbook."),
+        t("pendingStudentCanCancelFromTheGroupPage", "happy", "Waiting student sees Cancel request on the group's page", "Mock: viewer PENDING; GET /groups/6?from=mine; then viewer MEMBER", "-", "Form posting to /groups/6/cancel-request with from=mine and no backToMyGroups; a member sees no cancel form"),
+        t("myGroupsOffersCancelOnlyOnWaitingRequests", "boundary", "My groups offers Cancel only on waiting requests", "Mock: one waiting request (group 7), one whose group closed (group 8); GET /groups/mine", "-", "Cancel form for group 7 with backToMyGroups=true; none for group 8"),
         t("unknownGroupPageGoesBackToBrowse", "negative", "Missing group page", "Mock throws StudyGroupNotFoundException", "99", "Redirect /groups; flash 'That group no longer exists.'"),
         t("createFormStartsBlank", "happy", "Create form", "GET /groups/new", "-", "View studygroup/form; 1 slot row; minSize 2; maxSlots 3; 61 time options"),
         t("createGroupRedirectsToItsPage", "happy", "Create a group", "POST /groups (valid form)", "New Group, IS442, size 3, Mon 10:00-12:00", "Redirect /groups/7?from=mine; flash 'Group created. Other students can now find it on Study groups and ask to join.'; service gets the form for alex@test.com"),
@@ -712,14 +721,16 @@ CASES = {
         t("requestToJoinRedirectsWithSuccess", "happy", "Ask to join", "POST /groups/1/join (and with from=mine)", "-", "Redirect /groups/1 (/groups/1?from=mine); flash 'Request sent. The group's leader will review it.'"),
         t("refusedJoinShowsTheGroupsMessage", "conflict", "Refused join", "Mock throws IllegalState, IllegalArgument, StudyGroupNotFound", "-", "'Group is full'; 'The leader is already in the group'; 'That group no longer exists.' (to /groups)"),
         t("removeFromMyGroupsRedirectsWithSuccess", "happy", "Remove a closed group from My groups", "POST /groups/1/remove-from-my-groups", "-", "Redirect /groups/mine; flash 'Removed from My groups.'"),
+        t("cancelRequestRedirectsWithSuccess", "happy", "Cancel a join request", "POST /groups/1/cancel-request; with from=mine; with backToMyGroups=true", "-", "Redirect /groups/1, /groups/1?from=mine, /groups/mine; flash 'Request cancelled. You can ask to join again later.'"),
+        t("cancelRequestRefusedWithReason", "conflict", "A refused cancel shows the reason", "Mock: group 1 refuses (already answered); group 99 unknown", "-", "Group 1: redirect /groups/1 with the entity's message; group 99: redirect /groups with 'That group no longer exists.'"),
         t("removeFromMyGroupsRefusedWithReason", "conflict", "Remove from My groups refused", "Mock throws IllegalState; StudyGroupNotFound", "-", "'Only a closed group can be removed from My groups'; 'That group no longer exists.'"),
         t("membersPageShowsRequestsAndMembers", "happy", "Manage members page", "GET /groups/1/members", "-", "View studygroup/members; group summary, requests [Farhan], members [Alex, Chloe]"),
         t("membersPageRefusedForNonLeaderOrMissingGroup", "permission", "Manage members refused", "Mock throws NotGroupLeader (2), StudyGroupNotFound (99)", "-", "Redirect /groups/2 'Only the group's leader can do that.'; /groups 'That group no longer exists.'"),
         t("acceptAndRejectNameTheStudent", "happy", "Accept and reject", "POST /members/13/accept, /reject", "-", "'Farhan Ismail is now a member of the group.'; 'Farhan Ismail's request was rejected.'"),
         t("removeMemberNamesTheStudent", "happy", "Remove a member", "POST /members/12/remove", "-", "'Chloe Lim was removed from the group.'"),
         t("manageActionsRefusedWithReason", "conflict", "Manage actions refused", "Not leader; missing group; missing membership; full group; leader removal", "-", "Each message and destination: /groups/2, /groups, 'That request or member no longer exists.', 'Group is full. Remove a member to accept new members.', 'The leader can't be removed from their own group'"),
-        t("emailParameterIsIgnored", "permission", "An 'email' field can't act for another student", "Join, remove from My groups, accept, remove with email=ben@test.com", "-", "Service always gets alex@test.com"),
-        t("refusedRequestsNeverReachTheService", "permission", "Refused requests never reach the service", "GET members and 5 POSTs anonymous, as ADMIN, without CSRF", "-", "/login, 403, 403; no service call"),
+        t("emailParameterIsIgnored", "permission", "An 'email' field can't act for another student", "Join, remove from My groups, cancel request, accept, remove with email=ben@test.com", "-", "Service always gets alex@test.com"),
+        t("refusedRequestsNeverReachTheService", "permission", "Refused requests never reach the service", "GET members and 6 POSTs anonymous, as ADMIN, without CSRF", "-", "/login, 403, 403; no service call"),
     ],
     # ================================ NEW (Batch D) ================================
     "MatchSearchTest": [
@@ -1221,6 +1232,15 @@ MANUAL = [
       "256-character school",
       "Step 3: the sign-up form comes back with 'Name, school, programme and email can be at most 255 characters.'; Email, Name, School (all 256 characters), Programme, Year of study and Contact number are still filled in; Password is empty. Step 4: 'That email and password don't match an active account. Check them and try again.' (no account was created).",
       "GAP-K3REG fixed 2026-10-28; matches AuthControllerTest (overLongFieldShowsItsOwnMessageAndKeepsTheForm). Before the fix this showed 'Another account already uses that email.'", SYNC),
+    m("MAN-47", "L4, GRP-4, GRP-8", "happy", "A student cancels a join request and asks again", APP_PRE + " Needs the seeded pending requests of Farhan Ismail and Jasmine Teo.",
+      numbered(login("farhan.ismail@studybuddy.com") + " Open http://localhost:8080/groups/mine.",
+               "Under 'Pending group join requests', on 'IS442 OOP Exam Prep' click 'Cancel request' and read the box, then click 'Keep request'.",
+               "Click 'Cancel request' again, then 'Cancel request' in the box.",
+               "Open http://localhost:8080/groups, find 'IS442 OOP Exam Prep' and click 'View'.",
+               LOGOUT + " " + login("student@studybuddy.com") + " Open http://localhost:8080/groups/mine, on 'IS442 OOP Exam Prep' click 'View', then 'Manage members'.",
+               LOGOUT + " " + login("farhan.ismail@studybuddy.com") + " Open the IS442 OOP Exam Prep page (as in step 4) and click 'Request to join'."),
+      "Seeded IS442 OOP Exam Prep (Farhan, Jasmine pending)",
+      "Step 2: the box says 'Cancel your request to join IS442 OOP Exam Prep? If you ask again later, it will count as a new request.'; 'Keep request' closes it and nothing changes. Step 3: 'Request cancelled. You can ask to join again later.'; the card is gone from 'Pending group join requests' and does not appear under 'Declined or removed'. Step 4: a plain 'Request to join' button, with no 'declined' or 'removed' message. Step 5: only Jasmine Teo is under 'Join requests'. Step 6: 'Request sent. The group's leader will review it.' and 'Request sent. Waiting for the group's leader to respond.' with a 'Cancel request' button.", batch=CANCEL),
 ]
 
 # --------------------------------------------------------------------------------------
@@ -1392,7 +1412,7 @@ MANUAL_STATUSES = ["Not run", "Pass", "Fail"]
 WRITTEN_BY = {"Existing": "Existing (teammates)", "New": "New (Batch A)", BATCH_B: "New (Batch B)",
               BATCH_C: "New (Batch C)", BATCH_D: "New (Batch D)",
               BATCH_E: "New (Batch E)", SYNC: "New (sync 2026-10-28)",
-              TD56: "New (2026-10-30)"}
+              TD56: "New (2026-10-30)", CANCEL: "New (2026-11-06)"}
 RESULT_COLUMNS = {"status": "Status", "tester": "Tester", "date": "Date", "actual": "Actual result"}
 
 

@@ -119,8 +119,8 @@ public class StudyGroup {
     // ---- Behaviour ----
 
     /**
-     * Records a student's request to join. A student who was rejected or
-     * removed before gets their old row back as PENDING.
+     * Records a student's request to join. A student who was rejected,
+     * removed or cancelled before gets their old row back as PENDING.
      *
      * @return the pending membership
      * @throws IllegalStateException if the group is closed or full, or the
@@ -193,6 +193,22 @@ public class StudyGroup {
             throw new IllegalArgumentException("The leader can't be removed from their own group");
         }
         membership.remove();
+    }
+
+    /**
+     * Withdraws the student's own pending request. The student is found by
+     * their own link to this group, so nobody can cancel someone else's request.
+     * They can ask to join again later.
+     *
+     * @return the cancelled membership
+     * @throws IllegalArgumentException if the student never asked to join
+     * @throws IllegalStateException if the request isn't pending any more
+     */
+    public GroupMembership cancelRequest(Student student) {
+        GroupMembership membership = findMembershipOf(student)
+                .orElseThrow(() -> new IllegalArgumentException("You haven't asked to join this group"));
+        membership.cancel();
+        return membership;
     }
 
     /**
