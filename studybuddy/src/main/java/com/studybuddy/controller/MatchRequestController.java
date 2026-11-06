@@ -16,6 +16,7 @@ import com.studybuddy.exception.MatchRequestNotFoundException;
 import com.studybuddy.exception.NotMatchRequestParticipantException;
 import com.studybuddy.exception.StudentNotFoundException;
 import com.studybuddy.service.studybuddymatching.MatchRequestService;
+import com.studybuddy.service.studybuddymatching.MatchRequestSummary;
 
 // The match requests page: shows the logged-in student's received and sent requests,
 // and handles sending, accepting and declining requests from HTML forms.
@@ -71,8 +72,11 @@ public class MatchRequestController {
             return REDIRECT_TO_LIST;
         }
         try {
-            service.createRequest(principal.getName(), recipientId, message);
-            redirectAttributes.addFlashAttribute("success", "Request sent.");
+            MatchRequestSummary sent = service.createRequest(principal.getName(), recipientId, message);
+            redirectAttributes.addFlashAttribute("success",
+                    "Request sent to " + sent.recipient().name() + ". Their reply will show under Sent below.");
+            // Lets the page pick out the new request in the Sent list
+            redirectAttributes.addFlashAttribute("newRequestId", sent.requestId());
         } catch (DuplicateMatchRequestException | IllegalArgumentException e) {
             // The service's messages are already readable, e.g. a request already exists,
             // or the student tried to send a request to themselves

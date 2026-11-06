@@ -9,7 +9,7 @@
         <h1>Study preferences</h1>
         <p class="lead">For each course you take, say how, why and when you'd like to study. Matching uses these to find your study buddies.</p>
 
-        <p class="message info" role="status" th:if="${success}" th:text="${success}">Preference added.</p>
+        <p class="message success" role="status" th:if="${success}" th:text="${success}">Preference added.</p>
         <p class="message error" role="alert" th:if="${error}" th:text="${error}">Error</p>
 
         <p class="message info" th:if="${#lists.isEmpty(preferences)}">You haven't set any study preferences yet.</p>

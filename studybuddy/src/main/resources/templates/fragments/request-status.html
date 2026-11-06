@@ -1,0 +1,11 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<!--
+    A match request's status as a coloured label on Match requests: waiting blue, accepted green, declined grey.
+    Usage: <span th:replace="~{fragments/request-status :: requestStatus(${req.status})}"></span>
+-->
+<span th:fragment="requestStatus(status)" class="status-label"
+      th:classappend="${status.name() == 'PENDING'} ? 'status-label-pending'
+                      : (${status.name() == 'ACCEPTED'} ? 'status-label-accepted' : 'status-label-rejected')"
+      th:text="${status.label}">Waiting for a reply</span>
+</html>

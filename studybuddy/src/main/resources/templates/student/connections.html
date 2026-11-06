@@ -10,7 +10,7 @@
         <p class="lead">Students whose match request you accepted, or who accepted yours. You can see each other's contact numbers until one of you ends the connection.</p>
 
         <!-- One-time messages set by the controller's flash attributes -->
-        <p class="message info" role="status" th:if="${success}" th:text="${success}">Connection ended.</p>
+        <p class="message success" role="status" th:if="${success}" th:text="${success}">Connection ended.</p>
         <p class="message error" role="alert" th:if="${error}" th:text="${error}">Error</p>
 
         <p class="message info" th:if="${#lists.isEmpty(connections)}">

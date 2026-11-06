@@ -20,7 +20,7 @@
             Group is full. Remove a member to accept new members.
         </p>
 
-        <p class="message info" role="status" th:if="${success}" th:text="${success}">Farhan Ali is now a member of the group.</p>
+        <p class="message success" role="status" th:if="${success}" th:text="${success}">Farhan Ali is now a member of the group.</p>
         <p class="message error" role="alert" th:if="${error}" th:text="${error}">Error</p>
 
         <!-- A closed group keeps the members it had when it closed, so the page only lists them -->

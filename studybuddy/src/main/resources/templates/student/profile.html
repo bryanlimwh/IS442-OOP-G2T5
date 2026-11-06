@@ -13,7 +13,7 @@
             <a class="button button-secondary" th:href="@{/student/preferences}">Study preferences</a>
         </p>
 
-        <p class="message info" role="status" th:if="${success}" th:text="${success}">Your profile has been updated.</p>
+        <p class="message success" role="status" th:if="${success}" th:text="${success}">Your profile has been updated.</p>
         <p class="message error" role="alert" th:if="${error}" th:text="${error}">Error</p>
 
         <!-- th:action adds the CSRF token. StudentProfileService checks every field, so the browser's checks are a convenience. -->

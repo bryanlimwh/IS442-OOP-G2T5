@@ -10,7 +10,7 @@
         <p class="lead">Groups you lead, groups you've joined, and requests you've sent.</p>
         <p><a class="button button-secondary" th:href="@{/groups/new(from='mine')}">+ Create a group</a></p>
 
-        <p class="message info" role="status" th:if="${success}" th:text="${success}">Removed from My groups.</p>
+        <p class="message success" role="status" th:if="${success}" th:text="${success}">Removed from My groups.</p>
         <p class="message error" role="alert" th:if="${error}" th:text="${error}">Error</p>
 
         <!--

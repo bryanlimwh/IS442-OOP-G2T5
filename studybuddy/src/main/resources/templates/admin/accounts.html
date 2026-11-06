@@ -9,7 +9,7 @@
         <h1>User accounts</h1>
         <p class="lead">See every student and admin account, add admins, and edit, deactivate or delete accounts.</p>
 
-        <p class="message info" role="status" th:if="${success}" th:text="${success}">Account deactivated.</p>
+        <p class="message success" role="status" th:if="${success}" th:text="${success}">Account deactivated.</p>
         <p class="message error" role="alert" th:if="${error}" th:text="${error}">Error</p>
 
         <!-- th:action adds the CSRF token. After a rejected attempt the email is refilled, never the password. -->

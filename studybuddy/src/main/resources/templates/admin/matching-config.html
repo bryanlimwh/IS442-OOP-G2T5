@@ -9,7 +9,7 @@
         <h1>Matching settings</h1>
         <p class="lead">Choose how students are ranked, and how much each criterion counts towards their match score.</p>
 
-        <p class="message info" role="status" th:if="${saved}">Settings saved. New searches use them straight away.</p>
+        <p class="message success" role="status" th:if="${saved}">Settings saved. New searches use them straight away.</p>
         <p class="message error" role="alert" th:if="${error}" th:text="${error}">Error</p>
 
         <!-- th:object binds each field to the matching MatchingConfigForm component; th:action adds the CSRF token -->

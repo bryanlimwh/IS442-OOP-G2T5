@@ -25,6 +25,7 @@
     --danger-bg: #fcebea;
     --space: #2e6b34; /* a study group with room left; darker than --highlight-both so it reads as text */
     --info-bg: #e6eefb;
+    --success-bg: #e7f3e8; /* light tint of --space, for "it worked" messages */
 
     --font-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
     --font-body: "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -226,10 +227,64 @@ a {
     border-radius: 0 var(--radius) var(--radius) 0;
 }
 
+/*
+ * The result of something the user just did ("Request sent.", or why it failed). These must stand out
+ * from the pale-blue info notes ("You have no requests yet."), so they are bolder, framed, marked with
+ * an icon (so the colour isn't the only signal), and slide in once.
+ */
+.message.success,
+.message.error {
+    display: flex;
+    gap: 0.75rem;
+    align-items: flex-start;
+    padding: 1rem 1.25rem;
+    border: 1px solid;
+    border-left-width: 6px;
+    font-weight: 700;
+    box-shadow: 0 4px 14px color-mix(in srgb, var(--ink) 10%, transparent);
+    animation: message-in 0.35s ease-out;
+}
+
+.message.success::before,
+.message.error::before {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 1.5rem;
+    height: 1.5rem;
+    border-radius: 50%;
+    color: var(--surface);
+    font-size: var(--text-sm);
+    line-height: 1;
+}
+
+.message.success {
+    background-color: var(--success-bg);
+    border-color: var(--space);
+    color: var(--space);
+}
+
+.message.success::before {
+    content: "\2713"; /* check mark */
+    background-color: var(--space);
+}
+
 .message.error {
     background-color: var(--danger-bg);
     border-color: var(--danger);
     color: var(--danger);
+}
+
+.message.error::before {
+    content: "!";
+    background-color: var(--danger);
+}
+
+@keyframes message-in {
+    from {
+        opacity: 0;
+        transform: translateY(-0.5rem);
+    }
 }
 
 .message.info {
@@ -623,6 +678,19 @@ a {
     background-color: var(--surface);
 }
 
+/* The request just sent, on Match requests: a green frame, and a glow that fades so the eye finds it */
+.match-card-new {
+    border: 2px solid var(--space);
+    animation: new-card-glow 2.5s ease-out;
+}
+
+@keyframes new-card-glow {
+    from {
+        background-color: var(--success-bg);
+        box-shadow: 0 0 0 6px color-mix(in srgb, var(--space) 25%, transparent);
+    }
+}
+
 /* Match requests page: space before the next heading, and no extra gap under a card's last line */
 .request-list {
     margin-bottom: 2rem;
@@ -885,6 +953,32 @@ a {
     background-color: var(--paper);
     color: var(--ink-soft);
     box-shadow: inset 0 0 0 1px var(--rule);
+}
+
+/* A request the student has already sent: green with a tick, so it reads as done at a glance */
+.status-label-sent {
+    background-color: var(--success-bg);
+    color: var(--space);
+    box-shadow: inset 0 0 0 1px var(--space);
+}
+
+.status-label-sent::before {
+    content: "\2713\00a0"; /* check mark and a non-breaking space */
+}
+
+/* On a match card the relationship label replaces the Send button, so it's sized like one */
+.status-label-large {
+    display: inline-block;
+    margin-top: 0.75rem;
+    padding: 0.5em 0.9em;
+    font-size: var(--text-base);
+    text-decoration: none;
+}
+
+/* Match request statuses on Match requests: waiting is blue, accepted green, declined grey */
+.status-label-accepted {
+    background-color: var(--success-bg);
+    color: var(--space);
 }
 
 /* An account that can log in: green, like a study group with room left */
@@ -1198,7 +1292,9 @@ a {
 
 @media (prefers-reduced-motion: reduce) {
     .slot,
-    .overlap-label {
+    .overlap-label,
+    .message,
+    .match-card-new {
         animation: none;
     }
 

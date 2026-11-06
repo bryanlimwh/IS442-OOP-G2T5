@@ -11,7 +11,7 @@
             The courses you can choose for your profile, study preferences and study groups.
         </p>
 
-        <p class="message info" role="status" th:if="${success}" th:text="${success}">Course added.</p>
+        <p class="message success" role="status" th:if="${success}" th:text="${success}">Course added.</p>
         <p class="message error" role="alert" th:if="${error}" th:text="${error}">Error</p>
 
         <p class="message info" th:if="${#lists.isEmpty(courses)}">There are no courses yet.</p>

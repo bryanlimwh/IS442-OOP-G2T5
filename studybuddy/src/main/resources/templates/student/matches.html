@@ -115,13 +115,13 @@
                          button (team decision TD-5); a rejected request doesn't count, so a new one can be sent -->
                     <th:block th:with="status=${buddyStatuses[result.student.studentId]}">
                         <p th:if="${status != null and status.name() == 'CONNECTED'}">
-                            <a class="status-label status-label-member" th:href="@{/connections}">You're already study buddies</a>
+                            <a class="status-label status-label-large status-label-member" th:href="@{/connections}">You're already study buddies</a>
                         </p>
                         <p th:if="${status != null and status.name() == 'REQUEST_SENT'}">
-                            <a class="status-label status-label-pending" th:href="@{/match-requests}">Request sent</a>
+                            <a class="status-label status-label-large status-label-sent" th:href="@{/match-requests}">Request sent</a>
                         </p>
                         <p th:if="${status != null and status.name() == 'REQUEST_RECEIVED'}">
-                            <a class="status-label status-label-pending" th:href="@{/match-requests}">They've sent you a request</a>
+                            <a class="status-label status-label-large status-label-pending" th:href="@{/match-requests}">They've sent you a request</a>
                         </p>
 
                         <!-- Sends this student a study-buddy request (handled by MatchRequestController's POST /match-requests).

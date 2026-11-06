@@ -10,7 +10,7 @@
         <p class="lead">Requests other students sent you, and requests you have sent. Accepting one makes you <a th:href="@{/connections}">study buddies</a>.</p>
 
         <!-- One-time messages set by the controller's flash attributes -->
-        <p class="message info" role="status" th:if="${success}" th:text="${success}">Request sent.</p>
+        <p class="message success" role="status" th:if="${success}" th:text="${success}">Request sent.</p>
         <p class="message error" role="alert" th:if="${error}" th:text="${error}">Error</p>
 
         <!-- ================= Received ================= -->
@@ -21,7 +21,7 @@
         <ul class="match-list request-list" th:unless="${#lists.isEmpty(received)}">
             <li class="match-card" th:each="req : ${received}">
                 <p><strong><a th:href="@{/students/{id}(id=${req.sender.studentId})}" th:text="${req.sender.name}">Alex Tan</a></strong>
-                    <span class="muted" th:text="${req.status}">PENDING</span></p>
+                    <span th:replace="~{fragments/request-status :: requestStatus(${req.status})}"></span></p>
                 <!-- The message is optional, so only shown when one was written. A plain th:if on the text would
                      hide messages like "no", "false" or "off" (Thymeleaf reads them as false) -->
                 <p th:if="${req.message != null and !req.message.isBlank()}" th:text="${req.message}">Study IS442 together?</p>
@@ -47,14 +47,17 @@
         <p class="message info" th:if="${#lists.isEmpty(sent)}">You haven't sent any requests yet.</p>
 
         <ul class="match-list request-list" th:unless="${#lists.isEmpty(sent)}">
-            <li class="match-card" th:each="req : ${sent}">
+            <!-- The request just sent from Find study buddies is framed in green so it's easy to spot -->
+            <li class="match-card" th:each="req : ${sent}"
+                th:classappend="${newRequestId != null and newRequestId == req.requestId} ? 'match-card-new'">
                 <p><strong><a th:href="@{/students/{id}(id=${req.recipient.studentId})}" th:text="${req.recipient.name}">Ben Koh</a></strong>
-                    <span class="muted" th:text="${req.status}">PENDING</span></p>
+                    <span th:replace="~{fragments/request-status :: requestStatus(${req.status})}"></span></p>
                 <p th:if="${req.message != null and !req.message.isBlank()}" th:text="${req.message}">Study IS442 together?</p>
                 <p th:if="${req.status.name() == 'ACCEPTED'}">Accepted. Contact numbers for your current study buddies are under
                     <a th:href="@{/connections}">Study buddies</a>.</p>
             </li>
         </ul>
     </main>
+
 </body>
 </html>

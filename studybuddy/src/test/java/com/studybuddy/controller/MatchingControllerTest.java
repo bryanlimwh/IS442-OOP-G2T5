@@ -211,11 +211,11 @@ class MatchingControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(content().string(allOf(containsString("Ben Koh"), containsString("Chloe Lim"),
                         containsString("Dan Ho"), containsString("Eve Tan"),
-                        containsString("<a class=\"status-label status-label-member\" href=\"/connections\">"
+                        containsString("<a class=\"status-label status-label-large status-label-member\" href=\"/connections\">"
                                 + "You're already study buddies</a>"),
-                        containsString("<a class=\"status-label status-label-pending\" href=\"/match-requests\">"
+                        containsString("<a class=\"status-label status-label-large status-label-sent\" href=\"/match-requests\">"
                                 + "Request sent</a>"),
-                        containsString("<a class=\"status-label status-label-pending\" href=\"/match-requests\">"
+                        containsString("<a class=\"status-label status-label-large status-label-pending\" href=\"/match-requests\">"
                                 + "They've sent you a request</a>"),
                         containsString("name=\"recipientId\" value=\"5\""),
                         not(containsString("name=\"recipientId\" value=\"2\"")),

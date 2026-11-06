@@ -2,6 +2,9 @@ package com.studybuddy.controller;
 
 // Mockito: when(...) sets what the mocked service returns/throws,
 // verify(...) checks the controller called the service with the right arguments
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -11,6 +14,7 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 // Matchers for checking the HTTP response
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.flash;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.model;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
@@ -142,6 +146,28 @@ class MatchRequestControllerTest {
         verify(service).getMatchRequestBySender(ALEX);
     }
 
+    // Statuses read as words in coloured labels, and the request just sent is framed so it's easy to find
+    @Test
+    void pageShowsStatusLabelsAndFramesTheRequestJustSent() throws Exception {
+        MatchRequestSummary waiting = summary(MatchRequestStatus.PENDING);
+        MatchRequestSummary declined = new MatchRequestSummary(6L, waiting.sender(), waiting.recipient(), null,
+                MatchRequestStatus.REJECTED, LocalDateTime.now());
+        when(service.getMatchRequestBySender(ALEX)).thenReturn(List.of(waiting, declined));
+        when(service.getMatchRequestByRecipient(ALEX)).thenReturn(List.of(summary(MatchRequestStatus.ACCEPTED)));
+
+        mockMvc.perform(get(BASE).flashAttr("success", "Request sent to Ben Koh. Their reply will show under Sent below.")
+                        .flashAttr("newRequestId", 5L))
+                .andExpect(content().string(allOf(
+                        containsString("class=\"message success\" role=\"status\""),
+                        containsString("class=\"status-label status-label-pending\">Waiting for a reply</span>"),
+                        containsString("class=\"status-label status-label-rejected\">Declined</span>"),
+                        containsString("class=\"status-label status-label-accepted\">Accepted</span>"),
+                        containsString("class=\"match-card match-card-new\""),
+                        not(containsString(">PENDING<")))));
+        // Without a request just sent, nothing is framed
+        mockMvc.perform(get(BASE)).andExpect(content().string(not(containsString("match-card-new"))));
+    }
+
     // ================= POST /match-requests (send) =================
 
     @Test
@@ -155,7 +181,8 @@ class MatchRequestControllerTest {
                         .with(csrf()))
                 .andExpect(status().is3xxRedirection())
                 .andExpect(redirectedUrl(BASE))
-                .andExpect(flash().attribute("success", "Request sent."));
+                .andExpect(flash().attribute("success", "Request sent to Ben Koh. Their reply will show under Sent below."))
+                .andExpect(flash().attribute("newRequestId", 5L));
 
         // Verifies the SENDER is the logged-in student, taken from Principal
         verify(service).createRequest(ALEX, 2L, "Study?");
@@ -168,7 +195,8 @@ class MatchRequestControllerTest {
 
         mockMvc.perform(post(BASE).param("recipientId", "2").with(csrf()))
                 .andExpect(redirectedUrl(BASE))
-                .andExpect(flash().attribute("success", "Request sent."));
+                .andExpect(flash().attribute("success", "Request sent to Ben Koh. Their reply will show under Sent below."))
+                .andExpect(flash().attribute("newRequestId", 5L));
 
         // Verifies a missing message reaches the service as null
         verify(service).createRequest(ALEX, 2L, null);

@@ -13,7 +13,7 @@
         <h1 th:text="${group.name}">IS112 SQL Practice</h1>
         <p class="lead" th:text="|${group.courseCode} ${group.courseName}|">IS112 Data Management</p>
 
-        <p class="message info" role="status" th:if="${success}" th:text="${success}">Request sent.</p>
+        <p class="message success" role="status" th:if="${success}" th:text="${success}">Request sent.</p>
         <p class="message error" role="alert" th:if="${error}" th:text="${error}">Error</p>
 
         <!-- What this student can do here depends on how they're linked to the group (ViewerRole) -->
