@@ -32,7 +32,7 @@
         <p class="message info" th:if="${#lists.isEmpty(accounts)}">There are no accounts yet.</p>
 
         <div class="data-table-wrap" th:unless="${#lists.isEmpty(accounts)}">
-            <table class="data-table">
+            <table class="data-table data-table-stack">
                 <thead>
                     <tr>
                         <th scope="col">Account</th>
@@ -45,21 +45,21 @@
                 </thead>
                 <tbody>
                     <tr th:each="account : ${accounts}">
-                        <td>
+                        <td data-label="Account">
                             <strong th:text="${account.displayName}">Hannah Goh</strong>
                             <span class="muted" th:if="${account.email == currentEmail}">(you)</span>
                             <br>
                             <span class="muted" th:text="${account.email}">hannah@smu.edu.sg</span>
                         </td>
-                        <td th:text="${#strings.capitalize(#strings.toLowerCase(account.role.name()))}">Student</td>
-                        <td>
+                        <td data-label="Role" th:text="${#strings.capitalize(#strings.toLowerCase(account.role.name()))}">Student</td>
+                        <td data-label="Status">
                             <span class="status-label"
                                   th:classappend="${account.active} ? 'status-label-active' : 'status-label-inactive'"
                                   th:text="${account.active} ? 'Active' : 'Inactive'">Active</span>
                         </td>
-                        <td th:text="${#temporals.format(account.createdAt, 'd MMM yyyy')}">3 Oct 2026</td>
+                        <td data-label="Created" th:text="${#temporals.format(account.createdAt, 'd MMM yyyy')}">3 Oct 2026</td>
                         <!-- Usage figures are only kept for students; admins have none -->
-                        <td th:if="${account.usage != null}">
+                        <td data-label="Usage" th:if="${account.usage != null}">
                             <span th:text="|Courses ${account.usage.coursesTaken} · Preferences ${account.usage.studyPreferences} · Groups led ${account.usage.groupsLed}|">
                                 Courses 3 · Preferences 2 · Groups led 1
                             </span>
@@ -68,8 +68,8 @@
                                 Requests sent 4 · received 2
                             </span>
                         </td>
-                        <td th:unless="${account.usage != null}"><span class="muted">&mdash;</span></td>
-                        <td>
+                        <td data-label="Usage" th:unless="${account.usage != null}"><span class="muted">&mdash;</span></td>
+                        <td data-label="Actions">
                             <div class="data-table-actions">
                                 <form th:if="${account.active}"
                                       th:action="@{/admin/accounts/{id}/deactivate(id=${account.userId})}" method="post">

@@ -635,7 +635,7 @@ CASES = {
     ],
     "StudyPreferenceControllerTest": [
         t("pageShowsPreferencesAndOnlyCoursesWithoutOne", "happy", "Preferences page", "Mock: preference 4 (IS442); Alex takes IS442, CS201; GET ?edit=4", "-", "View student/preferences; preferences, coursesWithoutPreference [CS201], editingId 4, 61 time options"),
-        t("slotsShowAsChipsAndEditButtonsHaveTheirOwnRow", "happy", "Slots as chips; Save and Done in their own row", "Mock: IS442 preference with Mon 10:00-12:00; GET /student/preferences, then ?edit=4", "-", "Table: chip 'Mon 10:00-12:00' (no 'Monday 10:00'); edit form: page-sized cell, the slot as a chip, Save and Done in a button-row"),
+        t("slotsShowAsChipsAndEditButtonsHaveTheirOwnRow", "happy", "Slots as chips; Save and Done in their own row", "Mock: IS442 preference with Mon 10:00-12:00; GET /student/preferences, then ?edit=4", "-", "Table: chip 'Mon 10:00-12:00' (no 'Monday 10:00'), table marked data-table-stack with data-label cells for phones; edit form: page-sized cell, the slot as a chip, Save and Done in a button-row"),
         t("createPreferenceRedirectsToItsEditForm", "happy", "Add a preference", "POST /student/preferences", "IS442, ONLINE, ONE_TO_ONE, CONCEPT_REVIEW", "Redirect ?edit=4; flash 'Your IS442 preference has been added. Add the times you're free below.'"),
         t("createWithoutCourseSavesNothing", "negative", "Add without a course", "POST without courseId", "-", "Flash 'Choose a course for the preference.'; service not called"),
         t("createForUnknownCourseShowsError", "negative", "Add for a missing course", "Mock throws CourseNotFoundException", "99", "Flash 'That course no longer exists.'"),

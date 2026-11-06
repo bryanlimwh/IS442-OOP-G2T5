@@ -15,7 +15,7 @@
         <p class="message info" th:if="${#lists.isEmpty(preferences)}">You haven't set any study preferences yet.</p>
 
         <div class="data-table-wrap" th:unless="${#lists.isEmpty(preferences)}">
-            <table class="data-table">
+            <table class="data-table data-table-stack">
                 <thead>
                     <tr>
                         <th scope="col">Course</th>
@@ -98,21 +98,21 @@
                         </td>
 
                         <th:block th:unless="${pref.id == editingId}">
-                            <td>
+                            <td data-label="Course">
                                 <strong th:text="${pref.course.courseCode}">IS442</strong><br>
                                 <span class="muted" th:text="${pref.course.courseName}">Object Oriented Programming</span>
                             </td>
-                            <td th:text="${pref.studyMode.label}">Online</td>
-                            <td th:text="${pref.arrangement.label}">Small group</td>
-                            <td th:text="${pref.studyGoal.label}">Exam preparation</td>
-                            <td>
+                            <td data-label="Study mode" th:text="${pref.studyMode.label}">Online</td>
+                            <td data-label="Group size" th:text="${pref.arrangement.label}">Small group</td>
+                            <td data-label="Study goal" th:text="${pref.studyGoal.label}">Exam preparation</td>
+                            <td data-label="When you're free">
                                 <span class="muted" th:if="${#lists.isEmpty(pref.availabilitySlots)}">&mdash;</span>
                                 <!-- Each slot on its own line, never split across two -->
                                 <ul class="slot-chips">
                                     <li class="slot-chip" th:each="slot : ${pref.availabilitySlots}" th:text="${slot.label}">Mon 09:00-11:00</li>
                                 </ul>
                             </td>
-                            <td>
+                            <td data-label="Actions">
                                 <div class="data-table-actions">
                                     <a class="button button-quiet" th:href="@{/student/preferences(edit=${pref.id})}"
                                        th:attr="aria-label=|Edit ${pref.course.courseCode} preference|">Edit</a>

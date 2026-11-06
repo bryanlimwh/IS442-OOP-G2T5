@@ -19,7 +19,7 @@
         </p>
 
         <div class="data-table-wrap" th:unless="${#lists.isEmpty(connections)}">
-            <table class="data-table">
+            <table class="data-table data-table-stack">
                 <thead>
                     <tr>
                         <th scope="col">Name</th>
@@ -32,12 +32,12 @@
                 </thead>
                 <tbody>
                     <tr th:each="connection : ${connections}">
-                        <td class="cell-nowrap"><a th:href="@{/students/{id}(id=${connection.buddy.studentId})}" th:text="${connection.buddy.name}">Ben Koh</a></td>
-                        <td th:text="|${connection.buddy.programme}, Year ${connection.buddy.yearOfStudy}|">Information Systems, Year 3</td>
-                        <td th:text="${#strings.listJoin(connection.buddy.courseCodes, ', ')}">IS442, IS216, CS201</td>
-                        <td th:text="${connection.buddyContactNumber}">92345678</td>
-                        <td class="cell-nowrap" th:text="${#temporals.format(connection.connectedSince, 'd MMM yyyy')}">13 Oct 2026</td>
-                        <td>
+                        <td data-label="Name" class="cell-nowrap"><a th:href="@{/students/{id}(id=${connection.buddy.studentId})}" th:text="${connection.buddy.name}">Ben Koh</a></td>
+                        <td data-label="Programme" th:text="|${connection.buddy.programme}, Year ${connection.buddy.yearOfStudy}|">Information Systems, Year 3</td>
+                        <td data-label="Courses" th:text="${#strings.listJoin(connection.buddy.courseCodes, ', ')}">IS442, IS216, CS201</td>
+                        <td data-label="Contact number" th:text="${connection.buddyContactNumber}">92345678</td>
+                        <td data-label="Connected since" class="cell-nowrap" th:text="${#temporals.format(connection.connectedSince, 'd MMM yyyy')}">13 Oct 2026</td>
+                        <td data-label="Actions">
                             <!-- Asks first: ending hides both contact numbers, and only a new request reconnects them -->
                             <button type="button" class="button button-quiet"
                                     th:attr="popovertarget=|confirm-end-${connection.connectionId}|, aria-label=|End connection with ${connection.buddy.name}|">End</button>

@@ -93,7 +93,7 @@ class StudyPreferenceControllerTest {
     }
 
     // S2: slots show as chips in the short "Mon 10:00-12:00" format used on every other page,
-    // and the edit form's Save and Done are full-size buttons in their own row
+    // the table can stack on phones, and the edit form's Save and Done are full-size buttons in their own row
     @Test
     void slotsShowAsChipsAndEditButtonsHaveTheirOwnRow() throws Exception {
         when(studyPreferenceService.getPreferences(ALEX)).thenReturn(List.of(is442Preference()));
@@ -102,6 +102,9 @@ class StudyPreferenceControllerTest {
         mockMvc.perform(get(BASE))
                 .andExpect(content().string(allOf(
                         containsString("<li class=\"slot-chip\">Mon 10:00-12:00</li>"),
+                        // On phones the table turns into one card per row, each value under its column name
+                        containsString("<table class=\"data-table data-table-stack\">"),
+                        containsString("<td data-label=\"Actions\">"),
                         not(containsString("Monday 10:00")))));
         mockMvc.perform(get(BASE).param("edit", "4"))
                 .andExpect(content().string(allOf(
