@@ -20,6 +20,7 @@ import re
 import sys
 import xml.etree.ElementTree as ET
 from collections import Counter, defaultdict
+from datetime import datetime, timezone
 from pathlib import Path
 
 from openpyxl import Workbook, load_workbook
@@ -33,6 +34,13 @@ REPORTS = ROOT / "studybuddy" / "target" / "surefire-reports"
 OUT = Path(__file__).resolve().parent / "study-buddy-test-cases.xlsx"
 # Class#method -> Test ID, kept in git so IDs never change when tests are inserted, reordered or removed
 TEST_IDS = Path(__file__).resolve().parent / "test-ids.json"
+# The Playwright suite (e2e/) and its JSON report, and the JaCoCo report from the command-line coverage run
+E2E_DIR = ROOT / "e2e"
+E2E_TESTS = E2E_DIR / "tests"
+E2E_REPORT = E2E_DIR / "test-results" / "results.json"
+JACOCO_CSV = ROOT / "studybuddy" / "target" / "site" / "jacoco" / "jacoco.csv"
+E2E_LEVEL = "End-to-end (browser)"
+LEVELS = {}  # test class or spec -> test level, filled by parse_sources()
 
 # Full-suite results before each batch (recorded by hand from the baseline runs)
 BASELINES = [
@@ -46,6 +54,10 @@ BASELINES = [
     ("Before the 2026-10-28 fixes of K1, K4, K6, K12", {"run": 699, "passed": 690, "failed": 0, "errors": 0, "skipped": 9}),
     ("Before the 2026-10-28 GAP-K3REG fix", {"run": 699, "passed": 697, "failed": 0, "errors": 0, "skipped": 2}),
     ("Before TD-5 and TD-6 (2026-10-30)", {"run": 703, "passed": 701, "failed": 0, "errors": 0, "skipped": 2}),
+    ("Before the automation push (2026-11-07, after the teammate's cancel, leave and layout commits)",
+     {"run": 740, "passed": 740, "failed": 0, "errors": 0, "skipped": 0}),
+    ("After the full-stack flows, before the coverage-gap tests (2026-11-07)",
+     {"run": 781, "passed": 781, "failed": 0, "errors": 0, "skipped": 0}),
 ]
 BATCH_B = "Batch B"
 BATCH_C = "Batch C"
@@ -55,9 +67,20 @@ SYNC = "Sync 2026-10-28"
 TD56 = "TD-5/TD-6 2026-10-30"
 CANCEL = "Cancel join request 2026-11-06"
 LEAVE = "Leave group 2026-11-06"
+FLOW = "Full-stack flows 2026-11-07"
+E2E = "End-to-end 2026-11-07"
+E2E_PRE = ("End to end: Playwright drives Chromium against the real app, which playwright.config.js starts on port 8089 with a "
+           "fresh in-memory database for each run. Every test signs up its own students and makes its own courses and "
+           "groups (random suffix); admins are made by the seeded admin only to add a fresh one, never changed. Google "
+           "Fonts are blocked. Projects: desktop (1280x800), phone (375x667, touch), settings (after the others).")
+RESIDUAL = "Residual manual checklist 2026-11-07"
+FLOW_PRE = ("Full stack: @SpringBootTest + MockMvc with the real services, H2 and SecurityConfig. Browser keeps a real "
+            "session, logs in through /login and posts each form with the page's own CSRF token; the persistence context "
+            "is flushed and cleared after every request. Every test makes its own admin, students and courses (unique "
+            "suffix) and is rolled back.")
 
 # Not after a letter, digit or "-", so finding ids such as N-D1 aren't read as requirement D1
-ID_PATTERN = re.compile(r"(?<![\w-])(?:[SLAD]\d+|ACC-\d+|CRS-\d+|PRF-\d+|PRE-\d+|REQ-\d+|GRP-\d+|MAT-\d+|SEC-\d+|TD-\d+|K\d+)\b")
+ID_PATTERN = re.compile(r"(?<![\w-])(?:[SLAD]\d+|ACC-\d+|CRS-\d+|PRF-\d+|PRE-\d+|REQ-\d+|GRP-\d+|MAT-\d+|SEC-\d+|TD-\d+|UI-\d+|K\d+)\b")
 TYPES = ["happy", "negative", "boundary", "permission", "conflict", "side-effect"]
 
 # --------------------------------------------------------------------------------------
@@ -127,6 +150,11 @@ REQUIREMENTS = [
     ("TD-3", "Team decisions", "A full group keeps pending requests as a waiting list; a place reopens when a member leaves, the leader removes a member or raises the maximum size (GRP-4)."),
     ("TD-4", "Team decisions", "Closing a group is permanent (GRP-6)."),
     ("TD-5", "Team decisions", "Find study buddies keeps listing buddies and students with a pending request either way; their card shows a label instead of 'Send request' (was K17; decided 2026-10-30)."),
+    ("UI-1", "Pages", "Confirmation boxes (popover): quiet button or Esc closes without changes; only the box's own button submits."),
+    ("UI-2", "Pages", "Success banners 'message success' role status; errors 'message error' role alert; shown once."),
+    ("UI-3", "Pages", "Up to 800px wide: form before illustration, one-column cards, stacked labelled tables; Courses/Profile tables scroll in their box."),
+    ("UI-4", "Pages", "One time-slot format everywhere: 'Wed 19:00-21:00'."),
+    ("UI-5", "Pages", "Test standard (e2e/): axe WCAG 2.0/2.1 A and AA on every main page, desktop and phone; known violations pinned in a11y-baseline.json."),
     ("TD-6", "Team decisions", "A deactivated student's public profile is treated like an unknown id: redirect to /matches with 'That student's profile no longer exists.' (was N-S1; decided 2026-10-30)."),
 ]
 
@@ -204,6 +232,24 @@ CLASSES = {
     "PublicProfileControllerGapTest": ("PPG", SYNC, "@WebMvcTest with the real SecurityConfig and real templates (Thymeleaf renders the page); StudentProfileService mocked; STUDENT alex@test.com. Adds to the teammate's PublicProfileControllerTest (unchanged)."),
     "PublicProfileControllerServiceTest": ("PPS", TD56, "@WebMvcTest(PublicProfileController) with the REAL StudentProfileService and AccountCredentials; only the repositories are mocked (no database). STUDENT alex@test.com; Ben Koh is student 2."),
     "PublicProfileLinksTest": ("PPL", SYNC, "@WebMvcTest with the real SecurityConfig and real templates (Thymeleaf renders the page) for /matches, /match-requests, /connections and /groups/{id}/members; services mocked. STUDENT alex@test.com; the other student is Ben Koh, student 2."),
+    # Full-stack flows (2026-11-07)
+    "SignUpAndLoginFlowTest": ("FLA", FLOW, FLOW_PRE),
+    "ProfileAndPreferencesFlowTest": ("FLP", FLOW, FLOW_PRE),
+    "BuddyMatchingFlowTest": ("FLM", FLOW, FLOW_PRE + " World: a new course; Alex (In person, One-to-one, Exam preparation, Wed 19-21) searches; Ben (either, either, Exam, Wed 19-21: 92), Carl (Problem solving, Wed 19-20: 70), Dana (Online, Small group, Concept review, Mon 10-12: 20)."),
+    "StudyGroupFlowTest": ("FLG", FLOW, FLOW_PRE + " Groups are created through the form with one Monday 10:00-12:00 slot unless stated."),
+    "AdminAccountsFlowTest": ("FLD", FLOW, FLOW_PRE + " A student who is still used can't be deleted only when the database commits, so that refusal is tested in e2e/, not here."),
+    "MatchingSettingsFlowTest": ("FLS", FLOW, FLOW_PRE + " Alex (Mon 10-14, In person, One-to-one, Exam preparation) searches; Pia matches everything but 30 minutes (85), Quinn shares 4 hours only (40), Rex is in another course."),
+    "CourseAdminFlowTest": ("FLC", FLOW, FLOW_PRE + " Deleting a course that is still used is refused only when the database commits, so that is tested in e2e/."),
+    # End-to-end in a real browser (2026-11-07): e2e/tests/<name>.js, keyed by the file name without .js
+    "auth.spec": ("EAU", E2E, E2E_PRE + " Runs in desktop and phone."),
+    "confirmations.spec": ("ECF", E2E, E2E_PRE + " Runs in desktop and phone."),
+    "flash.spec": ("EFL", E2E, E2E_PRE + " Runs in desktop."),
+    "forms.spec": ("EFO", E2E, E2E_PRE + " Runs in desktop."),
+    "matches.spec": ("EMA", E2E, E2E_PRE + " Runs in desktop."),
+    "roles.spec": ("ERO", E2E, E2E_PRE + " Runs in desktop."),
+    "settings.spec": ("ESE", E2E, E2E_PRE + " Runs in the settings project only, after the others, one test at a time; the matching settings are read first and put back after every test, even a failed one."),
+    "layout.spec": ("ELY", E2E, E2E_PRE + " Runs in phone only. Each page's full-page screenshot is attached to the Playwright report."),
+    "a11y.spec": ("EAX", E2E, E2E_PRE + " Runs in desktop and phone. axe-core 4.14, WCAG 2.0/2.1 A and AA plus the experimental label-content-name-mismatch rule; e2e/a11y-baseline.json pins known violations."),
     "GroupMembershipServiceTest": ("GMS", BATCH_B, "@DataJpaTest + GroupMembershipService + StudyGroupService, empty H2. Course IS442 taken by Alex, Ben, Chloe, Emily (Daniel takes nothing). Alex leads 'IS442 Revision', maximum size 4. Own data, rolled back."),
 }
 
@@ -883,13 +929,134 @@ CASES = {
         t("buddyNameLinksToTheProfile", "happy", "Buddy name links to the profile", "Mock connection with Ben; GET /connections", "-", "<a href=\"/students/2\">Ben Koh</a>"),
         t("memberAndRequestNamesLinkToTheProfile", "happy", "Member and request names link to the profile", "Mock group with Ben a member and Chloe waiting; GET /groups/1/members", "-", "Links to /students/2 and /students/3"),
     ],
+    # ================================ Full-stack flows (2026-11-07) ================================
+    "SignUpAndLoginFlowTest": [
+        t("newStudentSignsUpLogsInAndLogsOut", "happy", "Sign up, log in, log out", "GET /register, POST it; log in through /login; Log out; open /home", "New student, password123", "/login?registered with 'Your account is ready...'; /home with 'Welcome back' and 'Logged in as <email>'; /login?logout with 'You've logged out.'; /home then goes to /login"),
+        t("signUpWithATakenEmailKeepsTheTypedDetails", "conflict", "Taken email keeps the form", "Sign up a student; a visitor signs up with the same email", "Email of the first student", "Form again with 'Another account already uses <email>.'; email, name, school, programme, year, contact number refilled; password empty"),
+        t("loginIgnoresEmailCaseAndSpacesButNotTheWrongPassword", "boundary", "Login email case and spaces; wrong password", "Log in with the email upper-cased and padded; log in with a wrong password", "'  EMAIL  '", "/home, 'Logged in as <lower-case email>'; wrong password: /login?error with 'That email and password don't match an active account...'"),
+        t("overLongSchoolKeepsTheFormAndCreatesNoAccount", "boundary", "Over-long school on sign-up", "Sign up with a 256-character school; then try to log in", "256 x 'S'", "Form again with 'Name, school, programme and email can be at most 255 characters.', values kept; login fails (no account)"),
+        t("eachRoleIsKeptToItsOwnPages", "permission", "Each role kept to its own pages", "Student opens /admin/accounts, /admin/matching; admin opens /matches, /groups, /home; visitor opens /groups", "-", "403, 403; 403, 403, admin links only; /login"),
+    ],
+    "ProfileAndPreferencesFlowTest": [
+        t("studentUpdatesDetailsAndCourses", "happy", "Update details and courses", "Change programme, year, contact; reload; add and remove a course; remove a course with a preference", "Programme 'Computer Science'", "'Your profile has been updated.' once; values kept after reload; 'The course has been removed.'; 'Delete your <code> study preference before removing the course.' and the course stays"),
+        t("studentManagesAPreferenceAndItsSlots", "happy", "Preference and slots", "Add a preference; slots Mon 10-12, Mon 11-13 (overlap), Mon 12-13 (touching); delete the preference", "Online, One-to-one, Concept review", "'...preference has been added...'; overlap refused 'This slot overlaps one you already have on MONDAY.'; list shows 'Mon 10:00-12:00', 'Mon 12:00-13:00'; 'The study preference has been deleted.'"),
+        t("overLongNameIsRefusedAndTheNameIsKept", "boundary", "Over-long profile name", "Save the profile with a 256-character name", "256 x 'A'", "'Name, school and programme can be at most 255 characters.'; old name still in the form"),
+        t("overLongSchoolOrProgrammeIsRefused", "boundary", "Over-long school or programme on the profile", "Save the profile with a 256-character school, then a 256-character programme", "256 x 'S', 256 x 'P'", "Each time 'Name, school and programme can be at most 255 characters.'; the saved school and programme stay"),
+        t("deletedStudentStillLoggedInGetsNotFound", "side-effect", "Deleted while logged in (K16)", "Admin deletes a student who is still logged in; the student opens their profile, preferences and Study buddies", "-", "TODAY: each page is a bare 404 (no friendly page)"),
+        t("publicProfileShowsStudyDetailsOnly", "side-effect", "Public profile shows study details only", "Viewer finds Pat on /matches and opens /students/{id}; opens /students/999999999; admin opens the profile; admin deactivates Pat; viewer opens it again", "Pat's contact number and email", "Match card and profile show name, programme, year, school, course, preference, 'Wed 19:00-21:00'; never the number or email; unknown id and deactivated: /matches with 'That student's profile no longer exists.'; admin 403"),
+    ],
+    "BuddyMatchingFlowTest": [
+        t("courseSearchRanksStudentsByScore", "happy", "Course search ranked by score", "Alex searches the new course", "Ben (Appendix A), Carl, Dana", "'3 students, ranked by Balanced matching.'; Ben 92, Carl 70, Dana 20, in that order; Alex not listed"),
+        t("filtersNarrowTheList", "happy", "Filters narrow the list", "Search with goal Exam preparation; with shared time only; with mode Online", "-", "Only Ben; Ben and Carl; Ben (either) and Dana"),
+        t("sentRequestShowsUnderSentAndLabelsBothCards", "happy", "Sent request under Sent; labels on both cards", "Alex sends Carl a message and Dana 'no'; Alex and Carl open /matches", "'Want to study together?', 'no'", "'Request sent to Carl Crest. Their reply will show under Sent below.'; Sent card framed (match-card-new), 'Waiting for a reply' and the message; 'no' shown; Alex sees 'Request sent', Carl sees 'They've sent you a request', no Send button"),
+        t("acceptingSharesContactNumbersOnStudyBuddiesOnly", "happy", "Accepting shares contact numbers on Study buddies only", "Ben sends Alex a request; Alex accepts; both open /connections; Alex opens /matches", "Both contact numbers", "'Request accepted. You're now study buddies...'; label 'Accepted', no buttons; numbers only on /connections, for both; Ben's card 'You're already study buddies' linking to /connections"),
+        t("decliningShowsDeclinedAndMakesNoConnection", "happy", "Declining", "Alex sends Dana a request; Dana declines", "-", "'Request declined.'; 'Declined' for both; no connection; Alex's card for Dana has 'Send request' again"),
+        t("onlyTheRecipientCanAcceptARequest", "permission", "Only the recipient accepts", "Ben sends Alex a request; Carl posts its accept", "-", "'Only the student who received this request can accept it.'; still 'Waiting for a reply'"),
+        t("endingAConnectionHidesTheContactNumbersAgain", "happy", "Ending a connection", "Alex and Ben connect; Alex ends it", "-", "'Connection ended. You can no longer see each other's contact numbers.'; gone for both"),
+    ],
+    "StudyGroupFlowTest": [
+        t("leaderCreatesAGroupThatOthersCanFind", "happy", "Create a group", "Fill the create form with two slots; another student opens /groups", "Size 4, Mon 10-12, Wed 14-16", "/groups/{id}?from=mine: 'Group created...', details, '1/4 members', ', places left', 'Mon 10:00-12:00', 'Wed 14:00-16:00', leader buttons; listed on Browse"),
+        t("createFormListsEveryProblemThenAcceptsTouchingSlots", "negative", "Create form lists every problem", "Add slots to 3; submit with no name, size 1, overlapping and reversed slots; fix and submit", "-", "'Max time slots reached (3)', no '+ Add slot'; every message at once; then 'Group created.' with 'Mon 10:00-12:00', 'Mon 12:00-13:00', 'Tue 10:00-12:00'"),
+        t("leaderEditsAGroupButCannotShrinkItBelowItsMembers", "boundary", "Edit; size not below members", "Group with 3 members; save description 'Edited'; save size 2", "-", "'Changes saved.'; size 2 refused 'The group has 3 members, so the maximum size can't be below 3'; still '3/4 members'"),
+        t("leaderAddsAndRemovesSlotsOnTheEditForm", "happy", "Add and remove slots on the edit form", "Edit form: '+ Add slot', then Remove slot 1 (Fri 09:00-10:00 stays on the form); open the group without saving", "-", "Slot 2 appears; after Remove only one slot (Friday) is on the form; the saved group still shows only 'Mon 10:00-12:00'"),
+        t("closingEndsPendingRequestsAndFreezesTheGroup", "side-effect", "Closing ends pending requests", "Two pending requests; leader closes; tries edit and members; a waiting student removes it from My groups", "-", "Box text with '2 pending requests'; 'Group closed. 2 pending requests ended without an answer.'; edit and members refused; waiting students see 'Closed' and 'The group was closed before...'; 'Removed from My groups.' only for that student; leader can remove it too"),
+        t("leaderAcceptsAndRejectsJoinRequests", "happy", "Accept and reject join requests", "Farah and Jas ask to join; leader accepts Farah, rejects Jas", "-", "'Request sent...', pending on My groups; '2 requests waiting'; 'Farah Joiner is now a member of the group.'; 'Jas Joiner's request was rejected.'; Farah under Joined groups; Jas under 'Declined or removed' and told she was declined"),
+        t("myGroupsCountsWaitingRequests", "boundary", "Waiting requests counted on My groups", "Leader opens My groups with no request, then with one", "-", "'No requests waiting'; then '1 request waiting' (singular)"),
+        t("leaderRemovesAMemberWhoMayAskAgain", "conflict", "Remove a member who asks again", "Leader removes Chloe; Chloe asks to join again", "-", "'Chloe Removed was removed from the group.'; 'Removed from the group' and 'You were removed from this group before.'; new request listed for the leader"),
+        t("fullGroupKeepsARequestWaitingUntilAPlaceOpens", "boundary", "Full group waiting list", "Size 2; two requests; accept one; a late student opens it; the member leaves; accept the waiting one", "-", "'2/2 members', full warning, Accept disabled; waiting student told the group is full; late student 'This group is full.' and no join form; after leaving, accept works"),
+        t("memberCannotManageOrEditTheGroup", "permission", "Member can't manage", "A member opens the group, /members, /edit and posts /close", "-", "'You're a member of this group.', no leader buttons; each refused with 'Only the group's leader can do that.'"),
+        t("groupsDoNotNeedTheCourse", "side-effect", "Groups don't need the course (TD-1)", "A student with no courses creates a group; another with no courses asks to join", "-", "Both succeed"),
+        t("studentCancelsAWaitingRequestAndMayAskAgain", "happy", "Cancel a waiting request", "Farah cancels from My groups; opens the group; leader accepts the old request; Farah asks again", "-", "Box text; stays on /groups/mine with 'Request cancelled...'; plain 'Request to join'; leader told 'The student has cancelled this request'; new request pending with 'Cancel request'"),
+        t("memberLeavesWithAReasonOnlyTheLeaderSees", "happy", "Leave with a reason", "Ben leaves with a 501-character reason, then with a padded reason; leader opens Manage members; another member opens the group; leader tries to leave", "'  Exams clash with my job  '", "Too long: 'The reason can be at most 500 characters'; then 'You left the group...'; gone from My groups; leader sees '2/4 members' and under 'Members who left' 'Left on' and the trimmed reason; the other member never sees it; leader has no Leave button and is refused"),
+    ],
+    "AdminAccountsFlowTest": [
+        t("adminCreatesAnAdminWhoCanLogInStraightAway", "happy", "Create an admin", "Add an admin with a padded mixed-case email; log in as it", "'  Second.Admin.<n>@StudyBuddy.com '", "'Admin account <lower-case> has been created. It can log in straight away.'; Admin, Active; new admin reaches the admin Home"),
+        t("adminChangesAnEmailAndResetsAPassword", "happy", "Change email and password", "Change Ben's email and password; give another student the same email; log in as Ben", "newpassword1", "'The account now logs in with <email>.'; 'The password for <email> has been changed.'; 'Another account already uses <email>.'; old password refused, new one works"),
+        t("deactivatedStudentCannotLogInUntilReactivated", "happy", "Deactivate and reactivate", "Deactivate Chloe; she logs in; reactivate; she logs in", "-", "'<email> has been deactivated and can no longer log in.', Inactive; login refused with the login error; '<email> has been reactivated.', Active; login works"),
+        t("lastActiveAdminCannotBeDeactivatedOrDeleted", "conflict", "Last active admin protected", "Inside the rolled-back test, every other admin is deactivated; the admin deactivates and deletes their own account", "-", "'This is the last active admin account, so it can't be deactivated.' / '...deleted.'; row stays Active, '(you)'"),
+        t("unusedAdminCanBeDeletedAndTheStudentDeleteBoxWarns", "happy", "Delete an unused admin; student delete warning", "Add an admin and delete it; read a student's delete box", "-", "'The account has been deleted.' and gone; the student's box warns that a used student can't be deleted"),
+        t("accountListShowsStatusAndUsage", "happy", "Status and usage figures", "Alex takes 2 courses, 1 preference, leads 1 group, sends 1 and receives 1 request; admin opens the list", "-", "'Courses 2 · Preferences 1 · Groups led 1', 'Requests sent 1 · received 1'; admin row '(you)' and '—'"),
+        t("changingALoggedInStudentsEmailBreaksTheirSession", "side-effect", "Email change during a session (K2)", "Admin changes Chloe's email while she is logged in; deactivates Dave while he is logged in", "-", "TODAY: Chloe's profile gives 404; Dave's open session still shows his profile"),
+    ],
+    "MatchingSettingsFlowTest": [
+        t("adminSavesSettingsAndBadOnesAreRefused", "happy", "Save settings; bad ones refused", "Save Availability first 0/1/0/0/0; all zero; course -1", "-", "'Settings saved...', Shared free time 100%; 'At least one criterion needs a weight above 0.'; 'Weights can't be negative.'; saved strategy still checked"),
+        t("strategyChangesTheOrderStudentsSee", "happy", "Strategy changes the order", "Balanced, then Availability first; Alex searches each time", "Pia (85, 30 min), Quinn (40, 4 h)", "'ranked by Balanced matching.' Pia then Quinn; 'ranked by Availability first matching.' Quinn then Pia; same scores"),
+        t("courseFirstWithOnlyTheCourseWeight", "happy", "Course first, course weight only", "Course first 1/0/0/0/0; Alex searches all courses", "-", "'Same course' 100%; 'ranked by Course first matching.'; scores never go up; course mates 100 before Rex (other course, 0)"),
+    ],
+    "CourseAdminFlowTest": [
+        t("adminAddsEditsAndDeletesAnUnusedCourse", "happy", "Add, edit, delete a course", "Add; rename; save a blank code; delete", "'Manual Testing II'", "'<code> has been updated.'; blank refused 'Enter both a course code and a course name.' on the edit form; 'The course has been deleted.' and gone"),
+        t("studentsSeeAReadOnlyCourseList", "permission", "Read-only course list for students", "Student opens /courses and /courses?edit={id}; posts a delete", "-", "List without Actions, add form or Delete; delete 403; course still there"),
+        t("overLongCourseCodeIsRefused", "boundary", "Over-long course code", "Add a course with a 256-character code", "256 x 'C'", "'Course code and course name can be at most 255 characters.'; nothing added"),
+    ],
+    # ================================ End to end (2026-11-07) ================================
+    "auth.spec": [
+        t("student signs up, logs in and logs out", "happy", "Sign up, log in, log out (browser)", "Fill /register, log in, click Log out, open /home", "New student", "'Welcome back', 'Logged in as <email>'; 'You've logged out.'; /home goes to /login"),
+        t("the browser blocks a short password and a 7-digit contact number on sign-up", "negative", "Browser blocks bad sign-up values", "Type a 5-character password and 1234567; click Create account; fix the password; fix the number", "'short', '1234567'", "Stays on /register with the fields invalid (tooShort, patternMismatch) and nothing sent; once both are fixed the account is created"),
+        t("a deactivated student cannot log in", "happy", "Deactivated student can't log in (browser)", "Fresh admin deactivates a student; the student logs in", "-", "'<email> has been deactivated...'; /login?error with the login error"),
+        t("each role only reaches its own pages", "permission", "Each role on its own pages (browser)", "Student opens /admin/accounts; admin opens /matches and /groups; visitor opens /groups", "-", "403, 403, 403; /login"),
+        t("the H2 console opens without logging in", "permission", "H2 console open (K15)", "Visitor opens /h2-console; a student does too", "-", "TODAY: the H2 Console's own login form (Connect button) both times, never the app's login page"),
+    ],
+    "confirmations.spec": [
+        t("ending a connection asks first", "happy", "End connection box", "Two students connect; End, Cancel; End, Esc; End, End connection", "-", "Box text; Cancel and Esc keep the buddy; then 'Connection ended...' and the buddy is gone"),
+        t("a course that is still used cannot be deleted", "conflict", "Used course can't be deleted (commit)", "A student takes course A; admin deletes A (Cancel first, then Delete course); admin deletes unused course B", "-", "Box text; A refused 'Students, study preferences or study groups still use this course, so it can't be deleted.' and stays; B 'The course has been deleted.' and gone"),
+        t("a student who is still used cannot be deleted, an unused admin can", "conflict", "Used student can't be deleted (commit)", "A student leads a group; admin deletes them; admin deletes an extra admin", "-", "Student's box warns; refused 'This student still has match requests, study groups or study buddies, so the account can't be deleted. Deactivate it instead.' and listed; the admin's box has no warning and 'The account has been deleted.'"),
+        t("the admin's Edit box changes an email", "happy", "Edit box", "Edit, Close; Edit, type a new email, Save email", "-", "Close changes nothing; 'The account now logs in with <email>.'"),
+        t("deleting a study preference asks first", "happy", "Delete preference box", "Delete, Cancel; Delete, Delete preference", "-", "Box text; Cancel keeps it; 'The study preference has been deleted.'"),
+        t("closing a group asks first and says how many requests end", "side-effect", "Close group box", "Group with 1 pending request: Close group, Cancel; Close group, Close group", "-", "Box 'Its 1 pending request will end without an answer...'; Cancel keeps Edit group; 'Group closed. 1 pending request ended without an answer.'"),
+        t("rejecting, removing and asking again each ask first", "happy", "Reject, remove and ask-again boxes", "Reject Rita; accept and remove Mo (Esc first); Mo asks again", "-", "Each box's text; 'Rita Rejected's request was rejected.'; 'Mo Removed was removed from the group.'; 'You were removed from this group before. Do you want to request to join again?' then 'Request sent...'"),
+        t("cancelling a join request asks first", "happy", "Cancel request box", "On My groups: Cancel request, Keep request; Cancel request, Cancel request", "-", "Box text; Keep request changes nothing; stays on /groups/mine with 'Request cancelled...' and the card gone"),
+        t("leaving a group asks first and sends the reason", "happy", "Leave group box", "Member: Leave group, Stay in group; Leave group, type a reason, Leave group; leader opens Manage members", "'Clashes with my internship'", "Box text; Stay keeps membership; 'You left the group...'; leader's 'Members who left' shows the name and 'Reason: Clashes with my internship'"),
+    ],
+    "flash.spec": [
+        t("a success banner shows once", "happy", "Success banner once", "Save the profile; reload", "-", "role status, class 'message success', 'Your profile has been updated.'; gone after reload, value kept"),
+        t("an error banner is an alert", "negative", "Error banner is an alert", "Add an overlapping slot; remove a course that has a preference", "-", "role alert, class 'message error', the service's message each time"),
+    ],
+    "forms.spec": [
+        t("the group form stops at three slots", "boundary", "Three slots at most (browser)", "Click '+ Add slot' twice; Remove slot 2", "-", "Slot 3 shown, 'Max time slots reached (3)', no '+ Add slot'; after Remove two slots and '+ Add slot' back"),
+        t("the browser refuses a negative matching weight", "negative", "Browser refuses -1 weight", "Type -1 in Same course; Save settings", "-1", "Nothing saved; the field is rangeUnderflow"),
+        t("the message and reason boxes stop at their limits", "boundary", "Text box limits", "Type 300 characters into a match message, 600 into a leave reason", "-", "The boxes keep 255 and 500 characters"),
+        t("a full group's join and accept buttons are switched off", "boundary", "Full group buttons off", "Size 2, two requests, accept one; a late student opens the group", "-", "Full warning; the waiting student's Accept is disabled; the late student's 'Request to join' is disabled with 'This group is full.'"),
+    ],
+    "matches.spec": [
+        t("the request just sent is framed and labelled", "happy", "New request framed", "Send Ben a message; send Cat 'no'", "'Want to study together?', 'no'", "Banner; exactly one .match-card-new with the name, message and 'Waiting for a reply'; 'no' shown"),
+        t("the labels on match cards open the right page", "happy", "Labels open the right page", "Ben is a buddy, Cat has sent a request; click each label", "-", "No Send button; 'You're already study buddies' opens /connections; 'They've sent you a request' opens /match-requests; Cat sees 'Request sent'"),
+        t("accepted and declined requests show their labels", "happy", "Accepted and Declined labels", "Accept Ben's request, decline Cat's", "-", "Banners; 'Accepted' (status-label-accepted), 'Declined' (status-label-rejected); no Accept buttons left; Cat sees 'Declined'"),
+    ],
+    "roles.spec": [
+        t("a student's Home links to every student page", "happy", "Student Home links", "Click each Home link, then the top bar's Study Buddy Matcher", "-", "Each opens its page (h1) and the top bar leads back to /home; no admin links"),
+        t("an admin's Home links to every admin page", "happy", "Admin Home links", "Click each Home link, then the top bar", "-", "User accounts, Courses, Matching settings open; no student links"),
+    ],
+    "settings.spec": [
+        t("the strategy changes the order students see", "happy", "Strategy changes the order (browser)", "Balanced, Alex searches; Availability first, Alex searches", "Pia (30 min, all else matches), Quinn (4 h only)", "'ranked by Balanced matching.' Pia, Quinn; 'ranked by Availability first matching.' Quinn, Pia; settings put back afterwards"),
+        t("course first with only the course weight scores every course mate 100", "happy", "Course first, course weight only (browser)", "Course first 1/0/0/0/0; Alex searches the course", "-", "Same course 100%; 'ranked by Course first matching.'; both cards 100; settings put back afterwards"),
+    ],
+    "layout.spec": [
+        t("login and sign-up fit a phone screen", "happy", "Login and sign-up on a phone", "Open /login and /register at 375x667", "-", "No sideways scroll, every button on screen, form above the illustration; screenshots attached"),
+        t("student pages fit a phone screen", "happy", "Student pages on a phone", "Open every student page with data; open the End connection box", "-", "No sideways scroll; buttons on screen; Home link and Log out in view; stacked tables labelled; the box fits; screenshots attached"),
+        t("study group pages fit a phone screen", "happy", "Group pages on a phone", "Open Browse, My groups, create, group page, Manage members, edit", "-", "As above"),
+        t("admin pages fit a phone screen", "happy", "Admin pages on a phone", "Open Home, User accounts, Matching settings, Courses", "-", "As above; the accounts table is labelled cards"),
+        t("empty student pages fit a phone screen", "happy", "Empty pages on a phone", "A new student opens their pages before adding anything", "-", "As above"),
+    ],
+    "a11y.spec": [
+        t("login and sign-up pages pass axe", "happy", "Login and sign-up accessible", "axe on /login and /register", "-", "No violation outside a11y-baseline.json; results attached"),
+        t("student pages pass axe", "happy", "Student pages accessible", "axe on every student page with data", "-", "As above"),
+        t("study group pages pass axe", "happy", "Group pages accessible", "axe on every group page with data", "-", "As above"),
+        t("admin pages pass axe", "happy", "Admin pages accessible", "axe on every admin page", "-", "As above"),
+        t("a waiting join request passes axe", "happy", "Waiting request accessible", "A student with a pending request: axe on My groups and the group page", "-", "As above; the known Cancel request finding (A11Y-1) is pinned"),
+    ],
 }
+
+# Manual cases that an automated test replaces without naming them in its comment
+EXTRA_REPLACED = {"MAN-27": ["DataSeedersTest#exactSeedSizes"]}
 
 # --------------------------------------------------------------------------------------
 # Manual (browser) test cases
 # --------------------------------------------------------------------------------------
-MANUAL_BANNER = ("MANUAL CASES: restart the app before each full manual run. The database is in memory, so restarting "
-                 "resets it to the seeded data; a case marked 'Do not restart' must follow the case it names in the same app run.")
+MANUAL_BANNER = ("MANUAL CASES (MAN-nn). Since 2026-11-07, rows marked Automated are replaced by the automated tests named in "
+                 "'Test class and method' (their status is those tests' last run; the steps stay as documentation, and a "
+                 "result recorded by hand is kept under 'Manual result (history)'). Rows still marked Manual need a person. "
+                 "Restart the app before each full manual run. The database is in memory, so restarting resets it to the "
+                 "seeded data; a case marked 'Do not restart' must follow the case it names in the same app run.")
 APP_RUN = ("App running: in the studybuddy folder run ./mvnw spring-boot:run, wait for 'Started StudybuddyApplication', "
            "then open http://localhost:8080/login. Seeded password for every seeded account: password123 "
            "(studybuddy.seed.password in application.properties). The database is in memory: restarting the app resets "
@@ -982,13 +1149,15 @@ MANUAL = [
                "Under 'Received', on Chloe Lim's request click 'Accept'.",
                "Open http://localhost:8080/connections."),
       "Chloe Lim's number 81000000",
-      "Step 3: 'Request accepted. You're now study buddies: their contact number is on the Study buddies page.' and the request shows ACCEPTED without buttons; 81000000 is not on this page. Step 4: Chloe Lim is listed with 81000000."),
+      "Step 3: 'Request accepted. You're now study buddies: their contact number is on the Study buddies page.' and the request shows the label 'Accepted' without buttons; 81000000 is not on this page. Step 4: Chloe Lim is listed with 81000000.",
+      "Updated 2026-11-07: the status is now shown as a label ('Accepted'), teammate commit 5cd8fa1."),
     m("MAN-10", "S8, REQ-2", "happy", "Decline a request", APP_PRE,
       numbered(login("daniel.ng@studybuddy.com"), "Open http://localhost:8080/match-requests.",
                "Under 'Received', on Alex Tan's request click 'Decline'.",
                "Log out, log in as student@studybuddy.com and open http://localhost:8080/match-requests."),
       "daniel.ng@studybuddy.com",
-      "Step 3: 'Request declined.'; the request shows REJECTED and no buttons. Step 4: under 'Sent', the request to Daniel Ng shows REJECTED. /connections does not list Daniel Ng."),
+      "Step 3: 'Request declined.'; the request shows the label 'Declined' and no buttons. Step 4: under 'Sent', the request to Daniel Ng shows 'Declined'. /connections does not list Daniel Ng.",
+      "Updated 2026-11-07: the status is now shown as a label ('Declined' for REJECTED), teammate commit 5cd8fa1."),
     m("MAN-11", "S9, REQ-5", "happy", "End a connection", APP_PRE,
       numbered(login("student@studybuddy.com"), "Open http://localhost:8080/connections.",
                "On Ben Koh's row click 'End'; in the box click 'End connection'."),
@@ -1264,6 +1433,46 @@ MANUAL = [
                "Click 'View' on the group's page and look for a 'Leave group' button."),
       "Ben Koh, a member of the seeded IS442 OOP Exam Prep (3/4)",
       "Step 2: the box says 'Leave IS442 OOP Exam Prep? You can ask to join again later.' with a Reason box marked '(optional, only the leader sees it)'; then 'You left the group. You can ask to join again later.' and a plain 'Request to join' button. Step 3: IS442 OOP Exam Prep is no longer under 'Joined groups' or 'Declined or removed'. Step 4: '2/4 members'; Ben Koh is not under 'Members'; under 'Members who left' Ben Koh shows 'Left on <today>' and 'Reason: My timetable changed'. Step 5: the leader has no 'Leave group' button.", batch=LEAVE),
+
+    # ================================ Residual manual checklist (2026-11-07) ================================
+    # Everything a test can check is automated; these need a person's judgement.
+    m("MAN-49", "UI-3", "happy", "The phone layout on real phones", APP_PRE + " A real iPhone (Safari) and a real Android phone (Chrome) on the same network; open http://<this computer's address>:8080.",
+      numbered(login("student@studybuddy.com") + " on each phone.", "Open every page from Home: My profile, Study preferences, Find study buddies, Match requests, Study buddies, Study groups, My groups, a group page, Manage members, Create a group.",
+               "Type into a form (the on-screen keyboard opens) and scroll while it is open."),
+      "-", "Every page reads comfortably: no squeezed or cut-off text, tables shown as cards are easy to scan, buttons are easy to tap without hitting the wrong one, and the on-screen keyboard never hides the field being typed in.",
+      "Playwright checks the 375x667 layout in Chromium (ELY); real phones, Safari and touch need a person.", RESIDUAL),
+    m("MAN-50", "UI-1", "happy", "Confirmation boxes on real phones", "As MAN-49.",
+      numbered("On a phone, open Study buddies (with a buddy), tap End, then tap outside the box.", "Tap End again and use the phone's Back gesture.", "Tap End again and tap End connection."),
+      "-", "The box opens centred and readable; tapping outside or Back closes it without ending anything; End connection ends it.",
+      "ECF checks the boxes in Chromium; Safari's popover support and the Back gesture need a person.", RESIDUAL),
+    m("MAN-51", "UI-1, UI-2", "happy", "Wording and tone of messages", APP_RUN,
+      numbered("Go through the main flows (sign up, add a preference, send and answer a request, create and join a group, close a group, admin edits an account) and read every banner, error and confirmation box."),
+      "-", "Each message says what happened or what to do next, in plain words, without internal ids or jargon, and in the same voice across pages.",
+      "The automated tests check the exact text; whether it reads well needs a person.", RESIDUAL),
+    m("MAN-52", "UI-2, S8", "happy", "Colours and emphasis", APP_RUN,
+      numbered("Look at a green success banner, a red error banner, the status labels on Match requests (waiting, accepted, declined), the green frame on a just-sent request and a full group's red member count."),
+      "-", "Each stands out enough to be noticed and the colours mean the same thing everywhere; nothing relies on colour alone (the words say it too).",
+      "axe checks contrast (EAX); whether emphasis works needs a person.", RESIDUAL),
+    m("MAN-53", "D3", "happy", "First-time user walk-through", APP_PRE + " Someone who has not used the app before.",
+      numbered("Ask them to sign up, set a preference, find a buddy and send a request, then join a study group, without help."),
+      "-", "They finish without getting lost. There is no menu bar: note every time they need Home to move on.",
+      "Usability can't be automated.", RESIDUAL),
+    m("MAN-54", "UI-5", "happy", "Screen reader spot check", APP_RUN + " NVDA (Windows) or VoiceOver (Mac / iPhone).",
+      numbered(login("student@studybuddy.com") + " with the screen reader on.", "Open Find study buddies and a study group page; listen to a match card, the member count and the Request to join / Cancel request buttons."),
+      "-", "Cards read in a sensible order; the member count says ', places left' or ', full'; each button says what it does. Note A11Y-1 (Cancel request).",
+      "axe finds rule breaks (EAX); whether it makes sense when heard needs a person.", RESIDUAL),
+    m("MAN-55", "UI-1, UI-5", "happy", "Keyboard only", APP_RUN,
+      numbered("Without a mouse, log in, open Study buddies and End a connection (Tab, Enter, Esc), then create a study group with two slots."),
+      "-", "The focus outline is always visible; focus moves into a confirmation box when it opens and back to its button when it closes; every action can be done from the keyboard.",
+      "Focus visibility and order need a person.", RESIDUAL),
+    m("MAN-56", "UI-3", "happy", "Review the e2e screenshots", "After npx playwright test in e2e/.",
+      numbered("Run npx playwright show-report in e2e/.", "Open the phone layout tests (layout.spec.js) and look at every attached page screenshot."),
+      "-", "Nothing looks broken, overlapping or oddly spaced on any page.",
+      "ELY checks measurable layout rules; how it looks needs a person.", RESIDUAL),
+    m("MAN-57", "D1", "happy", "Demo data makes sense for the presentation", APP_PRE,
+      numbered(login("admin@studybuddy.com") + " Read User accounts and Courses; log in as a few seeded students and read their matches and groups."),
+      "-", "Names, schools, programmes, timetables and groups look realistic, and the demo shows good and poor matches.",
+      "DSD checks the counts; plausibility needs a person.", RESIDUAL),
 ]
 
 # --------------------------------------------------------------------------------------
@@ -1348,6 +1557,13 @@ GAPS = [
     ("GAP-IDS", "Test note", "Automated Test IDs are now stable: docs/test-cases/test-ids.json maps Class#method to its ID (seeded 2026-10-28 from the Batch E workbook). Inserting or reordering tests no longer renumbers; a new test gets the next free number; a removed test's number is retired, never reused.", "docs/test-cases/test-ids.json", "Recorded", "-", "In place."),
     ("GAP-K3REG", "Fixed (2026-10-28)", "Sign-up, create-admin and change-email reported an over-long value (over 255 characters, email included) as 'Another account already uses that email.' AuthController and AccountManagementController now check the length first: 'Name, school, programme and email can be at most 255 characters.' (form re-shown with everything typed except the password) and 'The email can be at most 255 characters.' (email refilled on create). Real duplicate-email refusals are reported as before; no other database error is caught.", "AuthController.java; AccountManagementController.java", "Fixed in the controllers", "AUC (overLongFieldShowsItsOwnMessageAndKeepsTheForm, fieldOf255CharactersReachesTheService), AMC (createAdminWithOverLongEmailShowsItsOwnMessage, updateEmailOverLongShowsItsOwnMessage), MAN-46", "Fixed (2026-10-28)."),
     ("GAP-NI1", "Partly implemented (2026-11-06)", "A student can now cancel a pending join request (GRP-8) and a member can leave a group with an optional reason (GRP-9). A group still can't be deleted (closing is permanent instead, TD-4).", "GroupMembershipService.java (cancelRequest, leaveGroup)", "List only (group deletion)", "MAN-47, MAN-48", "Listed (group deletion only)."),
+    # ---- Automation push (2026-11-07) ----
+    ("A11Y-1", "New finding (accessibility)", "The 'Cancel request' button's accessible name is 'Cancel your request to join <group>' (aria-label), which doesn't contain its visible words 'Cancel request' (WCAG 2.5.3 Label in Name, axe label-content-name-mismatch, serious). A voice-control user saying 'click Cancel request' may not reach it. On My groups and the group page.", "fragments/cancel-join-request.html:15", "(a) Pinned in e2e/a11y-baseline.json", "EAX (a waiting join request passes axe), MAN-54", "Pinned (2026-11-07)."),
+    ("GAP-FS1", "Test note", "The full-stack flows run in one rolled-back transaction, so a refusal that the database only makes when it commits can't happen there: deleting a course that is still used (MAN-24) or a student with activity (MAN-20). Those two are tested in the browser (ECF), against a server that really commits. Also: a refused action inside a @Transactional service only marks the shared test transaction for rollback, so any change it made before refusing stays visible to the next page in that test (not seen in any result).", "studybuddy/src/test/java/com/studybuddy/flow/FlowTestSupport.java", "Recorded", "ECF (a course that is still used..., a student who is still used...)", "Recorded."),
+    ("GAP-E2E1", "Test note", "An admin can only be created by another admin, so the e2e tests log in as the seeded admin (admin@studybuddy.com, studybuddy.seed.password) only to add a fresh admin; they never change it. The suite therefore needs AdminDataSeeder and that password (or E2E_SEED_ADMIN_PASSWORD).", "e2e/helpers/app.js (newAdmin)", "Recorded", "-", "Recorded."),
+    ("GAP-E2E2", "Test note", "Playwright doesn't repeat projects that another project depends on, so --repeat-each=2 on the full suite only repeated the settings project. Independence was proven with desktop + phone repeated (settings left out) plus the settings project repeated on its own.", "e2e/playwright.config.js", "Recorded", "-", "Recorded."),
+    ("GAP-DEAD1", "Dead code (for the team)", "Not called by any production code (found by the coverage report; nothing deleted): AvailabilitySlot.setDayOfWeek, setStartTime, setEndTime, getStudyPreference; StudyPreference.setCourse, setAvailabilitySlots; MatchRequest.setMessage; StudyBuddyConnection.getStudent1, getStudent2; Student.isLeaderOf; StudyPreferenceService.getPreference. MatchRequestService.getRequestById is tested but no page uses it (K7).", "see the Coverage sheet", "(c) List only", "-", "Listed (2026-11-07)."),
+    ("GAP-COV1", "Coverage gap (left)", "Not tested on purpose: the seeders' fallbacks for missing seed data, and a leader losing the right to edit between opening and saving the form (StudyGroupController 211-212, 299-300).", "StudyGroupController.java; *DataSeeder.java", "Skipped (agreed 2026-11-07)", "-", "Listed."),
 ]
 
 # --------------------------------------------------------------------------------------
@@ -1355,11 +1571,49 @@ GAPS = [
 # --------------------------------------------------------------------------------------
 
 
+def java_level(text):
+    """The test level, read from how the class starts Spring (or doesn't)."""
+    if "extends FlowTestSupport" in text:
+        return "Full stack (HTTP)"
+    if "@SpringBootTest(classes" in text:
+        return "Slice (narrow context)"
+    if "@SpringBootTest" in text:
+        return "Context (service level)"
+    if "@DataJpaTest" in text:
+        return "Slice (JPA)"
+    if "@WebMvcTest" in text:
+        return "Slice (Web MVC)"
+    return "Unit"
+
+
+def comment_above(lines, i):
+    """The // comment lines straight above line i, skipping annotations such as @WithMockUser."""
+    k = i - 1
+    while k >= 0 and lines[k].strip().startswith("@"):
+        k -= 1
+    comment = []
+    while k >= 0 and lines[k].strip().startswith("//"):
+        comment.insert(0, lines[k].strip()[2:].strip())
+        k -= 1
+    return comment
+
+
+def ids_in(comment):
+    """Requirement IDs named before the first colon of the comment's first line."""
+    head = (comment[0] if comment else "").split(":")[0]
+    return ", ".join(dict.fromkeys(ID_PATTERN.findall(head)))
+
+
+E2E_TEST = re.compile(r"""^test\((['"])(.+?)\1\s*,""")
+
+
 def parse_sources():
-    """{ClassName: [{method, ids, comment, disabled}]} for every @Test in src/test."""
+    """{ClassName or spec: [{method, ids, comment, disabled, parameterized}]} for every @Test in src/test
+    and every test(...) in e2e/tests. LEVELS gets each one's test level."""
     found = {}
     for path in sorted(TEST_SRC.rglob("*.java")):
-        lines = path.read_text(encoding="utf-8").splitlines()
+        text = path.read_text(encoding="utf-8")
+        lines = text.splitlines()
         tests = []
         for i, line in enumerate(lines):
             if line.strip() != "@Test" and not line.strip().startswith("@ParameterizedTest"):
@@ -1374,41 +1628,66 @@ def parse_sources():
             disabled = None
             if "@Disabled" in between:
                 disabled = "".join(re.findall(r'"([^"]*)"', between[between.index("@Disabled"):]))
-            # The comment block above @Test, skipping annotations such as @WithMockUser
-            k = i - 1
-            while k >= 0 and lines[k].strip().startswith("@"):
-                k -= 1
-            comment = []
-            while k >= 0 and lines[k].strip().startswith("//"):
-                comment.insert(0, lines[k].strip()[2:].strip())
-                k -= 1
-            first = comment[0] if comment else ""
-            head = first.split(":")[0]
-            ids = ", ".join(dict.fromkeys(ID_PATTERN.findall(head)))
-            tests.append({"method": method, "ids": ids, "comment": " ".join(comment), "disabled": disabled,
+            comment = comment_above(lines, i)
+            tests.append({"method": method, "ids": ids_in(comment), "comment": " ".join(comment), "disabled": disabled,
                           "parameterized": parameterized})
         if tests:
             found[path.stem] = tests
+            LEVELS[path.stem] = java_level(text)
+    for path in sorted(E2E_TESTS.glob("*.spec.js")) if E2E_TESTS.exists() else []:
+        lines = path.read_text(encoding="utf-8").splitlines()
+        tests = []
+        for i, line in enumerate(lines):
+            match = E2E_TEST.match(line)
+            if match:
+                comment = comment_above(lines, i)
+                tests.append({"method": match.group(2), "ids": ids_in(comment), "comment": " ".join(comment),
+                              "disabled": None, "parameterized": False})
+        if tests:
+            stem = path.name[:-len(".js")]
+            found[stem] = tests
+            LEVELS[stem] = E2E_LEVEL
     return found
 
 
+def is_e2e(cls):
+    return LEVELS.get(cls) == E2E_LEVEL
+
+
 class Reports(dict):
-    """{(ClassName, method): status} from the surefire XML reports, one entry per test method.
+    """{(ClassName, method): status} from the surefire XML reports, one entry per test method, and
+    {(spec, title): status} from the Playwright JSON report.
     A parameterized method runs once per value and surefire reports each run ("method(Route)[3]"),
-    so its runs are merged: Fail if any run failed, Skipped if all were skipped, else Pass.
+    so its runs are merged: Fail if any run failed, Skipped if all were skipped, else Pass. An e2e test
+    runs once per project (and per repeat), merged the same way.
     runs counts every surefire run (what ./mvnw test prints); invocations holds how many runs each
-    parameterized method had. Reports left behind by test classes that no longer exist are
+    parameterized method or e2e test had. Reports left behind by test classes that no longer exist are
     ignored (surefire never deletes old reports)."""
 
     def __init__(self):
         super().__init__()
         self.runs = Counter()
         self.invocations = Counter()
+        self.surefire_at = None
+        self.e2e_runs = Counter()
+        self.e2e_projects = defaultdict(set)
+        self.e2e_started = None
+        self.e2e_stale = []
+
+
+def merge(reports, key, status):
+    earlier = reports.get(key)
+    # A failed run wins; a skipped one only stands if nothing else ran
+    if earlier is None or earlier == "Skipped" or status == "Fail":
+        reports[key] = status
 
 
 def parse_reports(sources):
     reports = Reports()
-    for xml in REPORTS.glob("TEST-*.xml"):
+    xmls = list(REPORTS.glob("TEST-*.xml"))
+    if xmls:
+        reports.surefire_at = datetime.fromtimestamp(max(x.stat().st_mtime for x in xmls))
+    for xml in xmls:
         for case in ET.parse(xml).getroot().iter("testcase"):
             cls = case.get("classname").split(".")[-1]
             if cls not in sources:
@@ -1424,39 +1703,77 @@ def parse_reports(sources):
             key = (cls, name.split("(")[0])
             if "(" in name:
                 reports.invocations[key] += 1
-            earlier = reports.get(key)
-            # A failed run wins; a skipped one only stands if nothing else ran
-            if earlier is None or earlier == "Skipped" or status == "Fail":
-                reports[key] = status
+            merge(reports, key, status)
+    parse_e2e_report(reports)
     return reports
+
+
+def parse_e2e_report(reports):
+    """Adds the last Playwright run. With no report the e2e rows stay 'Not run'; a report older than any
+    e2e source file marks every e2e row 'Stale', so an old pass can't pass for a current one."""
+    if not E2E_REPORT.exists():
+        print(f"WARNING: no Playwright report at {E2E_REPORT.relative_to(ROOT)}; the e2e rows show 'Not run'. "
+              "Run npx playwright test in e2e/ first.")
+        return
+    data = json.loads(E2E_REPORT.read_text(encoding="utf-8"))
+    started = datetime.fromisoformat(data["stats"]["startTime"].replace("Z", "+00:00"))
+    reports.e2e_started = started.astimezone()
+    sources = [*E2E_DIR.glob("tests/*.js"), *E2E_DIR.glob("helpers/*.js"), E2E_DIR / "playwright.config.js",
+               E2E_DIR / "a11y-baseline.json"]
+    reports.e2e_stale = sorted(str(p.relative_to(E2E_DIR)) for p in sources
+                               if p.exists() and datetime.fromtimestamp(p.stat().st_mtime, timezone.utc) > started)
+    if reports.e2e_stale:
+        print(f"WARNING: the Playwright report ({reports.e2e_started:%Y-%m-%d %H:%M}) is older than "
+              f"{', '.join(reports.e2e_stale)}; the e2e rows show 'Stale'. Run npx playwright test in e2e/ again.")
+
+    def walk(suite):
+        for child in suite.get("suites", []):
+            walk(child)
+        for spec in suite.get("specs", []):
+            key = (Path(spec["file"]).name[:-len(".js")], spec["title"])
+            for test in spec["tests"]:
+                status = {"expected": "Pass", "skipped": "Skipped"}.get(test["status"], "Fail")
+                reports.e2e_runs[status] += 1
+                reports.invocations[key] += 1
+                reports.e2e_projects[key].add(test["projectName"])
+                merge(reports, key, "Stale" if reports.e2e_stale and status == "Pass" else status)
+
+    for suite in data["suites"]:
+        walk(suite)
 
 
 MANUAL_STATUSES = ["Not run", "Pass", "Fail"]
 WRITTEN_BY = {"Existing": "Existing (teammates)", "New": "New (Batch A)", BATCH_B: "New (Batch B)",
               BATCH_C: "New (Batch C)", BATCH_D: "New (Batch D)",
               BATCH_E: "New (Batch E)", SYNC: "New (sync 2026-10-28)",
-              TD56: "New (2026-10-30)", CANCEL: "New (2026-11-06)", LEAVE: "New (2026-11-06, leave)"}
-RESULT_COLUMNS = {"status": "Status", "tester": "Tester", "date": "Date", "actual": "Actual result"}
+              TD56: "New (2026-10-30)", CANCEL: "New (2026-11-06)", LEAVE: "New (2026-11-06, leave)",
+              FLOW: "New (full-stack flows 2026-11-07)", E2E: "New (end to end 2026-11-07)",
+              RESIDUAL: "New (residual manual 2026-11-07)"}
+RESULT_COLUMNS = {"tester": "Tester", "date": "Date", "actual": "Actual result"}
+HISTORY = "Manual result (history)"
 
 
 def read_previous_manual_results():
-    """{Test ID: {status, tester, date, actual}} for every manual row of the existing workbook, so
-    rebuilding never wipes results typed in by hand. Columns are found by their header text, so an
-    older workbook without Tester / Date / Actual result still gives its Status."""
+    """{Test ID: {status, tester, date, actual}} for every MAN-nn row of the existing workbook, so rebuilding
+    never wipes results typed in by hand. While a row is Manual its Status is the manual result; once it is
+    replaced by automated tests its Status is theirs, and the manual result lives on under 'Manual result
+    (history)'. Columns are found by their header text, so older workbooks still work."""
     if not OUT.exists():
         return {}
     ws = load_workbook(OUT)["Test Cases"]
     header = [cell.value for cell in ws[1]]
-    col = {name: header.index(name) for name in ["Test ID", "Automated or Manual", *RESULT_COLUMNS.values()]
-           if name in header}
+    col = {name: header.index(name) for name in ["Test ID", "Automated or Manual", "Status", HISTORY,
+                                                 *RESULT_COLUMNS.values()] if name in header}
     results = {}
     for row in ws.iter_rows(min_row=2, values_only=True):
         test_id = row[col["Test ID"]] if "Test ID" in col else None
-        if not test_id or row[col["Automated or Manual"]] != "Manual":
+        if not test_id or not str(test_id).startswith("MAN-"):
             continue
         kept = {key: row[col[name]] for key, name in RESULT_COLUMNS.items() if name in col and row[col[name]]}
-        if kept.get("status") not in MANUAL_STATUSES:
-            kept.pop("status", None)
+        manual = row[col["Automated or Manual"]] == "Manual"
+        status = row[col["Status"]] if manual else (row[col[HISTORY]] if HISTORY in col else None)
+        if status in MANUAL_STATUSES:
+            kept["status"] = status
         results[test_id] = kept
     return results
 
@@ -1485,7 +1802,7 @@ def next_test_id(test_ids, prefix):
 
 
 def save_test_ids(test_ids, sources):
-    """Writes the map back and reports new and retired IDs (retired: still listed, no longer in src/test)."""
+    """Writes the map back and reports new and retired IDs (retired: still listed, no longer in the code)."""
     TEST_IDS.write_text(json.dumps(dict(sorted(test_ids.items())), indent=2) + "\n", encoding="utf-8")
     live = {f"{cls}#{test['method']}" for cls, tests in sources.items() for test in tests}
     retired = sorted(test_ids[key] for key in test_ids.keys() - live)
@@ -1493,22 +1810,36 @@ def save_test_ids(test_ids, sources):
         print(f"Retired Test IDs (kept, never reused): {', '.join(retired)}")
 
 
+def merged_status(statuses):
+    """One status for a manual case from the automated tests that replace it."""
+    for status in ["Fail", "Stale", "Not run", "Skipped"]:
+        if status in statuses:
+            return status
+    return "Pass" if statuses else "Not run"
+
+
+def run_at(reports, cls):
+    when = reports.e2e_started if is_e2e(cls) else reports.surefire_at
+    return f"{when:%Y-%m-%d %H:%M}" if when else ""
+
+
 def build_rows(sources, reports, previous, test_ids):
     problems = []
     for cls in sources:
         if cls not in CLASSES:
-            problems.append(f"Test class {cls} in src/test has no entry in CLASSES")
+            problems.append(f"Test class or spec {cls} has no entry in CLASSES")
     rows = []
+    replaced = defaultdict(list)  # MAN-nn -> rows of the automated tests that replace it
     for cls, (prefix, written_by, pre) in CLASSES.items():
         if cls not in sources:
-            problems.append(f"{cls} is described here but has no @Test methods in src/test")
+            problems.append(f"{cls} is described here but has no tests in src/test or e2e/tests")
             continue
         code = {test["method"]: test for test in sources[cls]}
         described = {case["method"]: case for case in CASES.get(cls, [])}
         for name in code.keys() - described.keys():
-            problems.append(f"{cls}.{name} exists in src/test but has no description")
+            problems.append(f"{cls}.{name} exists in the code but has no description")
         for name in described.keys() - code.keys():
-            problems.append(f"{cls}.{name} is described but doesn't exist in src/test")
+            problems.append(f"{cls}.{name} is described but doesn't exist in the code")
         for test in sources[cls]:
             case = described.get(test["method"])
             if case is None:
@@ -1531,29 +1862,58 @@ def build_rows(sources, reports, previous, test_ids):
             if test["parameterized"]:
                 notes.insert(0, f"Parameterized: {runs} runs in the last ./mvnw test (one per route or value); "
                                 f"Pass only if every run passed.")
+            if is_e2e(cls) and runs:
+                projects = ", ".join(sorted(reports.e2e_projects[(cls, test["method"])]))
+                notes.insert(0, f"{runs} run(s) in the last Playwright run ({projects}); Pass only if every run passed.")
             if test["disabled"]:
                 status = "Known bug (disabled)" if status in ("Skipped", "Not run") else status
                 notes.insert(0, f"@Disabled: {test['disabled']} Confirmed failing when enabled (2026-10-24).")
-            rows.append({
-                "id": test_ids[key], "ids": ids, "title": case["title"], "type": case["type"],
+            where = f"e2e/tests/{cls}.js > {test['method']}" if is_e2e(cls) else key
+            row = {
+                "id": test_ids[key], "ids": ids, "title": case["title"], "type": case["type"], "level": LEVELS[cls],
                 "pre": pre, "steps": case["steps"], "data": case["data"], "expected": case["expected"],
-                "mode": "Automated", "where": f"{cls}#{test['method']}", "status": status,
+                "mode": "Automated", "where": where, "status": status, "run_at": run_at(reports, cls),
                 "by": written_by, "notes": " ".join(notes), "cls": cls,
-                "tester": "", "date": "", "actual": "", "runs": runs,
-            })
+                "tester": "", "date": "", "actual": "", "history": "", "runs": runs, "replaces": False,
+                "parameterized": test["parameterized"],
+            }
+            rows.append(row)
+            for mid in dict.fromkeys(re.findall(r"\bMAN-\d+\b", test["comment"])):
+                replaced[mid].append(row)
+    by_key = {row["where"]: row for row in rows}
+    for mid, keys in EXTRA_REPLACED.items():
+        for key in keys:
+            if key not in by_key:
+                problems.append(f"EXTRA_REPLACED names {key}, which is not an automated test")
+            else:
+                replaced[mid].append(by_key[key])
+
     manual_ids = Counter(case["id"] for case in MANUAL)
     problems += [f"Manual ID {mid} is used {n} times" for mid, n in manual_ids.items() if n > 1]
+    problems += [f"A test comment names {mid}, which is not a manual case" for mid in replaced if mid not in manual_ids]
     for case in MANUAL:
         # Results typed into the last workbook are kept, matched by Test ID
         kept = previous.get(case["id"], {})
-        rows.append({
-            "id": case["id"], "ids": case["ids"], "title": case["title"], "type": case["type"], "pre": case["pre"],
-            "steps": case["steps"], "data": case["data"], "expected": case["expected"], "mode": "Manual",
-            "where": "", "status": "Retired" if case["retired"] else kept.get("status", "Not run"), "by": case["batch"],
-            "notes": f"RETIRED: {case['retired']} " + case["notes"] if case["retired"] else case["notes"],
-            "cls": "", "tester": kept.get("tester", ""), "date": kept.get("date", ""),
-            "actual": kept.get("actual", ""),
-        })
+        row = {
+            "id": case["id"], "ids": case["ids"], "title": case["title"], "type": case["type"], "level": "Manual",
+            "pre": case["pre"], "steps": case["steps"], "data": case["data"], "expected": case["expected"],
+            "mode": "Manual", "where": "", "status": kept.get("status", "Not run"), "run_at": "",
+            "by": case["batch"], "notes": case["notes"], "cls": "", "tester": kept.get("tester", ""),
+            "date": kept.get("date", ""), "actual": kept.get("actual", ""), "history": "", "replaces": False,
+        }
+        if case["retired"]:
+            row.update(status="Retired", notes=f"RETIRED: {case['retired']} " + case["notes"])
+        elif case["id"] in replaced:
+            tests = replaced[case["id"]]
+            history = kept.get("status", "")
+            row.update(mode="Automated", level="Replaced by automated tests", replaces=True,
+                       where=", ".join(t["id"] for t in tests), status=merged_status([t["status"] for t in tests]),
+                       run_at=max(t["run_at"] for t in tests), history=history if history != "Not run" else "")
+            note = f"Replaced by automated tests (2026-11-07): {row['where']}. The steps above stay as documentation."
+            if row["history"]:
+                note += f" Manual result kept as history: {row['history']}, {row['tester']}, {row['date']}."
+            row["notes"] = note + (" " + case["notes"] if case["notes"] else "")
+        rows.append(row)
     for mid in sorted(previous.keys() - manual_ids.keys()):
         print(f"WARNING: manual case {mid} is in the old workbook but no longer exists; its results were dropped "
               f"({previous[mid]})")
@@ -1574,12 +1934,17 @@ FILLS = {
     "Pass": PatternFill("solid", fgColor="C6EFCE"),
     "Fail": PatternFill("solid", fgColor="FFC7CE"),
     "Known bug (disabled)": PatternFill("solid", fgColor="FFEB9C"),
+    "Stale": PatternFill("solid", fgColor="FFEB9C"),
     "Not run": PatternFill("solid", fgColor="EDEDED"),
+    "Skipped": PatternFill("solid", fgColor="EDEDED"),
     "Retired": PatternFill("solid", fgColor="D9D9D9"),
     "No test": PatternFill("solid", fgColor="FFC7CE"),
     "amber": PatternFill("solid", fgColor="FFEB9C"),
 }
 WRAP = Alignment(wrap_text=True, vertical="top")
+STATUSES = ["Pass", "Fail", "Stale", "Known bug (disabled)", "Not run"]
+LEVEL_ORDER = ["Unit", "Slice (JPA)", "Slice (Web MVC)", "Slice (narrow context)", "Context (service level)",
+               "Full stack (HTTP)", E2E_LEVEL]
 
 
 def sheet(wb, title, headers, rows, widths):
@@ -1603,23 +1968,48 @@ def ids_of(text):
     return ID_PATTERN.findall(text or "")
 
 
+def coverage_rows():
+    """Per-package line and branch coverage from the last JaCoCo report, plus the total."""
+    if not JACOCO_CSV.exists():
+        return None, []
+    import csv
+    totals = defaultdict(lambda: [0, 0, 0, 0])
+    with JACOCO_CSV.open(encoding="utf-8") as f:
+        for r in csv.DictReader(f):
+            t = totals[r["PACKAGE"]]
+            for i, k in enumerate(["LINE_MISSED", "LINE_COVERED", "BRANCH_MISSED", "BRANCH_COVERED"]):
+                t[i] += int(r[k])
+
+    def line(name, t):
+        lines, branches = t[0] + t[1], t[2] + t[3]
+        return [name, t[1], lines, round(100 * t[1] / lines, 1) if lines else None,
+                t[3], branches, round(100 * t[3] / branches, 1) if branches else None]
+
+    rows = [line(p, t) for p, t in sorted(totals.items())]
+    total = [sum(t[i] for t in totals.values()) for i in range(4)]
+    rows.append(line("Total", total))
+    return datetime.fromtimestamp(JACOCO_CSV.stat().st_mtime), rows
+
+
 def write(rows, reports):
     wb = Workbook()
     wb.remove(wb.active)
 
     # --- Test Cases ---
-    headers = ["Test ID", "Requirement/Rule IDs", "Title", "Type", "Preconditions", "Steps", "Test data",
-               "Expected result", "Automated or Manual", "Test class and method", "Status", "Tester", "Date",
-               "Actual result", "Written by", "Notes"]
+    headers = ["Test ID", "Requirement/Rule IDs", "Title", "Type", "Test level", "Preconditions", "Steps", "Test data",
+               "Expected result", "Automated or Manual", "Test class and method", "Status", "Run at", "Tester", "Date",
+               "Actual result", HISTORY, "Written by", "Notes"]
+    col = {name: i for i, name in enumerate(headers)}
     lines = []
     for r in rows:
         # One banner line above the first manual case
-        if r["mode"] == "Manual" and (not lines or lines[-1][8] != "Manual"):
+        if r["id"].startswith("MAN-") and (not lines or not str(lines[-1][0] or "").startswith("MAN-")):
             lines.append([None, None, MANUAL_BANNER] + [None] * (len(headers) - 3))
-        lines.append([r["id"], r["ids"], r["title"], r["type"], r["pre"], r["steps"], r["data"], r["expected"],
-                      r["mode"], r["where"], r["status"], r["tester"], r["date"], r["actual"],
-                      WRITTEN_BY[r["by"]], r["notes"]])
-    ws = sheet(wb, "Test Cases", headers, lines, [11, 18, 34, 12, 40, 48, 26, 48, 12, 44, 14, 14, 12, 40, 14, 44])
+        lines.append([r["id"], r["ids"], r["title"], r["type"], r["level"], r["pre"], r["steps"], r["data"],
+                      r["expected"], r["mode"], r["where"], r["status"], r["run_at"], r["tester"], r["date"],
+                      r["actual"], r["history"], WRITTEN_BY[r["by"]], r["notes"]])
+    ws = sheet(wb, "Test Cases", headers, lines,
+               [11, 18, 34, 12, 16, 40, 48, 26, 48, 12, 44, 14, 16, 14, 12, 40, 14, 14, 44])
     # Manual Status is typed in by the tester: offer only Not run / Pass / Fail
     status_choice = DataValidation(type="list", formula1='"' + ",".join(MANUAL_STATUSES) + '"', allow_blank=False)
     ws.add_data_validation(status_choice)
@@ -1628,16 +2018,17 @@ def write(rows, reports):
             for cell in row:
                 cell.fill, cell.font = FILLS["amber"], Font(bold=True)
             continue
-        fill = FILLS.get(row[10].value)
+        fill = FILLS.get(row[col["Status"]].value)
         if fill:
-            row[10].fill = fill
-        if row[8].value == "Manual" and row[10].value != "Retired":
-            status_choice.add(row[10])
-            row[12].number_format = "yyyy-mm-dd"
+            row[col["Status"]].fill = fill
+        if row[col["Automated or Manual"]].value == "Manual" and row[col["Status"]].value != "Retired":
+            status_choice.add(row[col["Status"]])
+            row[col["Date"]].number_format = "yyyy-mm-dd"
 
-    # Retired manual cases stay on the Test Cases sheet only
+    # Retired manual cases stay on the Test Cases sheet only; a replaced manual case is counted through its tests
     retired = [r["id"] for r in rows if r["status"] == "Retired"]
-    rows = [r for r in rows if r["status"] != "Retired"]
+    replaced = [r for r in rows if r["replaces"]]
+    rows = [r for r in rows if r["status"] != "Retired" and not r["replaces"]]
 
     # --- Traceability ---
     auto, known, manual = defaultdict(list), defaultdict(list), defaultdict(list)
@@ -1677,6 +2068,16 @@ def write(rows, reports):
     sheet(wb, "Gaps", ["Gap ID", "Kind", "Description", "Where", "Treatment chosen", "Related tests", "Status"],
           [list(g) for g in GAPS], [11, 22, 60, 34, 32, 40, 30])
 
+    # --- Coverage ---
+    measured, cov = coverage_rows()
+    ws = sheet(wb, "Coverage", ["Package", "Lines covered", "Lines", "Line %", "Branches covered", "Branches",
+                                "Branch %"], cov, [44, 14, 10, 10, 16, 10, 10])
+    ws.append([])
+    ws.append([f"From the JaCoCo report written {measured:%Y-%m-%d %H:%M} (report only, no threshold)." if measured
+               else "No JaCoCo report: run the coverage command in studybuddy/ (see e2e/README.md)."])
+    ws.append(["Command: ./mvnw org.jacoco:jacoco-maven-plugin:0.8.14:prepare-agent test "
+               "org.jacoco:jacoco-maven-plugin:0.8.14:report  (no pom.xml change)"])
+
     # --- Summary ---
     ws = wb.create_sheet("Summary")
     bold = Font(bold=True)
@@ -1697,12 +2098,20 @@ def write(rows, reports):
     after = [sum(statuses.values()), statuses["Pass"], statuses["Fail"], statuses["Skipped"]]
     block("./mvnw test results", ["Run", "Tests run", "Passed", "Failed or errors", "Skipped (known bugs)"],
           [[label, b["run"], b["passed"], b["failed"] + b["errors"], b["skipped"]] for label, b in BASELINES]
-          + [["Last run (this workbook)"] + after])
-    parameterized = [r for r in rows if r.get("runs")]
+          + [[f"Last run (reports written {reports.surefire_at:%Y-%m-%d %H:%M})" if reports.surefire_at
+              else "Last run"] + after])
+    parameterized = [r for r in rows if r.get("parameterized")]
     ws.append([f"Of the last run, {sum(r['runs'] for r in parameterized)} runs come from {len(parameterized)} "
                f"parameterized test methods (one workbook row each)."])
+    e2e = reports.e2e_runs
+    block("Playwright end-to-end results (e2e/)", ["Run started", "Test runs", "Passed", "Failed", "Skipped", "Stale?"],
+          [[f"{reports.e2e_started:%Y-%m-%d %H:%M}" if reports.e2e_started else "No report",
+            sum(e2e.values()), e2e["Pass"], e2e["Fail"], e2e["Skipped"],
+            ("Yes: older than " + ", ".join(reports.e2e_stale)) if reports.e2e_stale else "No"]])
     if retired:
         ws.append([f"Retired manual cases, not counted below: {', '.join(retired)} (IDs never reused)."])
+    ws.append([f"Manual cases replaced by automated tests, counted through those tests and not again below: "
+               f"{len(replaced)} ({', '.join(r['id'] for r in replaced)})."])
 
     automated = [r for r in rows if r["mode"] == "Automated"]
     manual_rows = [r for r in rows if r["mode"] == "Manual"]
@@ -1711,17 +2120,23 @@ def write(rows, reports):
             sum(r["by"] == by for r in rows)] for by in WRITTEN_BY]
           + [["Total", len(automated), len(manual_rows), len(rows)]])
 
+    levels = Counter(r["level"] for r in automated)
+    level_pass = Counter(r["level"] for r in automated if r["status"] == "Pass")
+    block("By test level (one row per test method or e2e test)", ["Test level", "Tests", "Passing"],
+          [[level, levels[level], level_pass[level]] for level in LEVEL_ORDER]
+          + [["Manual (residual checklist)", len(manual_rows), sum(r["status"] == "Pass" for r in manual_rows)],
+             ["Total", len(automated) + len(manual_rows), sum(level_pass.values())]])
+
     status_counts = Counter(r["status"] for r in rows)
     mode_status = Counter((r["mode"], r["status"]) for r in rows)
     block("By status", ["Status", "Automated", "Manual", "Total"],
-          [[s, mode_status[("Automated", s)], mode_status[("Manual", s)], status_counts[s]]
-           for s in ["Pass", "Fail", "Known bug (disabled)", "Not run"]])
+          [[s, mode_status[("Automated", s)], mode_status[("Manual", s)], status_counts[s]] for s in STATUSES])
 
     type_counts = Counter((r["type"], r["mode"]) for r in rows)
     block("By type", ["Type", "Automated", "Manual"],
           [[kind, type_counts[(kind, "Automated")], type_counts[(kind, "Manual")]] for kind in TYPES])
 
-    groups = ["S", "L", "A", "D", "ACC", "CRS", "PRF", "PRE", "REQ", "GRP", "MAT", "SEC", "TD", "K"]
+    groups = ["S", "L", "A", "D", "ACC", "CRS", "PRF", "PRE", "REQ", "GRP", "MAT", "SEC", "UI", "TD", "K"]
     group_rows = []
     for g in groups:
         def in_group(r):
@@ -1738,16 +2153,16 @@ def write(rows, reports):
     coverage = Counter(line[7] for line in trace)
     block("Requirement and rule coverage", ["Coverage", "IDs"], [[c, n] for c, n in sorted(coverage.items())])
     ws.column_dimensions["A"].width = 44
-    for col in "BCDEFG":
-        ws.column_dimensions[col].width = 18
+    for c in "BCDEFG":
+        ws.column_dimensions[c].width = 18
     for row in ws.iter_rows():
         if row[0].value and str(row[0].value).startswith("Total"):
             for cell in row:
                 cell.font = bold
 
-    wb.move_sheet("Summary", offset=-3)
+    wb.move_sheet("Summary", offset=-4)
     wb.save(OUT)
-    return after, status_counts, coverage
+    return after, status_counts, coverage, levels, replaced
 
 
 def main():
@@ -1760,14 +2175,18 @@ def main():
     test_ids = load_test_ids()
     rows = build_rows(sources, reports, previous, test_ids)
     save_test_ids(test_ids, sources)
-    after, status_counts, coverage = write(rows, reports)
-    kept = sum(1 for r in rows if r["mode"] == "Manual" and r["status"] != "Retired"
-               and (r["status"] != "Not run" or r["tester"] or r["date"] or r["actual"]))
-    print(f"Manual results carried over: {kept} of {sum(r['mode'] == 'Manual' for r in rows)} manual cases have a result")
+    after, status_counts, coverage, levels, replaced = write(rows, reports)
+    manual = [r for r in rows if r["mode"] == "Manual" and r["status"] != "Retired"]
+    history = [r["id"] for r in replaced if r["history"]]
+    print(f"Manual cases: {len(replaced)} replaced by automated tests (manual result kept as history for "
+          f"{', '.join(history) or 'none'}); {len(manual)} still manual")
     print(f"Wrote {OUT}")
-    print(f"Last run: {after[0]} run, {after[1]} passed, {after[2]} failed, {after[3]} skipped")
-    print(f"Parameterized: {sum(reports.invocations.values())} runs from {len(reports.invocations)} methods")
-    print(f"Test cases: {len(rows)} ({dict(status_counts)})")
+    print(f"Last ./mvnw test: {after[0]} run, {after[1]} passed, {after[2]} failed, {after[3]} skipped")
+    e2e = reports.e2e_runs
+    print(f"Last Playwright run: {sum(e2e.values())} runs, {e2e['Pass']} passed, {e2e['Fail']} failed, "
+          f"{e2e['Skipped']} skipped" + (f" (started {reports.e2e_started:%Y-%m-%d %H:%M})" if reports.e2e_started else ""))
+    print(f"By level: {dict((level, levels[level]) for level in LEVEL_ORDER)}")
+    print(f"Test cases: {len(rows)} rows ({dict(status_counts)})")
     print(f"Coverage: {dict(coverage)}")
 
 

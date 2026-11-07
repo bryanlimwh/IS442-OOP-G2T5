@@ -1,6 +1,6 @@
 # Study Buddy Matcher: Requirements and Rules
 
-Source: the project brief plus a code scan of main (Oct 2026; updated 2026-10-28 and 2026-10-30 for the public profile page, the full-group note, the team decisions and the fixes to K1, K4, K6 and K12). "Current:" lines say what the code does today. If a test would contradict a "Current:" line, treat it as a Gap to raise, never guess.
+Source: the project brief plus a code scan of main (Oct 2026; updated 2026-10-28 and 2026-10-30 for the public profile page, the full-group note, the team decisions and the fixes to K1, K4, K6 and K12; updated 2026-11-07 for the teammate commits of 2026-11-06: cancel and leave (GRP-8, GRP-9), match request status labels and the phone layout). "Current:" lines say what the code does today. If a test would contradict a "Current:" line, treat it as a Gap to raise, never guess.
 
 ## Brief requirements
 
@@ -14,15 +14,15 @@ Source: the project brief plus a code scan of main (Oct 2026; updated 2026-10-28
 - S5 Filter matches. Current: MatchSearch.accepts (course, goal, mode, group size, sharedTimeOnly). Availability filter means "shares some time" only.
 - S6 View another student's public profile; contact number hidden until a match is accepted.
   Current: GET /students/{id} (PublicProfileController, student/public-profile.html) shows name, programme, year, school, courses and study preferences (StudentProfileService.getPublicProfile/getPublicPreferences), never the contact number or email. Student names on Find matches, Match requests, Study buddies and Manage members link to it. An unknown id, or a deactivated student's (team decision TD-6, 2026-10-30), goes back to /matches with "That student's profile no longer exists." (page since 2026-10-25)
-- S7 Send a buddy request with optional message. Current: MatchRequestService.createRequest, POST /match-requests.
-- S8 Accept or decline; contact number visible after accept. Current: acceptRequest/rejectRequest; contact number only on /connections.
+- S7 Send a buddy request with optional message. Current: MatchRequestService.createRequest, POST /match-requests. The message box on Find study buddies is a labelled multi-line box (maxlength 255). After sending, Match requests shows "Request sent to <name>. Their reply will show under Sent below." and frames the new request under Sent in green (since 2026-11-06).
+- S8 Accept or decline; contact number visible after accept. Current: acceptRequest/rejectRequest; contact number only on /connections. Match requests shows each status as a label: PENDING "Waiting for a reply", ACCEPTED "Accepted", REJECTED "Declined" (MatchRequestStatus.getLabel, since 2026-11-06).
 - S9 View connections and end one. Current: StudyBuddyConnectionService, /connections, POST /connections/{id}/end.
 
 ### Study Group Leader
 - L1 Create a group for a course. Current: StudyGroupService.createGroup, POST /groups. Leader need not take the course (team decision TD-1).
 - L2 Group fields: name, description, goal, mode, availability, max size. A group has exactly one study goal, from the list shared with study preferences; the description covers any extra goals (team decision TD-2).
 - L3 Update or close a group. Current: updateGroup/closeGroup. The course cannot be changed.
-- L4 View join requests. Current: GroupMembershipService.getPendingRequests, GET /groups/{id}/members.
+- L4 View join requests. Current: GroupMembershipService.getPendingRequests, GET /groups/{id}/members. The same page lists members who left, with their reason (GRP-9). A student can cancel their own pending request (GRP-8, POST /groups/{id}/cancel-request) and a member can leave (GRP-9, POST /groups/{id}/leave).
 - L5 Accept or reject join requests.
 - L6 Remove a member.
 
@@ -85,6 +85,13 @@ Source: the project brief plus a code scan of main (Oct 2026; updated 2026-10-28
 - MAT-2 Scores 0 to 1: course 1 or 0; availability = min(overlap minutes / target session, 1); mode and group size 1, 0.8 if either side chose EITHER, otherwise 0; goal 1 or 0. Overall = 100 x sum(score x weight) / sum(weights). The Appendix A example scores 92.
 - MAT-3 Each student appears once with their best result; inactive students are excluded. Ordering: Balanced = score then name; AvailabilityFirst = shared minutes then score; CourseFirst = course score then score.
 - MAT-4 The "either" score must be between 0 and 1 (property).
+
+### Pages (all roles, since 2026-11-06)
+- UI-1 Confirmations use the HTML popover attribute (no JavaScript): the box opens from its button, a quiet button ("Cancel", "Close", "Keep request", "Stay in group") or Esc closes it without changes, and only the box's own submit button sends the form. Used for deleting, ending, closing, rejecting, removing, cancelling a join request and leaving a group.
+- UI-2 Success banners use class "message success" with role "status"; error banners use class "message error" with role "alert". Banners after an action are flash messages, shown once.
+- UI-3 Screens up to 800px wide: the login form comes before the illustration; match and group cards are one column; group slot rows reflow; the tables on User accounts, Study buddies and Study preferences become one card per row, each value labelled with its column name (data-label). The Courses and Profile tables keep their columns and scroll inside their own box (.data-table-wrap).
+- UI-4 One time-slot format on every page: "Wed 19:00-21:00" (AvailabilitySlot.getLabel).
+- UI-5 (test standard proposed with the e2e/ folder, not from the brief) Every main page is checked with axe-core against WCAG 2.0 and 2.1, levels A and AA, at desktop and phone size. Known violations are pinned in e2e/a11y-baseline.json, one entry per page and rule, with the reason; any other violation fails the check.
 
 ### Security
 - SEC-1 Public: /login, /register, /error, /css, /js, /images. ADMIN: /admin/**. STUDENT: /matches, /groups, /match-requests, /connections, /students/** (public profiles), /student/**. Everything else: any logged-in user.

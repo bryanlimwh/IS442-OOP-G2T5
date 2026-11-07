@@ -1,0 +1,11 @@
+{
+  "about": "Known axe violations (WCAG 2.0/2.1 A and AA), one entry per page and rule, with the reason. A violation not listed here fails a11y.spec.js. Remove an entry once it is fixed. Recorded 2026-11-07.",
+  "pages": {
+    "waiting student /groups/mine": {
+      "label-content-name-mismatch": "A11Y-1: the 'Cancel request' button's accessible name is 'Cancel your request to join <group>' (aria-label in fragments/cancel-join-request.html), which doesn't contain the visible words 'Cancel request' (WCAG 2.5.3 Label in Name). A voice-control user saying 'click Cancel request' may not reach it."
+    },
+    "waiting student /groups/{id}": {
+      "label-content-name-mismatch": "A11Y-1: same 'Cancel request' button, on the group's page."
+    }
+  }
+}
