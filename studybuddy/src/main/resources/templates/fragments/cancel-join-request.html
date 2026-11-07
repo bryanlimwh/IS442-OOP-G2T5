@@ -12,7 +12,7 @@
           th:with="popoverId=|confirm-cancel-${groupId}|">
     <!-- The popover attribute opens the box without JavaScript; the id is per group, as My groups lists several -->
     <button type="button" class="button button-danger" th:popovertarget="${popoverId}"
-            th:attr="aria-label=|Cancel your request to join ${groupName}|">Cancel request</button>
+            th:attr="aria-label=|Cancel request to join ${groupName}|">Cancel request</button>
     <div th:id="${popoverId}" class="confirm-popover" popover>
         <p th:text="|Cancel your request to join ${groupName}? If you ask again later, it will count as a new request.|">
             Cancel your request to join IS111 Python Basics?
