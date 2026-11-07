@@ -43,6 +43,10 @@ npx playwright show-report           # screenshots, traces and axe results
 `playwright.config.js` starts the app itself (`mvnw spring-boot:run`) on port **8089**, so it never touches an
 app you have running on 8080, and every run starts with a fresh in-memory database. Port 8089 must be free.
 
+The suite runs 4 workers (browsers in parallel). It starts its own Spring app as well as the browsers, so many
+workers can cause page-load timeouts on machines with little free memory. `npx playwright test --workers=N`
+overrides it.
+
 Projects:
 - `desktop` (1280x800) and `phone` (375x667, touch): run in parallel.
 - `settings`: the spec that changes the matching settings, which every user shares. It runs after the other
@@ -64,7 +68,8 @@ records when the report was made, and marks the e2e rows "Stale" if any e2e file
 
 `a11y.spec.js` runs axe (WCAG 2.0 and 2.1, A and AA) on every main page at desktop and phone size.
 `a11y-baseline.json` lists the violations already known, one entry per page and rule, with the reason. A
-violation that isn't listed fails the test; remove an entry once it is fixed.
+violation that isn't listed fails the test, and so does an entry that no longer occurs, so remove an entry
+once it is fixed. It is empty since A11Y-1 (the Cancel request label) was fixed on 2026-11-07.
 
 ## Coverage report (Java, no pom change)
 

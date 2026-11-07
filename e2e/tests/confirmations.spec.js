@@ -193,7 +193,7 @@ test('cancelling a join request asks first', async ({ page, browser }) => {
   await askToJoin(page, group);
 
   await page.goto('/groups/mine');
-  const cancel = page.getByRole('button', { name: `Cancel your request to join ${group.name}` });
+  const cancel = page.getByRole('button', { name: `Cancel request to join ${group.name}` });
   await cancel.click();
   await expect(openPopover(page)).toContainText(
     `Cancel your request to join ${group.name}? If you ask again later, it will count as a new request.`);

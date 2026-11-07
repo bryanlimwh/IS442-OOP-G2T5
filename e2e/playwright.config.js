@@ -11,6 +11,9 @@ module.exports = defineConfig({
   outputDir: './test-results/artifacts',
   fullyParallel: true,
   retries: 0, // a flaky test should be seen, not hidden
+  // The run starts its own Spring app as well as the browsers; more workers gave page-load timeouts on a machine
+  // with little free memory (see README). --workers=N on the command line overrides this.
+  workers: 4,
   timeout: 60_000,
   expect: { timeout: 10_000 },
   reporter: [
