@@ -72,10 +72,6 @@ public class StudyPreference {
         return course;
     }
 
-    public void setCourse(Course course) {
-        this.course = course;
-    }
-
     public StudyMode getStudyMode() {
         return studyMode;
     }
@@ -108,10 +104,6 @@ public class StudyPreference {
 
     public List<AvailabilitySlot> getAvailabilitySlots() {
         return availabilitySlots;
-    }
-
-    public void setAvailabilitySlots(List<AvailabilitySlot> availabilitySlots) {
-        this.availabilitySlots = availabilitySlots;
     }
 
     public Student getStudent() {

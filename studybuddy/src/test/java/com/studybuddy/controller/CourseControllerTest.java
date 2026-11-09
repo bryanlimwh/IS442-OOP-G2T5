@@ -159,6 +159,22 @@ class CourseControllerTest {
         verifyNoInteractions(courseService);
     }
 
+    // CRS-1, K4: a course name over 255 characters is refused like an over-long code, on add and on update
+    @Test
+    void overLongCourseNameIsRefused() throws Exception {
+        String name = "N".repeat(256);
+        String tooLong = "Course code and course name can be at most 255 characters.";
+
+        mockMvc.perform(post(BASE).param("courseCode", "IS999").param("courseName", name).with(csrf()))
+                .andExpect(redirectedUrl(BASE))
+                .andExpect(flash().attribute("error", tooLong));
+        mockMvc.perform(post(BASE + "/5/update").param("courseCode", "IS443").param("courseName", name).with(csrf()))
+                .andExpect(redirectedUrl(BASE + "?edit=5"))
+                .andExpect(flash().attribute("error", tooLong));
+
+        verifyNoInteractions(courseService);
+    }
+
     // ================= POST /courses/{id}/update =================
 
     // CRS-1

@@ -174,6 +174,17 @@ class StudyPreferenceServiceGapTest {
         assertThat(slots()).hasSize(1);
     }
 
+    // PRE-2: My preferences lists the student's own preferences by course code, not in the order they were made
+    @Test
+    void preferencesAreListedByCourseCode() {
+        service.createPreference(ALEX, cs201.getCourseId(), StudyMode.IN_PERSON, Arrangement.EITHER,
+                StudyGoal.EXAM_PREPARATION);
+        flushAndClear();
+
+        assertThat(service.getPreferences(ALEX)).extracting(p -> p.getCourse().getCourseCode())
+                .containsExactly("CS201", "IS442");
+    }
+
     private void assertOriginalChoices() {
         StudyPreference saved = preferenceRepository.findById(preferenceId).orElseThrow();
         assertThat(saved.getStudyMode()).isEqualTo(StudyMode.ONLINE);

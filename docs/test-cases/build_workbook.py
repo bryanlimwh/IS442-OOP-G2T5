@@ -58,6 +58,8 @@ BASELINES = [
      {"run": 740, "passed": 740, "failed": 0, "errors": 0, "skipped": 0}),
     ("After the full-stack flows, before the coverage-gap tests (2026-11-07)",
      {"run": 781, "passed": 781, "failed": 0, "errors": 0, "skipped": 0}),
+    ("Before the coverage cleanup (2026-11-09: GAP-DEAD1 methods removed, last real coverage gaps tested)",
+     {"run": 784, "passed": 784, "failed": 0, "errors": 0, "skipped": 0}),
 ]
 BATCH_B = "Batch B"
 BATCH_C = "Batch C"
@@ -74,6 +76,7 @@ E2E_PRE = ("End to end: Playwright drives Chromium against the real app, which p
            "groups (random suffix); admins are made by the seeded admin only to add a fresh one, never changed. Google "
            "Fonts are blocked. Projects: desktop (1280x800), phone (375x667, touch), settings (after the others).")
 RESIDUAL = "Residual manual checklist 2026-11-07"
+COVERAGE = "Coverage gaps 2026-11-09"
 FLOW_PRE = ("Full stack: @SpringBootTest + MockMvc with the real services, H2 and SecurityConfig. Browser keeps a real "
             "session, logs in through /login and posts each form with the page's own CSRF token; the persistence context "
             "is flushed and cleared after every request. Every test makes its own admin, students and courses (unique "
@@ -250,7 +253,11 @@ CLASSES = {
     "settings.spec": ("ESE", E2E, E2E_PRE + " Runs in the settings project only, after the others, one test at a time; the matching settings are read first and put back after every test, even a failed one."),
     "layout.spec": ("ELY", E2E, E2E_PRE + " Runs in phone only. Each page's full-page screenshot is attached to the Playwright report."),
     "a11y.spec": ("EAX", E2E, E2E_PRE + " Runs in desktop and phone. axe-core 4.14, WCAG 2.0/2.1 A and AA plus the experimental label-content-name-mismatch rule; e2e/a11y-baseline.json pins known violations."),
-    "GroupMembershipServiceTest": ("GMS", BATCH_B, "@DataJpaTest + GroupMembershipService + StudyGroupService, empty H2. Course IS442 taken by Alex, Ben, Chloe, Emily (Daniel takes nothing). Alex leads 'IS442 Revision', maximum size 4. Own data, rolled back."),
+    # Coverage gaps (2026-11-09)
+    "CourseTest": ("CRE", COVERAGE, "Plain unit test (no Spring, no database). Course ids set by hand (ReflectionTestUtils), as the database would."),
+    "GroupMemberSummaryTest": ("GMY", COVERAGE, "Plain unit test, nothing saved. Alex leads 'IS442 Revision' (IS442, size 4); Ben takes IS442, Daniel takes no courses."),
+    "GroupRequestSummaryTest": ("GRQ", COVERAGE, "Plain unit test, nothing saved. Alex leads 'IS442 Revision' (IS442) with room for 2: Alex and one more; Ben and Chloe ask to join."),
+    "GroupMembershipServiceTest": ("GMS", BATCH_B,"@DataJpaTest + GroupMembershipService + StudyGroupService, empty H2. Course IS442 taken by Alex, Ben, Chloe, Emily (Daniel takes nothing). Alex leads 'IS442 Revision', maximum size 4. Own data, rolled back."),
 }
 
 
@@ -379,7 +386,7 @@ CASES = {
         t("createRulesAreEnforced", "negative", "Create rules", "IS111 (not taken), IS442 (exists), null goal", "-", "IllegalStateException, IllegalStateException, IllegalArgumentException", "PRE-1", SEEDED),
         t("updatePreference", "happy", "Update a preference, slots kept", "updatePreference(Ben IS442)", "-", "Goal changed; 2 slots kept", "S2", SEEDED),
         t("deletingAPreferenceAlsoDeletesItsSlots", "side-effect", "Delete removes slots", "deletePreference(Ben IS442)", "-", "Preference and slots gone", "S2", SEEDED),
-        t("anotherStudentCannotTouchAPreference", "permission", "Only the owner", "get, delete, addSlot as Alex on Ben's preference", "-", "StudyPreferenceNotFoundException each time", "PRE-2", SEEDED),
+        t("anotherStudentCannotTouchAPreference", "permission", "Only the owner", "delete, addSlot as Alex on Ben's preference", "-", "StudyPreferenceNotFoundException each time", "PRE-2", SEEDED + " The get step was dropped on 2026-11-09 with the unused getPreference (GAP-DEAD1)."),
         t("badSlotsAreRejected", "boundary", "Slot order and overlap", "Mon 12-10; Wed 20-22; Wed 21-22", "-", "Two refused; touching slot accepted (3 slots)", "PRE-3", SEEDED),
         t("removeSlot", "happy", "Remove a slot", "removeAvailabilitySlot", "-", "Slot gone; 1 left", "S2, PRE-3", SEEDED),
         t("newPreferenceShowsUpInMatching", "happy", "New preference changes matching", "Ben adds CS201 Fri 13-15; Alex searches CS201", "-", "Ben Koh first", "S2, S3", SEEDED + " K19: relies on random seeded students."),
@@ -426,6 +433,7 @@ CASES = {
         t("lastActiveAdminCannotBeDeactivated", "conflict", "Last active admin can't be deactivated", "One admin (+ a student); deactivateUser(admin)", "-", "LastAdminException; admin still active"),
         t("adminCanBeDeactivatedWhileAnotherIsActive", "happy", "Deactivate one of two admins", "Two admins; deactivateUser", "-", "inactive"),
         t("inactiveAdminDoesNotCountTowardsLastAdminRule", "boundary", "Inactive admin doesn't count", "Active admin + inactive admin; deactivate the active one", "-", "LastAdminException"),
+        t("inactiveAdminCanBeDeactivatedAndDeletedWithOneActiveAdminLeft", "boundary", "An already-inactive admin can be deactivated and deleted", "Active admin + inactive admin; deactivateUser(inactive), then deleteUser(inactive)", "-", "No LastAdminException: still inactive, then gone, although only one admin is active"),
         t("lastActiveAdminCannotBeDeleted", "conflict", "Last active admin can't be deleted", "deleteUser(only admin)", "-", "LastAdminException; still exists"),
         t("adminCanBeDeletedWhileAnotherIsActive", "happy", "Delete one of two admins", "deleteUser", "-", "Account gone"),
         t("deletingStudentWithoutActivityRemovesTheirPreferences", "happy", "Delete student without activity", "Student with a course and a preference with a slot; deleteUser", "-", "Student, preference and slot gone; course kept"),
@@ -508,6 +516,7 @@ CASES = {
         t("postWithoutCsrfTokenIsForbidden", "permission", "POSTs without CSRF refused", "As ADMIN POST add, update, delete without CSRF", "-", "403 each; service not called"),
         t("addCourseStripsAndRedirectsWithSuccess", "happy", "Add a course (values stripped)", "POST /courses", "'  IS999 ', ' Test Course '", "Service gets IS999 / Test Course; flash 'IS999 has been added.'"),
         t("addCourseWithBlankFieldSavesNothing", "negative", "Blank code or missing name", "POST /courses twice", "'   '; name missing", "Flash 'Enter both a course code and a course name.'; service not called"),
+        t("overLongCourseNameIsRefused", "boundary", "Course name over 255 characters refused", "POST /courses; POST /courses/5/update", "name 'N' x 256", "Flash 'Course code and course name can be at most 255 characters.'; add back to /courses, update back to /courses?edit=5; service not called"),
         t("updateCourseRedirectsWithSuccess", "happy", "Rename a course", "POST /courses/5/update", "' IS443 ', 'New Name '", "Service gets stripped values; flash 'IS443 has been updated.'"),
         t("updateCourseWithBlankFieldReturnsToEditForm", "negative", "Blank name on edit", "POST /courses/5/update", "name ' '", "Redirect /courses?edit=5 with the error; service not called"),
         t("updateUnknownCourseShowsError", "negative", "Rename a missing course", "Service throws CourseNotFoundException", "-", "Flash 'That course no longer exists.'"),
@@ -581,6 +590,17 @@ CASES = {
         t("timeOptionsRunFromEarliestToLatestInSteps", "boundary", "Time list 08:00 to 23:00 in 15-minute steps", "timeOptions()", "3, 08:00, 23:00, 15", "61 times from 08:00, 08:15 ... 23:00; no 07:45, 08:10, 23:15"),
         t("timeOptionsStopBeforeMidnight", "boundary", "Time list doesn't wrap at midnight", "timeOptions()", "23:00 to 23:59, 30 minutes", "23:00, 23:30 only"),
         t("unusableSettingsAreRefused", "negative", "Unusable settings stop the app", "new StudyGroupSettings with each bad value", "0 slots; earliest = latest; null earliest; step 0; null sort", "IllegalArgumentException with the property name each time; smallest usable values accepted"),
+        t("missingLatestSlotTimeIsRefused", "negative", "Missing latest slot time stops the app", "new StudyGroupSettings", "3, 08:00, latest null, 15, NEWEST", "IllegalArgumentException 'studybuddy.groups.earliest-slot-time must be before studybuddy.groups.latest-slot-time'"),
+    ],
+    # Coverage gaps (2026-11-09)
+    "CourseTest": [
+        t("separateObjectsWithTheSameIdAreEqual", "happy", "Same course loaded twice is equal", "Two Course objects with id 7; one with id 8", "IS442", "Not the same object, but equal with the same hash code; id 8 not equal"),
+    ],
+    "GroupMemberSummaryTest": [
+        t("memberWithNoCoursesHasAnEmptyCoursesLine", "boundary", "Member with no courses: empty courses line", "Daniel (no courses) and Ben (IS442) join; GroupMemberSummary.from(...).coursesLine()", "-", "Daniel ''; Ben 'Takes IS442'"),
+    ],
+    "GroupRequestSummaryTest": [
+        t("requestToAGroupThatHasSinceFilledShowsFull", "boundary", "Waiting request to a group that has since filled shows full", "Group size 2; Ben asks; Chloe asks and is accepted; GroupRequestSummary.from(Ben's request)", "-", "Before: full() false. After: PENDING, 2 members, full() true"),
     ],
     "GroupSortTest": [
         t("fromNameFallsBackForUnknownNames", "negative", "Unknown sort name falls back", "fromName", "NAME, MOST_PLACES, null, bogus, name", "NAME, MOST_PLACES, then the fallback for the other three"),
@@ -767,7 +787,10 @@ CASES = {
         t("addAndRemoveSlotRowsSaveNothing", "boundary", "Add slot / Remove rows", "POST with addSlot (1 row, then 3 rows), with removeSlot=0 (2 rows)", "-", "2 rows; still 3 (no fourth); only the Tuesday row left; nothing saved"),
         t("editFormIsFilledForTheLeader", "happy", "Edit form", "GET /groups/1/edit?from=mine", "-", "Form filled ('IS442 Revision'); editing summary; minSize 3 (member count)"),
         t("editFormRefusedWithReason", "permission", "Edit refused for non-leader, closed or missing group", "GET edit for groups 2, 3 (closed), 99", "-", "'Only the group's leader can do that.'; 'This group is closed, so it can't be edited.' (from=mine kept); 'That group no longer exists.'"),
-        t("updateGroupRedirectsWithChangesSaved", "happy", "Save changes", "POST /groups/1/edit size 5, from=mine", "-", "Redirect /groups/1?from=mine; flash 'Changes saved.'"),
+        t("saveEditRefusedWithReason", "permission", "Hand-made Save refused for non-leader, closed or missing group", "POST a valid edit form to groups 2, 3 (closed, from=mine), 99", "-", "Same redirects and messages as opening the edit form; updateGroup not called"),
+        t("addOrRemoveSlotOnEditRefusedWithReason", "permission", "Add slot / Remove refused for non-leader, closed or missing group", "POST the edit form with addSlot, then with removeSlot=0, to groups 2, 3 (closed, from=mine), 99", "-", "Same redirects and messages as opening the edit form, for both buttons"),
+        t("updateWithBlankSizeShowsErrorUnderSize", "negative", "Blank size on edit", "POST /groups/1/edit with maxSize ''", "-", "Form shown again; the only maxSize error is 'Please enter a maximum group size'; updateGroup not called"),
+        t("updateGroupRedirectsWithChangesSaved", "happy", "Save changes","POST /groups/1/edit size 5, from=mine", "-", "Redirect /groups/1?from=mine; flash 'Changes saved.'"),
         t("updateBelowMemberCountShowsErrorUnderSize", "boundary", "Size below the member count", "POST /groups/1/edit size 2 (3 members)", "2", "Form again; under size 'The group has 3 members, so the maximum size can't be below 3'; service not called"),
         t("updateRefusedByServiceShowsItsMessage", "negative", "Service refuses the update", "Mock updateGroup throws IllegalArgumentException", "-", "Form again with the message; group read again"),
         t("closeGroupSaysHowManyRequestsEnded", "side-effect", "Close messages", "closeGroup returns 0, 1, 2", "-", "'Group closed.'; '... 1 pending request ended without an answer.'; '... 2 pending requests ended without an answer.'"),
@@ -890,6 +913,7 @@ CASES = {
         t("oneMinuteOverlapIsRefused", "boundary", "One-minute overlap", "Add Mon 11:59-13:00 and Mon 09:00-10:01", "-", "'This slot overlaps one you already have on MONDAY'; still 1 slot"),
         t("incompleteOrEmptySlotIsRefused", "negative", "Slot without day, start or end, or start = end", "addAvailabilitySlot with each", "-", "'A slot needs a day and must end after it starts' x4; still 1 slot"),
         t("removingAnUnknownSlotIsRefused", "negative", "Remove a slot the preference doesn't have", "removeAvailabilitySlot(999999)", "-", "'This preference has no slot 999999'; still 1 slot"),
+        t("preferencesAreListedByCourseCode", "happy", "Own preferences listed by course code", "Alex adds a CS201 preference after IS442; getPreferences", "-", "CS201, IS442"),
     ],
     "MatchRequestServiceGapTest": [
         t("recipientCanSendBackAfterRejecting", "boundary", "Recipient can send back after rejecting", "Alex -> Ben; Ben rejects; Ben -> Alex", "-", "New PENDING request from Ben"),
@@ -1562,9 +1586,9 @@ GAPS = [
     ("GAP-FS1", "Test note", "The full-stack flows run in one rolled-back transaction, so a refusal that the database only makes when it commits can't happen there: deleting a course that is still used (MAN-24) or a student with activity (MAN-20). Those two are tested in the browser (ECF), against a server that really commits. Also: a refused action inside a @Transactional service only marks the shared test transaction for rollback, so any change it made before refusing stays visible to the next page in that test (not seen in any result).", "studybuddy/src/test/java/com/studybuddy/flow/FlowTestSupport.java", "Recorded", "ECF (a course that is still used..., a student who is still used...)", "Recorded."),
     ("GAP-E2E1", "Test note", "An admin can only be created by another admin, so the e2e tests log in as the seeded admin (admin@studybuddy.com, studybuddy.seed.password) only to add a fresh admin; they never change it. The suite therefore needs AdminDataSeeder and that password (or E2E_SEED_ADMIN_PASSWORD).", "e2e/helpers/app.js (newAdmin)", "Recorded", "-", "Recorded."),
     ("GAP-E2E2", "Test note", "Playwright doesn't repeat projects that another project depends on, so --repeat-each=2 on the full suite only repeated the settings project. Independence was proven with desktop + phone repeated (settings left out) plus the settings project repeated on its own.", "e2e/playwright.config.js", "Recorded", "-", "Recorded."),
-    ("GAP-DEAD1", "Dead code (for the team)", "Not called by any production code (found by the coverage report; nothing deleted): AvailabilitySlot.setDayOfWeek, setStartTime, setEndTime, getStudyPreference; StudyPreference.setCourse, setAvailabilitySlots; MatchRequest.setMessage; StudyBuddyConnection.getStudent1, getStudent2; Student.isLeaderOf; StudyPreferenceService.getPreference. MatchRequestService.getRequestById is tested but no page uses it (K7).", "see the Coverage sheet", "(c) List only", "-", "Listed (2026-11-07)."),
-    ("GAP-DEAD2", "Team decision", "Unused methods: left in place by team decision, 2026-11-07.", "see GAP-DEAD1", "Left in place", "-", "Decided (2026-11-07)."),
-    ("GAP-COV1", "Coverage gap (left)", "Not tested on purpose: the seeders' fallbacks for missing seed data, and a leader losing the right to edit between opening and saving the form (StudyGroupController 211-212, 299-300).", "StudyGroupController.java; *DataSeeder.java", "Skipped (agreed 2026-11-07)", "-", "Listed."),
+    ("GAP-DEAD1", "Removed (2026-11-09)", "Not called by any production code (found by the coverage report): AvailabilitySlot.setDayOfWeek, setStartTime, setEndTime, getStudyPreference; StudyPreference.setCourse, setAvailabilitySlots; MatchRequest.setMessage; StudyBuddyConnection.getStudent1, getStudent2; Student.isLeaderOf; StudyPreferenceService.getPreference. All 11 deleted on 2026-11-09 after checking each for Java callers (main and test, incl. method references, overrides and reflection), Thymeleaf expressions, request binding, JPA property access (all entities use field access), derived queries (student1/student2 resolve through the fields, which stay) and Jackson/validation use: none found. The only test caller, StudyPreferenceServiceTest.anotherStudentCannotTouchAPreference, lost its getPreference step. MatchRequestService.getRequestById is tested but no page uses it (K7); it stays.", "AvailabilitySlot.java; StudyPreference.java; MatchRequest.java; StudyBuddyConnection.java; Student.java; StudyPreferenceService.java", "Removed", "SPF (anotherStudentCannotTouchAPreference)", "Removed (2026-11-09)."),
+    ("GAP-DEAD2", "Team decision (reversed 2026-11-09)", "Unused methods: left in place by team decision on 2026-11-07; removed on 2026-11-09 (see GAP-DEAD1). Full Java and browser suites passed before and after.", "see GAP-DEAD1", "Removed", "-", "Reversed (2026-11-09)."),
+    ("GAP-COV1", "Coverage gap (left, narrowed 2026-11-09)", "Still not tested on purpose: the seeders' fallbacks for missing seed data. StudyGroupController 211-212 and 299-300 were described too narrowly here (a leader losing the right to edit between opening and saving the form): any hand-made POST to Save, '+ Add slot' or 'Remove' from a non-leader, or for a closed or missing group, reaches them. Tested since 2026-11-09 (SGC). The other code the coverage report still marks is defensive and can't be reached through the app: a null login email, re-requesting a pending or accepted membership, buddyOf for a student outside the pair, equals() with another type, a group with no slots, and main().", "*DataSeeder.java", "Seeder fallbacks skipped (agreed 2026-11-07); controller lines tested", "SGC (saveEditRefusedWithReason, addOrRemoveSlotOnEditRefusedWithReason)", "Narrowed (2026-11-09)."),
 ]
 
 # --------------------------------------------------------------------------------------
@@ -1749,7 +1773,7 @@ WRITTEN_BY = {"Existing": "Existing (teammates)", "New": "New (Batch A)", BATCH_
               BATCH_E: "New (Batch E)", SYNC: "New (sync 2026-10-28)",
               TD56: "New (2026-10-30)", CANCEL: "New (2026-11-06)", LEAVE: "New (2026-11-06, leave)",
               FLOW: "New (full-stack flows 2026-11-07)", E2E: "New (end to end 2026-11-07)",
-              RESIDUAL: "New (residual manual 2026-11-07)"}
+              RESIDUAL: "New (residual manual 2026-11-07)", COVERAGE: "New (coverage gaps 2026-11-09)"}
 RESULT_COLUMNS = {"tester": "Tester", "date": "Date", "actual": "Actual result"}
 HISTORY = "Manual result (history)"
 

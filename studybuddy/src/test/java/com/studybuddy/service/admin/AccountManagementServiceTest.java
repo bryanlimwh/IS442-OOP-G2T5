@@ -445,6 +445,21 @@ class AccountManagementServiceTest {
         assertThatThrownBy(() -> service.deactivateUser(id)).isInstanceOf(LastAdminException.class);
     }
 
+    // ACC-4: an already-inactive admin isn't an active admin, so the rule never blocks it, even with one active admin left
+    @Test
+    void inactiveAdminCanBeDeactivatedAndDeletedWithOneActiveAdminLeft() {
+        saveAdmin("admin@test.com");
+        Admin inactive = saveAdmin("inactive.admin@test.com");
+        inactive.setActive(false);
+        Long id = inactive.getUserId();
+
+        assertThat(service.deactivateUser(id).active()).isFalse();
+        service.deleteUser(id);
+        flushAndClear();
+
+        assertThat(userRepository.findById(id)).isEmpty();
+    }
+
     // ================= Deleting =================
 
     // ACC-4

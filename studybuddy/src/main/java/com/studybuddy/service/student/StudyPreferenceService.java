@@ -50,10 +50,6 @@ public class StudyPreferenceService {
                 .toList();
     }
 
-    public StudyPreference getPreference(Long preferenceId, String email) {
-        return findOwnPreference(preferenceId, email);
-    }
-
     // Only for a course the student takes, and at most one per course.
     public StudyPreference createPreference(String email, Long courseId,
             StudyMode mode, Arrangement arrangement, StudyGoal goal) {

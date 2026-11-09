@@ -93,10 +93,6 @@ public class Student extends User {
         return !groupsLed.isEmpty();
     }
 
-    public boolean isLeaderOf(StudyGroup group) {
-        return group.isLedBy(this);
-    }
-
     // Implements User's abstract methods so Admin and Student can each answer differently for any code holding a plain User reference.
     @Override
     public String getDisplayName() {
