@@ -63,4 +63,12 @@ class StudyGroupSettingsTest {
         assertThat(new StudyGroupSettings(1, EIGHT, LocalTime.of(8, 1), 1, GroupSort.NAME).timeOptions())
                 .containsExactly(EIGHT, LocalTime.of(8, 1));
     }
+
+    // GRP-7: leaving latest-slot-time out of application.properties stops the app, as a missing earliest time does
+    @Test
+    void missingLatestSlotTimeIsRefused() {
+        assertThatThrownBy(() -> new StudyGroupSettings(3, EIGHT, null, 15, GroupSort.NEWEST))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("studybuddy.groups.earliest-slot-time must be before studybuddy.groups.latest-slot-time");
+    }
 }

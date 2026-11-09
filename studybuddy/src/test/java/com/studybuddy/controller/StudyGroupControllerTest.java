@@ -433,6 +433,44 @@ class StudyGroupControllerTest {
                 .andExpect(flash().attribute("error", GROUP_GONE));
     }
 
+    // L3, GRP-2, GRP-6: a hand-made Save on someone else's, a closed or a missing group is refused like opening it
+    @Test
+    void saveEditRefusedWithReason() throws Exception {
+        stubGroupsAlexCannotEdit();
+
+        assertEditRefused(null);
+        verify(studyGroupService, never()).updateGroup(anyLong(), anyString(), any());
+    }
+
+    // L3, GRP-2, GRP-6, GRP-7: "+ Add slot" and "Remove" on those groups' edit forms are refused the same way
+    @Test
+    void addOrRemoveSlotOnEditRefusedWithReason() throws Exception {
+        stubGroupsAlexCannotEdit();
+
+        assertEditRefused("addSlot");
+        assertEditRefused("removeSlot");
+    }
+
+    // GRP-1, GRP-3: a blank size on the edit form gets the required message only, not the member-count one
+    @Test
+    void updateWithBlankSizeShowsErrorUnderSize() throws Exception {
+        when(studyGroupService.getGroupLedBy(1L, ALEX)).thenReturn(alexsGroup);
+
+        MvcResult result = mockMvc.perform(post(BASE + "/1/edit").param("name", "New Group").param("courseId", "1")
+                        .param("studyGoal", "EXAM_PREPARATION").param("studyMode", "ONLINE").param("maxSize", "")
+                        .param("slots[0].dayOfWeek", "MONDAY")
+                        .param("slots[0].startTime", "10:00").param("slots[0].endTime", "12:00").with(csrf()))
+                .andExpect(status().isOk())
+                .andExpect(view().name("studygroup/form"))
+                .andReturn();
+
+        BindingResult errors = (BindingResult) result.getModelAndView().getModel()
+                .get(BindingResult.MODEL_KEY_PREFIX + "form");
+        assertThat(errors.getFieldErrors("maxSize")).extracting(error -> error.getDefaultMessage())
+                .containsExactly("Please enter a maximum group size");
+        verify(studyGroupService, never()).updateGroup(anyLong(), anyString(), any());
+    }
+
     // L3
     @Test
     void updateGroupRedirectsWithChangesSaved() throws Exception {
@@ -549,6 +587,34 @@ class StudyGroupControllerTest {
                 .param("studyMode", "ONLINE").param("maxSize", String.valueOf(maxSize))
                 .param("slots[0].dayOfWeek", "MONDAY")
                 .param("slots[0].startTime", "10:00").param("slots[0].endTime", "12:00").with(csrf());
+    }
+
+    // Group 2 is led by someone else, group 3 is Alex's but closed, group 99 doesn't exist
+    private void stubGroupsAlexCannotEdit() {
+        when(studyGroupService.getGroupLedBy(2L, ALEX)).thenThrow(new NotGroupLeaderException(2L, 1L));
+        StudyGroup closed = group(3L, "Closed", alex, 4);
+        closed.close();
+        when(studyGroupService.getGroupLedBy(3L, ALEX)).thenReturn(closed);
+        when(studyGroupService.getGroupLedBy(99L, ALEX)).thenThrow(new StudyGroupNotFoundException(99L));
+    }
+
+    // Sends a valid edit form to groups 2, 3 and 99 with the given button (null = Save); each goes back to the group's page
+    private void assertEditRefused(String button) throws Exception {
+        mockMvc.perform(editForm(2L, button)).andExpect(redirectedUrl(BASE + "/2"))
+                .andExpect(flash().attribute("error", NOT_LEADER));
+        mockMvc.perform(editForm(3L, button).param("from", "mine")).andExpect(redirectedUrl(BASE + "/3?from=mine"))
+                .andExpect(flash().attribute("error", "This group is closed, so it can't be edited."));
+        mockMvc.perform(editForm(99L, button)).andExpect(redirectedUrl(BASE + "/99"))
+                .andExpect(flash().attribute("error", GROUP_GONE));
+    }
+
+    private static MockHttpServletRequestBuilder editForm(long groupId, String button) {
+        MockHttpServletRequestBuilder request = validGroupForm(post(BASE + "/" + groupId + "/edit"));
+        if (button == null) {
+            return request;
+        }
+        // "Remove" sends the row to remove; "+ Add slot" only needs to be present
+        return request.param(button, "removeSlot".equals(button) ? "0" : "true");
     }
 
     // An open group with its id, one Monday slot, and the given members accepted
