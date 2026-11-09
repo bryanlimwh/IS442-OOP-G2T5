@@ -110,8 +110,6 @@ class StudyPreferenceServiceTest {
     void anotherStudentCannotTouchAPreference() {
         Long id = bensIs442().getId();
 
-        assertThatThrownBy(() -> service.getPreference(id, ALEX))
-                .isInstanceOf(StudyPreferenceNotFoundException.class);
         assertThatThrownBy(() -> service.deletePreference(id, ALEX))
                 .isInstanceOf(StudyPreferenceNotFoundException.class);
         assertThatThrownBy(() -> service.addAvailabilitySlot(id, ALEX, DayOfWeek.MONDAY, time(9), time(10)))

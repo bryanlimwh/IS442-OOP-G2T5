@@ -58,12 +58,4 @@ public class StudyBuddyConnection extends BaseEntity {
     public Long getId() {
         return id;
     }
-
-    public Student getStudent1() {
-        return student1;
-    }
-
-    public Student getStudent2() {
-        return student2;
-    }
 }

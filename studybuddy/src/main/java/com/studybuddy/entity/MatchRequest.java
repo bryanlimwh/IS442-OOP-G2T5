@@ -73,10 +73,6 @@ public class MatchRequest extends BaseEntity {
         return message;
     }
 
-    public void setMessage(String message) {
-        this.message = message;
-    }
-
     public MatchRequestStatus getStatus() {
         return status;
     }
